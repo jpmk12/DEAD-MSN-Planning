@@ -42,5 +42,5 @@ export async function fetchTafs(icaos, signal) {
   if (icaos.length === 0) return [];
   const url = `${BASE}/taf?ids=${encodeURIComponent(icaos.join(','))}&format=json`;
   const data = await getJson(url, signal);
-  return data.map((t) => ({ icao: t.icaoId, rawTaf: t.rawTAF ?? '' }));
+  return data.map((t) => ({ icao: t.icaoId, rawTaf: t.rawTAF ?? t.rawOb ?? t.raw_text ?? t.rawText ?? '' }));
 }

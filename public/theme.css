@@ -157,6 +157,8 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .comp .box.tw .val { color: var(--caution); }
 .gust-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
 
+.rwys-cap { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; margin: 2px 0 4px; }
+.rwys-cap b { color: var(--accent); font-weight: 600; }
 .rwys { display: flex; flex-direction: column; gap: 3px; }
 .rwy-row { display: grid; grid-template-columns: 56px 1fr 1fr 18px; align-items: center; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 6px; }
 .rwy-row.active { background: rgba(55,182,195,0.1); }

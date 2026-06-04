@@ -187,7 +187,9 @@ function hazardWxSection(brief) {
 }
 
 function tafSection(brief) {
-  if (!brief.taf) return '';
+  if (!brief.taf) {
+    return sectionEl('TAF (decoded)', '<div class="readout" style="font-size:12px">No TAF retrieved for this field (many fields don\'t issue TAFs; live TAFs appear here when available).</div>', false);
+  }
   const d = brief.tafDecoded;
   let decoded = '';
   if (d && d.periods && d.periods.length) {
@@ -202,7 +204,7 @@ function tafSection(brief) {
   }
   const inner = `<div class="taf-decoded">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
     <div class="taf raw-taf" style="display:none">${esc(brief.taf)}</div>`;
-  return sectionEl(`TAF <span class="taf-toggle" data-taf-raw>show raw</span>`, inner, true);
+  return sectionEl(`TAF (decoded) <span class="taf-toggle" data-taf-raw>show raw</span>`, inner, true);
 }
 
 function pirepSection(brief) {
@@ -295,6 +297,7 @@ function card(brief, limits) {
         ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}"><div class="k">Bird Risk</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
       </div>
       ${windBlock(brief, selRwy, limits)}
+      ${a.active ? '<div class="rwys-cap">All runways — <b>tap any runway to compare its crosswind ↑</b></div>' : ''}
       <div class="rwys">${runwayRows(a, brief)}</div>
       ${warns}`;
   } else {
