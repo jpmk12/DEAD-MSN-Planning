@@ -113,8 +113,12 @@ added, and cards avoid page breaks. Save-as-PDF for a kneeboard copy.
 
 ## Deploy (GoDaddy / generic Node host)
 
-- Entry point: `npm start` → `node server/index.js`.
-- Port: respects `process.env.PORT` (defaults to 8787).
+- Entry point: `npm start` → `node server/index.js` (also in `Procfile`).
+- Binds `0.0.0.0` and respects `process.env.PORT` (defaults to 8787); override
+  the host with `HOST` if needed.
+- Install step: `npm ci` (or `npm install`) — installs **zero** dependencies
+  from the committed `package-lock.json`; no build, no native modules.
+- Health check: `GET /healthz` returns `{ "ok": true }`.
 - No build, no `npm install` of native deps required.
 - Optional env for live NOTAMs: `FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`
   (host env vars, or a `.env` file at the repo root).

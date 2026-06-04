@@ -96,12 +96,18 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === '/healthz' || url.pathname === '/api/health') {
+      sendJson(res, 200, { ok: true, service: 'c17-mission-planner', time: new Date().toISOString() });
+      return;
+    }
+
     await serveStatic(res, url.pathname);
   } catch (err) {
     sendJson(res, 500, { error: String(err) });
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`C-17 Mission Planner on http://localhost:${PORT}`);
+const HOST = process.env.HOST ?? '0.0.0.0';
+server.listen(PORT, HOST, () => {
+  console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
 });
