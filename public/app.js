@@ -315,8 +315,11 @@ function card(brief, limits) {
     body = `<div class="readout">No weather observation available for this field.</div>`;
   }
 
-  const notams = sectionEl(`NOTAMs <span class="count">${brief.notams.length}</span>`,
-    `<div class="notams">${brief.notams.length ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, true);
+  // Live NOTAM counts can be large (80+), so collapse by default when there are
+  // many; the highest-priority items are already ranked first.
+  const nCount = brief.notams.length;
+  const notams = sectionEl(`NOTAMs <span class="count">${nCount}</span>`,
+    `<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, nCount > 0 && nCount <= 8);
   const taf = tafSection(brief);
 
   return `<div class="card" data-icao="${esc(ap.icao)}">
