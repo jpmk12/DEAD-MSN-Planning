@@ -1,20 +1,16 @@
 // Airfield analysis: combine runway geometry + observation into a brief.
 
-import type {
-  AircraftLimits,
-  AirfieldAnalysis,
-  Airport,
-  Observation,
-  RunwayWind,
-} from './types';
-import { magToTrue, windComponents } from './wind';
-import { computeAltitudes } from './density';
+import { magToTrue, windComponents } from './wind.js';
+import { computeAltitudes } from './density.js';
+
+function windIsIndeterminate(wind) {
+  return wind.dirTrue === null || wind.dirTrue === 'VRB' || wind.speedKt === 0;
+}
 
 /** Compute per-runway wind components for an airport given an observation. */
-export function analyzeRunways(airport: Airport, obs: Observation): RunwayWind[] {
+export function analyzeRunways(airport, obs) {
   const { wind } = obs;
-  const indeterminate =
-    wind.dirTrue === null || wind.dirTrue === 'VRB' || wind.speedKt === 0;
+  const indeterminate = windIsIndeterminate(wind);
 
   return airport.runways.map((rwy) => {
     const trueHeading = magToTrue(rwy.magHeading, airport.magVar);
@@ -31,9 +27,8 @@ export function analyzeRunways(airport: Airport, obs: Observation): RunwayWind[]
       };
     }
 
-    const dir = wind.dirTrue as number;
-    const c = windComponents(trueHeading, dir, wind.speedKt);
-    const result: RunwayWind = {
+    const c = windComponents(trueHeading, wind.dirTrue, wind.speedKt);
+    const result = {
       ident: rwy.ident,
       magHeading: rwy.magHeading,
       trueHeading,
@@ -44,7 +39,7 @@ export function analyzeRunways(airport: Airport, obs: Observation): RunwayWind[]
     };
 
     if (wind.gustKt != null && wind.gustKt > wind.speedKt) {
-      const g = windComponents(trueHeading, dir, wind.gustKt);
+      const g = windComponents(trueHeading, wind.dirTrue, wind.gustKt);
       result.gustHeadwindKt = g.headwindKt;
       result.gustCrosswindKt = g.crosswindKt;
     }
@@ -53,24 +48,19 @@ export function analyzeRunways(airport: Airport, obs: Observation): RunwayWind[]
 }
 
 /** Pick the runway with the most headwind (least tailwind). */
-export function selectActiveRunway(runways: RunwayWind[]): RunwayWind | null {
+export function selectActiveRunway(runways) {
   if (runways.length === 0) return null;
   return runways.reduce((best, r) => (r.headwindKt > best.headwindKt ? r : best));
 }
 
-export function analyzeAirfield(
-  airport: Airport,
-  obs: Observation,
-  limits: AircraftLimits,
-): AirfieldAnalysis {
+export function analyzeAirfield(airport, obs, limits) {
   const runways = analyzeRunways(airport, obs);
-  const windIndeterminate =
-    obs.wind.dirTrue === null || obs.wind.dirTrue === 'VRB' || obs.wind.speedKt === 0;
+  const windIndeterminate = windIsIndeterminate(obs.wind);
   const active = windIndeterminate ? null : selectActiveRunway(runways);
 
-  let pressureAltitudeFt: number | null = null;
-  let densityAltitudeFt: number | null = null;
-  let isaDeviationC: number | null = null;
+  let pressureAltitudeFt = null;
+  let densityAltitudeFt = null;
+  let isaDeviationC = null;
   if (obs.altimHpa != null && obs.tempC != null) {
     const a = computeAltitudes(airport.elevationFt, obs.altimHpa, obs.tempC);
     pressureAltitudeFt = Math.round(a.pressureAltitudeFt);
@@ -78,7 +68,7 @@ export function analyzeAirfield(
     isaDeviationC = Math.round(a.isaDeviationC);
   }
 
-  const warnings: string[] = [];
+  const warnings = [];
   if (windIndeterminate) {
     warnings.push('Wind is calm or variable — runway selection is at pilot discretion.');
   } else if (active) {

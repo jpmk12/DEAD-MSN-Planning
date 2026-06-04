@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0e14" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./theme.css" />
+    <title>C-17 Mission Planner</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <img class="logo" src="./icon.svg" alt="" />
+        <div>
+          <h1>C-17 MISSION PLANNER</h1>
+          <div class="subtitle">Weather · NOTAMs · Hazards · Wind &amp; Pattern Analysis</div>
+        </div>
+        <div class="spacer"></div>
+        <span id="wx-source" class="pill">—</span>
+        <span id="notam-source" class="pill">—</span>
+      </header>
+
+      <section class="controls">
+        <div class="row">
+          <div class="field grow">
+            <label for="icaos">Airfields (ICAO, space or comma separated)</label>
+            <input id="icaos" type="text" value="KCHS KSUU KWRI PHIK KEDW" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="field num">
+            <label for="xwind">Xwind limit</label>
+            <input id="xwind" type="number" value="25" min="1" />
+          </div>
+          <div class="field num">
+            <label for="tailwind">Tailwind</label>
+            <input id="tailwind" type="number" value="10" min="1" />
+          </div>
+          <div class="field num">
+            <label for="highda">High DA</label>
+            <input id="highda" type="number" value="5000" min="1" step="100" />
+          </div>
+          <button id="go" class="go">Build Brief</button>
+        </div>
+        <div class="row" style="margin-top: 10px; justify-content: space-between;">
+          <label class="toggle"><input id="offline" type="checkbox" /> Use offline/demo data</label>
+          <div id="quick" class="chips"></div>
+        </div>
+      </section>
+
+      <main id="results">
+        <div class="empty">Enter airfields and build a brief.</div>
+      </main>
+
+      <footer class="footer">
+        Planning aid only — verify with official sources. Limits are user-set placeholders, not -1/TO values.
+      </footer>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -5,6 +5,14 @@
 > the app *analyze* the winds to tell you the active runway and crosswind
 > component for pattern operations.
 
+> **Architecture note (deploy-driven):** the app is built **zero-dependency,
+> no-build** — plain-JS Node backend (built-ins only) + a static vanilla
+> frontend. The GoDaddy deploy sandbox blocks native postinstall binaries
+> (esbuild's `EACCES`), so bundler toolchains (Vite/tsx/vitest) can't run there.
+> Plain JS + static files deploy cleanly: `npm install` pulls nothing
+> problematic, `npm start` runs `node server/index.js`. Tests use the built-in
+> `node --test` runner. See README for layout.
+
 ---
 
 ## 1. The Vision

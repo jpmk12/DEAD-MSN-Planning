@@ -1,56 +1,68 @@
 # C-17 Mission Planner
 
 One-stop planning for C-17 training sorties: weather, NOTAMs, hazards, and —
-the headline feature — **wind/pattern analysis** that picks the active runway
-and computes head/cross/tailwind components, with magnetic↔true done right.
+the headline feature — **wind/pattern analysis** that picks the active runway,
+computes head/cross/tailwind components (magnetic↔true done right), and
+cross-references NOTAM runway closures against the wind-optimal runway.
 
 See [`PLANNING.md`](./PLANNING.md) for the full design, data-source survey, and roadmap.
 
-## What's built so far
+## Zero-dependency by design
 
-**1. Analysis engine** (`src/core/`) — pure, unit-tested, no network:
-- `wind.ts` — magnetic→true conversion + head/cross/tailwind components.
-- `density.ts` — pressure altitude, density altitude, ISA deviation.
-- `analyze.ts` — per-runway analysis, active-runway selection, limit warnings
-  (crosswind / gust crosswind / tailwind / high density altitude).
-- Handles the correctness traps: METAR winds are **true** while runway numbers
-  are **magnetic**; surveyed heading ≠ designator×10; gusts; calm/`VRB` winds.
+This app ships with **no npm dependencies and no build step** — just Node
+built-ins and a static frontend. That's deliberate: the deploy sandbox blocks
+native postinstall binaries (e.g. esbuild), so bundlers like Vite/tsx/vitest
+can't run there. Plain JS + static files deploy cleanly anywhere Node runs.
 
-**2. Data layer** (`src/data/`):
-- `awc.ts` — NOAA Aviation Weather Center METAR/TAF client (free, no key).
-- `airports.ts` — runway/airfield reference lookup (currently the bundled
-  curated dataset in `data/airports.json`; this is the seam where FAA NASR /
-  OpenAIP ingest plugs in).
-
-**3. Demo CLI** (`src/cli.ts`) — fetches weather, runs the engine, prints a
-kneeboard-style brief. Tries live AWC, falls back to the bundled fixture when
-the network is unavailable.
+```
+server/                 Node backend (built-ins only)
+  core/                 pure analysis engine
+    geo.js              angle helpers
+    wind.js             magnetic→true + head/cross/tailwind components
+    density.js          pressure / density altitude
+    analyze.js          per-runway analysis, active-runway selection, warnings
+    *.test.js           node:test suites (the safety-relevant math)
+  data/                 airports.js, awc.js, notams.js, weather.js
+  brief.js              assembles weather + analysis + ranked NOTAMs + status
+  index.js              HTTP server (API + static), entry point
+  cli.js                terminal demo
+public/                 static frontend (no framework, no build)
+  index.html, app.js, theme.css, manifest.webmanifest, sw.js, icon.svg
+data/                   curated airport dataset + offline fixtures
+```
 
 ## Run it
 
 ```bash
-npm install
-npm test                     # 21 tests — the safety-relevant math
-npm run demo                 # brief for the default demo airfields
-npm run demo -- KCHS KEDW    # specific airfields
-npm run demo -- --offline    # force bundled fixture (no network)
-npm run typecheck
+npm test          # 21 tests via node --test (no deps, no build)
+npm start         # serve the app at http://localhost:8787
+npm run demo      # terminal brief for the default airfields
 ```
 
-Example brief (Edwards, hot/high with gusty wind):
+Then open <http://localhost:8787>. Tick **Use offline/demo data** to run without
+network (uses bundled fixtures), or leave it off to pull live AWC weather.
 
-```
- KEDW — Edwards AFB, CA
- OBS 16:56Z  WIND 240/28G38 (true)  TEMP 34°C  ALT 1009 hPa
- Field elev 2312 ft   PA 2438 ft   DA 5297 ft (ISA +24°C)
+## What it does
 
- ACTIVE RWY 22R  (true 232°)
-   Headwind 28 kt      Crosswind 4 kt from RIGHT
-   Gust:  Headwind 38 kt   Crosswind 5 kt
- Warnings:
-   ⚠ Density altitude 5297 ft is high — expect degraded ... performance.
- STATUS: CAUTION
-```
+- **Weather** — live METAR/TAF from NOAA AWC (free, no key), with density
+  altitude, pressure altitude, and ISA deviation computed locally.
+- **Wind/pattern analysis** — per-runway head/cross/tailwind, active-runway
+  recommendation, gust components, calm/`VRB` handling, and an SVG wind compass.
+  Handles the correctness traps: METAR winds are **true**, runway numbers are
+  **magnetic**; surveyed heading ≠ designator×10.
+- **NOTAMs** — fetched (FAA NOTAM API when `FAA_NOTAM_CLIENT_ID`/`_SECRET` are
+  set; fixture otherwise), then **categorized and ranked** so runway/approach/
+  lighting items surface first.
+- **Smart synthesis** — if the wind-optimal runway is closed by NOTAM, the brief
+  says so and recommends the best **open** runway. A GO/CAUTION/NO-GO status
+  light rolls up wind limits, density altitude, and closures per field.
+
+## Deploy (GoDaddy / generic Node host)
+
+- Entry point: `npm start` → `node server/index.js`.
+- Port: respects `process.env.PORT` (defaults to 8787).
+- No build, no `npm install` of native deps required.
+- Optional env for live NOTAMs: `FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`.
 
 ## Important caveats
 
@@ -58,11 +70,11 @@ Example brief (Edwards, hot/high with gusty wind):
 - `data/airports.json` is **illustrative**: runway headings, elevations, and
   magnetic variation are approximate and must be replaced by FAA NASR (CONUS) /
   OpenAIP (OCONUS) before operational use.
-- Aircraft limits in the CLI are **placeholders**, not official -1/TO values —
-  set them in `src/cli.ts` (`LIMITS`).
+- Aircraft limits are **user-configurable placeholders**, not official -1/TO
+  values (set them in the UI controls or via `xwind`/`tailwind`/`highda` query
+  params).
 
 ## Next steps (see PLANNING.md §5)
 
-NASR/OpenAIP ingest · FAA NOTAM API + categorization · TFR/SUA/RAIM · AHAS/BAM
-bird hazards · winds-aloft for pattern altitude · responsive PWA frontend +
-kneeboard PDF export.
+NASR/OpenAIP ingest · live FAA NOTAM credentials · TFR/SUA/RAIM · AHAS/BAM bird
+hazards · winds-aloft for pattern altitude · kneeboard PDF export.

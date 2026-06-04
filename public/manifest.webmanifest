@@ -1,0 +1,14 @@
+{
+  "name": "C-17 Mission Planner",
+  "short_name": "MSN Planner",
+  "description": "One-stop C-17 sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e14",
+  "theme_color": "#0a0e14",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "KCHS 06/012",
+    "icao": "KCHS",
+    "text": "RWY 15/33 CLSD",
+    "effectiveStart": "2026-06-04T12:00:00Z",
+    "effectiveEnd": "2026-06-04T22:00:00Z"
+  },
+  {
+    "id": "KCHS 06/008",
+    "icao": "KCHS",
+    "text": "RWY 03 PAPI U/S",
+    "effectiveStart": "2026-06-01T00:00:00Z",
+    "effectiveEnd": "2026-06-30T23:59:00Z"
+  },
+  {
+    "id": "KCHS 06/021",
+    "icao": "KCHS",
+    "text": "TWY E BTN TWY E4 AND TWY E6 CLSD",
+    "effectiveStart": "2026-06-03T05:00:00Z",
+    "effectiveEnd": "2026-06-10T23:59:00Z"
+  },
+  {
+    "id": "KCHS 06/004",
+    "icao": "KCHS",
+    "text": "OBST CRANE 1.2 NM SW APCH RWY 03 312FT AGL FLAGGED AND LGTD",
+    "effectiveStart": "2026-05-20T00:00:00Z",
+    "effectiveEnd": "2026-07-15T23:59:00Z"
+  },
+  {
+    "id": "KEDW 06/033",
+    "icao": "KEDW",
+    "text": "GPS RAIM UNREL WI 200NM RADIUS OF KEDW",
+    "effectiveStart": "2026-06-04T14:00:00Z",
+    "effectiveEnd": "2026-06-04T18:00:00Z"
+  },
+  {
+    "id": "KEDW 06/030",
+    "icao": "KEDW",
+    "text": "RWY 22R ILS U/S",
+    "effectiveStart": "2026-06-02T00:00:00Z",
+    "effectiveEnd": "2026-06-09T23:59:00Z"
+  },
+  {
+    "id": "KEDW 06/019",
+    "icao": "KEDW",
+    "text": "BIRD ACTIVITY VICINITY ARPT",
+    "effectiveStart": "2026-06-04T00:00:00Z",
+    "effectiveEnd": "2026-06-04T23:59:00Z"
+  },
+  {
+    "id": "KSUU 06/015",
+    "icao": "KSUU",
+    "text": "TWY A LGT U/S",
+    "effectiveStart": "2026-06-01T00:00:00Z",
+    "effectiveEnd": "2026-06-20T23:59:00Z"
+  },
+  {
+    "id": "PHIK 06/009",
+    "icao": "PHIK",
+    "text": "RWY 08L/26R REIL U/S",
+    "effectiveStart": "2026-06-01T00:00:00Z",
+    "effectiveEnd": "2026-06-14T23:59:00Z"
+  },
+  {
+    "id": "KWRI 06/002",
+    "icao": "KWRI",
+    "text": "ARRESTING GEAR RWY 06 U/S",
+    "effectiveStart": "2026-06-03T00:00:00Z",
+    "effectiveEnd": "2026-06-12T23:59:00Z"
+  }
+]
