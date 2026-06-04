@@ -41,7 +41,7 @@ async function getToken(signal, force = false) {
   const res = await fetch(`${c.base}/v1/auth/token`, {
     method: 'POST',
     signal,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${auth}` },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${auth}`, 'User-Agent': 'C17MissionPlanner/1.0' },
     body: 'grant_type=client_credentials',
   });
   if (!res.ok) throw new Error(`NMS auth ${res.status}`);
@@ -56,7 +56,7 @@ async function fetchLocation(icao, token, signal) {
   const url = `${c.base}/nmsapi/v1/notams?location=${encodeURIComponent(icao)}`;
   const res = await fetch(url, {
     signal,
-    headers: { Authorization: `Bearer ${token}`, nmsResponseFormat: 'GEOJSON', Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, nmsResponseFormat: 'GEOJSON', Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' },
   });
   if (res.status === 401) { const e = new Error('NMS 401'); e.code = 401; throw e; }
   if (!res.ok) throw new Error(`NMS notams ${res.status}`);

@@ -124,7 +124,7 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
   let live = false;
   if (!offline && lat != null && lon != null) {
     try {
-      const res = await fetch(buildUrl(lat, lon), { signal, headers: { Accept: 'application/json' } });
+      const res = await fetch(buildUrl(lat, lon), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
       if (res.ok) { json = await res.json(); live = true; }
     } catch {
       /* fall through to fixture */

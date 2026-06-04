@@ -76,7 +76,7 @@ async function fetchFaa(icao, signal) {
   const url = `${FAA_BASE}?domesticLocation=${encodeURIComponent(icao)}&pageSize=50`;
   const res = await fetch(url, {
     signal,
-    headers: { client_id: clientId, client_secret: clientSecret, Accept: 'application/json' },
+    headers: { client_id: clientId, client_secret: clientSecret, Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' },
   });
   if (!res.ok) throw new Error(`FAA NOTAM ${res.status}`);
   const json = await res.json();

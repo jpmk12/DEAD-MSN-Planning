@@ -25,8 +25,12 @@ export function mapAwcMetar(m) {
   };
 }
 
+// Some government endpoints (incl. aviationweather.gov) reject requests that
+// lack a descriptive User-Agent. Without this, live data can silently 403.
+export const USER_AGENT = 'C17MissionPlanner/1.0 (mission planning; contact: ops)';
+
 async function getJson(url, signal) {
-  const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`AWC ${res.status} ${res.statusText} for ${url}`);
   return res.json();
 }
@@ -35,12 +39,14 @@ export async function fetchMetars(icaos, signal) {
   if (icaos.length === 0) return [];
   const url = `${BASE}/metar?ids=${encodeURIComponent(icaos.join(','))}&format=json`;
   const data = await getJson(url, signal);
-  return data.map(mapAwcMetar);
+  return (Array.isArray(data) ? data : []).map(mapAwcMetar);
 }
 
 export async function fetchTafs(icaos, signal) {
   if (icaos.length === 0) return [];
   const url = `${BASE}/taf?ids=${encodeURIComponent(icaos.join(','))}&format=json`;
   const data = await getJson(url, signal);
-  return data.map((t) => ({ icao: t.icaoId, rawTaf: t.rawTAF ?? t.rawOb ?? t.raw_text ?? t.rawText ?? '' }));
+  return (Array.isArray(data) ? data : [])
+    .map((t) => ({ icao: t.icaoId, rawTaf: t.rawTAF ?? t.rawOb ?? t.raw_text ?? t.rawText ?? '' }))
+    .filter((t) => t.icao);
 }

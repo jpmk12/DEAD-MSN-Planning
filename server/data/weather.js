@@ -14,21 +14,29 @@ async function loadFixtureObs(icaos) {
   return arr.filter((m) => wanted.has(m.icaoId.toUpperCase())).map(mapAwcMetar);
 }
 
-/** @returns {Promise<{obs:any[], tafs:Map<string,string>, live:boolean}>} */
+/** @returns {Promise<{obs:any[], tafs:Map<string,string>, live:boolean, tafLive:boolean}>} */
 export async function loadWeather(icaos, offline) {
   if (!offline) {
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 8000);
-      const obs = await fetchMetars(icaos, ctrl.signal);
-      const tafList = await fetchTafs(icaos, ctrl.signal).catch(() => []);
+      const [obs, tafList] = await Promise.all([
+        fetchMetars(icaos, ctrl.signal),
+        fetchTafs(icaos, ctrl.signal).catch(() => []),
+      ]);
       clearTimeout(t);
       if (obs.length > 0) {
-        return { obs, tafs: new Map(tafList.map((t) => [t.icao.toUpperCase(), t.rawTaf])), live: true };
+        // Build the TAF map defensively — a single malformed entry must not
+        // wipe out the (working) live METARs.
+        const tafs = new Map();
+        for (const tf of tafList) {
+          if (tf && tf.icao) tafs.set(String(tf.icao).toUpperCase(), tf.rawTaf || '');
+        }
+        return { obs, tafs, live: true, tafLive: tafs.size > 0 };
       }
     } catch {
       // fall through to fixture
     }
   }
-  return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false };
+  return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false, tafLive: false };
 }

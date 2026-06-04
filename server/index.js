@@ -16,6 +16,8 @@ import { buildRouteWinds } from './winds.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
+import { fetchMetars, fetchTafs } from './data/awc.js';
+import { nmsConfigured } from './data/nms.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -165,6 +167,23 @@ const server = createServer(async (req, res) => {
       } catch (err) {
         sendJson(res, 503, { error: 'database unavailable', detail: String(err) });
       }
+      return;
+    }
+
+    if (url.pathname === '/api/diag') {
+      const field = (url.searchParams.get('ids') || 'KCHS').split(',')[0].trim().toUpperCase();
+      const out = {
+        time: new Date().toISOString(),
+        node: process.version,
+        notamSource: nmsConfigured() ? 'NMS-API' : process.env.FAA_NOTAM_CLIENT_ID ? 'FAA legacy' : 'fixture (no NOTAM credentials set)',
+        env: { NMS_CLIENT_ID: !!process.env.NMS_CLIENT_ID, FAA_NOTAM_CLIENT_ID: !!process.env.FAA_NOTAM_CLIENT_ID, DB: dbConfigured() },
+        testField: field,
+      };
+      try { const m = await fetchMetars([field]); out.metar = { live: true, count: m.length, sample: (m[0]?.rawText || '').slice(0, 70) }; }
+      catch (e) { out.metar = { live: false, error: String(e).slice(0, 200) }; }
+      try { const t = await fetchTafs([field]); out.taf = { live: true, count: t.length, sample: (t[0]?.rawTaf || '').slice(0, 90) }; }
+      catch (e) { out.taf = { live: false, error: String(e).slice(0, 200) }; }
+      sendJson(res, 200, out);
       return;
     }
 
