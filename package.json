@@ -10,9 +10,10 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "build": "node -e \"console.log('no build step: static frontend + zero-dependency Node server')\"",
+    "build": "echo build",
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
     "test": "node --test"
-  }
+  },
+  "dependencies": {}
 }
