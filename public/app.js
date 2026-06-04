@@ -89,6 +89,25 @@ function runwayRows(a, brief) {
   }).join('');
 }
 
+const BIRD_COLOR = { LOW: 'var(--go)', MODERATE: 'var(--caution)', SEVERE: 'var(--nogo)' };
+
+function windsAloftSection(brief) {
+  const wa = brief.windsAloft;
+  if (!wa || !wa.profile.length) return '';
+  const rows = wa.profile
+    .slice()
+    .reverse()
+    .map((p) => {
+      const lbl = p.altFt >= 1000 ? (p.altFt / 1000).toFixed(1) + 'k' : String(p.altFt);
+      return `<div class="as-row"><span class="cat cat-LIGHTING">${esc(lbl)}</span>
+        <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt</div></div></div>`;
+    })
+    .join('');
+  const t = wa.time ? `<span class="count">${esc(wa.time.slice(11, 16))}Z fcst</span>` : '';
+  return `<div><div class="section-title">Winds Aloft ${t}</div>
+    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+}
+
 function airspaceSection(brief) {
   const as = brief.airspace;
   if (!as) return '';
@@ -145,12 +164,16 @@ function card(brief, limits) {
         ? `<span style="color:var(--caution);font-size:11px">(wind-best ${esc(active.ident)} closed)</span>` : '';
       const gust = active.gustCrosswindKt != null
         ? `<div class="gust-note">gust: HW ${fmt(Math.abs(active.gustHeadwindKt))} · XW ${fmt(active.gustCrosswindKt)} kt</div>` : '';
+      const pw = brief.patternWind;
+      const pwLine = pw
+        ? `<div class="gust-note" style="color:var(--accent)">pattern @${pw.altFt.toLocaleString()} MSL: ${String(pw.dirTrue).padStart(3, '0')}/${pw.speedKt} → HW ${pw.headwindKt} · XW ${pw.crosswindKt}${pw.crosswindSide !== 'none' ? ' ' + pw.crosswindSide[0].toUpperCase() : ''}</div>`
+        : '';
       windReadout = `
         <div class="active-rwy">RWY <b>${esc(rec)}</b>${closedNote}</div>
         <div class="comp">
           <div class="box ${active.isTailwind ? 'tw' : ''}"><div class="lbl">${active.isTailwind ? 'Tailwind' : 'Headwind'}</div><div class="val">${fmt(Math.abs(active.headwindKt))}</div></div>
           <div class="box xw ${xwClass}"><div class="lbl">Xwind ${active.crosswindSide !== 'none' ? active.crosswindSide[0].toUpperCase() : ''}</div><div class="val">${fmt(active.crosswindKt)}</div></div>
-        </div>${gust}`;
+        </div>${gust}${pwLine}`;
     } else {
       windReadout = `<div class="active-rwy" style="color:var(--text-dim)">Wind calm / variable — pilot discretion</div>`;
     }
@@ -167,6 +190,7 @@ function card(brief, limits) {
         <div class="metric"><div class="k">Temp</div><div class="v">${a.observation.tempC ?? '--'}<small>°C</small></div></div>
         <div class="metric"><div class="k">Altimeter</div><div class="v">${a.observation.altimHpa ?? '--'}<small> hPa</small></div></div>
         <div class="metric ${highDA ? 'warn' : ''}"><div class="k">Density Alt</div><div class="v">${a.densityAltitudeFt != null ? a.densityAltitudeFt.toLocaleString() : '--'}<small> ft</small></div></div>
+        ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}"><div class="k">Bird Risk</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
       </div>
       <div class="wind-block"><div class="compass">${compassSvg(a, limits.xwind)}</div><div class="wind-readout">${windReadout}</div></div>
       <div class="rwys">${runwayRows(a, brief)}</div>
@@ -182,7 +206,7 @@ function card(brief, limits) {
   return `<div class="card">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${airspaceSection(brief)}${notams}${taf}</div></div>`;
+    <div class="body">${body}${windsAloftSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------

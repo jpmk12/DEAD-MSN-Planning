@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { haversineNm } from '../core/geo.js';
-import { distanceToGeometry, nearby } from './airspace.js';
+import { distanceToGeometry, nearby, geometryFromGeoJson, geojsonToAirspace } from './airspace.js';
 import { extractTimeRanges, raimOutlook } from './raim.js';
 
 const near = (a, b, eps) => assert.ok(Math.abs(a - b) <= eps, `${a} ~ ${b}`);
@@ -56,4 +56,31 @@ test('raimOutlook: outage when a GPS_RAIM NOTAM exists', () => {
 });
 test('raimOutlook: clear when no RAIM NOTAMs', () => {
   assert.equal(raimOutlook([{ category: 'TAXIWAY', text: 'TWY A CLSD' }]).status, 'NO PREDICTED OUTAGE');
+});
+
+test('geometryFromGeoJson: polygon flips [lon,lat] -> [lat,lon]', () => {
+  const g = geometryFromGeoJson({ type: 'Polygon', coordinates: [[[-80, 33], [-79, 33], [-79, 34], [-80, 33]]] });
+  assert.equal(g.kind, 'polygon');
+  assert.deepEqual(g.points[0], [33, -80]);
+});
+
+test('geometryFromGeoJson: point -> circle', () => {
+  const g = geometryFromGeoJson({ type: 'Point', coordinates: [-117.9, 34.9] });
+  assert.equal(g.kind, 'circle');
+  assert.equal(g.lat, 34.9);
+  assert.equal(g.lon, -117.9);
+});
+
+test('geojsonToAirspace: maps properties + geometry, drops geometry-less', () => {
+  const fc = {
+    type: 'FeatureCollection',
+    features: [
+      { properties: { NAME: 'R-2508', TYPE: 'RESTRICTED' }, geometry: { type: 'Polygon', coordinates: [[[-118, 35], [-117, 35], [-117, 36], [-118, 35]]] } },
+      { properties: { NAME: 'no-geom' }, geometry: null },
+    ],
+  };
+  const out = geojsonToAirspace(fc, (p) => ({ name: p.NAME, type: p.TYPE }));
+  assert.equal(out.length, 1);
+  assert.equal(out[0].name, 'R-2508');
+  assert.equal(out[0].geometry.kind, 'polygon');
 });

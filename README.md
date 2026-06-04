@@ -54,9 +54,16 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
 - **NOTAMs** — fetched (FAA NOTAM API when `FAA_NOTAM_CLIENT_ID`/`_SECRET` are
   set; fixture otherwise), then **categorized and ranked** so runway/approach/
   lighting items surface first.
+- **Winds aloft** — a forecast wind profile (Open-Meteo, free, no key) plus the
+  **wind at pattern altitude** resolved onto the recommended runway (head/cross
+  components), so you see what the pattern actually flies in.
+- **Bird/wildlife risk** — an AHAS/BAM-style LOW/MODERATE/SEVERE level per field
+  with advisory text; SEVERE drives the status light.
 - **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)
   within 100 NM of each field, with distance, altitudes, and active/scheduled
   status. Being inside an active TFR or restricted area drives the status light.
+  Live ingest is supported via configurable GeoJSON feature services (FAA
+  ArcGIS / OpenAIP) — set `TFR_GEOJSON_URL` / `SUA_GEOJSON_URL`.
 - **GPS-RAIM outlook** — predicted outage windows derived from GPS/RAIM NOTAMs
   (the operational signal crews use), with a pointer to FAA SAPT for the
   authoritative satellite-geometry prediction.
@@ -129,5 +136,5 @@ airspace against the dark backdrop.
 
 ## Next steps (see PLANNING.md §5)
 
-Live FAA TFR/SUA ingest · AHAS/BAM bird hazards · winds-aloft for pattern
-altitude · route/low-level (MTRs) · per-leg fuel & timing.
+Route/low-level support (MTRs) · per-leg fuel & timing · convective SIGMET /
+icing / turbulence overlays · saved sortie sets & multi-user sharing.
