@@ -25,7 +25,7 @@ export function initMap(container, data) {
   const convective = data.convective || [];
   const mtrs = data.mtrs || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
-  const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff' };
+  const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff', AR: '#46c6a0' };
 
   container.innerHTML = '';
   container.classList.add('map-panel');

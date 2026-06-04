@@ -458,10 +458,11 @@ function mtrDetailCard(d) {
     </div>`;
   }).join('');
   const routeBird = d.birdRisk ? `<div class="mtr-bird" style="color:${BIRD_COLOR[d.birdRisk.level]}">⚠ AHAS bird risk: <b>${esc(d.birdRisk.level)}</b> — ${esc(d.birdRisk.note || '')}</div>` : '';
+  const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
       <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}</div>
-    <div class="body">${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
+    <div class="body">${refuel}${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
 }
 
 async function lookupMtr() {

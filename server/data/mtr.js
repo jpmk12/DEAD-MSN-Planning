@@ -16,6 +16,7 @@ import { fetchRouteRisk, segmentRisk } from './ahas.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/mtr-sample.json', import.meta.url);
 const AP1B_URL = new URL('../../data/mtr-ap1b.json', import.meta.url);
+const AR_URL = new URL('../../data/ar-ap1b.json', import.meta.url);
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && v !== '' ? n : null; };
 
 /** Normalize a designator for matching: "IR-021" / "ir021" -> "IR021". */
@@ -48,10 +49,12 @@ async function loadJsonArray(url) {
 }
 
 async function loadFixture() {
-  // Real AP/1B routes first, then the demo routes (kept for fields without
-  // ingested routes). Both are decorated with derived centerline geometry.
-  const [ap1b, demo] = await Promise.all([loadJsonArray(AP1B_URL), loadJsonArray(FIXTURE_URL)]);
-  return [...ap1b, ...demo].map(withGeometry);
+  // Real AP/1B routes (IR/VR) + AR refueling tracks first, then demo routes
+  // (kept for fields without ingested routes). All get derived geometry.
+  const [ap1b, ar, demo] = await Promise.all([
+    loadJsonArray(AP1B_URL), loadJsonArray(AR_URL), loadJsonArray(FIXTURE_URL),
+  ]);
+  return [...ap1b, ...ar, ...demo].map(withGeometry);
 }
 
 // Map a FAA GeoJSON feature into our MTR record (centerline as one segment).
@@ -157,6 +160,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
     type: mtr.type,
     name: mtr.name,
     agency: mtr.agency,
+    refuelAlt: mtr.refuelAlt ?? null,
     geometry: mtr.geometry,
     birdRisk: routeRisk ? { level: routeRisk.level, note: routeRisk.note, source: routeRisk.source } : null,
     segments,

@@ -1,0 +1,298 @@
+[
+  {
+    "id": "AR197H",
+    "type": "AR",
+    "name": "AR197H — Air Refueling (Altus)",
+    "agency": "97 OSS/OSOS, Altus AFB OK",
+    "refuelAlt": "FL240–FL260",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "LBB VORTAC 360/30 → LBB VORTAC 205/35",
+        "points": [
+          [
+            34.19667,
+            -101.799
+          ],
+          [
+            33.2315,
+            -102.32283
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "LBB VORTAC 205/35 → MRF VOR-DME 180/30",
+        "points": [
+          [
+            33.2315,
+            -102.32283
+          ],
+          [
+            29.80633,
+            -104.0645
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "MRF VOR-DME 180/30 → MRF VOR-DME 296/52",
+        "points": [
+          [
+            29.80633,
+            -104.0645
+          ],
+          [
+            30.82,
+            -104.76133
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "MRF VOR-DME 296/52 → HOB VORTAC 256/15",
+        "points": [
+          [
+            30.82,
+            -104.76133
+          ],
+          [
+            32.623,
+            -103.56817
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "HOB VORTAC 256/15 → LBB VORTAC 322/47",
+        "points": [
+          [
+            32.623,
+            -103.56817
+          ],
+          [
+            34.4035,
+            -102.34383
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      }
+    ]
+  },
+  {
+    "id": "AR197L",
+    "type": "AR",
+    "name": "AR197L — Air Refueling (Altus)",
+    "agency": "97 OSS/OSOS, Altus AFB OK",
+    "refuelAlt": "FL190–FL220",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "LBB VORTAC 360/30 → LBB VORTAC 205/35",
+        "points": [
+          [
+            34.19667,
+            -101.799
+          ],
+          [
+            33.2315,
+            -102.32283
+          ]
+        ],
+        "floorFt": 19000,
+        "ceilingFt": 22000,
+        "altText": "FL190–FL220"
+      },
+      {
+        "name": "LBB VORTAC 205/35 → MRF VOR-DME 180/30",
+        "points": [
+          [
+            33.2315,
+            -102.32283
+          ],
+          [
+            29.80633,
+            -104.0645
+          ]
+        ],
+        "floorFt": 19000,
+        "ceilingFt": 22000,
+        "altText": "FL190–FL220"
+      },
+      {
+        "name": "MRF VOR-DME 180/30 → MRF VOR-DME 296/52",
+        "points": [
+          [
+            29.80633,
+            -104.0645
+          ],
+          [
+            30.82,
+            -104.76133
+          ]
+        ],
+        "floorFt": 19000,
+        "ceilingFt": 22000,
+        "altText": "FL190–FL220"
+      },
+      {
+        "name": "MRF VOR-DME 296/52 → HOB VORTAC 256/15",
+        "points": [
+          [
+            30.82,
+            -104.76133
+          ],
+          [
+            32.623,
+            -103.56817
+          ]
+        ],
+        "floorFt": 19000,
+        "ceilingFt": 22000,
+        "altText": "FL190–FL220"
+      },
+      {
+        "name": "HOB VORTAC 256/15 → LBB VORTAC 322/47",
+        "points": [
+          [
+            32.623,
+            -103.56817
+          ],
+          [
+            34.4035,
+            -102.34383
+          ]
+        ],
+        "floorFt": 19000,
+        "ceilingFt": 22000,
+        "altText": "FL190–FL220"
+      }
+    ]
+  },
+  {
+    "id": "AR312H",
+    "type": "AR",
+    "name": "AR312H — Air Refueling (Altus)",
+    "agency": "97 OSS/OSOS, Altus AFB OK",
+    "refuelAlt": "FL240–FL260",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "PUB VORTAC 183/22 → PNH VORTAC 331/76",
+        "points": [
+          [
+            37.935,
+            -104.51833
+          ],
+          [
+            36.42083,
+            -102.25833
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "PNH VORTAC 331/76 → PNH VORTAC 351/58",
+        "points": [
+          [
+            36.42083,
+            -102.25833
+          ],
+          [
+            36.2,
+            -101.71383
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      },
+      {
+        "name": "PNH VORTAC 351/58 → MMB VORTAC 213/50",
+        "points": [
+          [
+            36.2,
+            -101.71383
+          ],
+          [
+            35.73083,
+            -100.56667
+          ]
+        ],
+        "floorFt": 24000,
+        "ceilingFt": 26000,
+        "altText": "FL240–FL260"
+      }
+    ]
+  },
+  {
+    "id": "AR312L",
+    "type": "AR",
+    "name": "AR312L — Air Refueling (Altus)",
+    "agency": "97 OSS/OSOS, Altus AFB OK",
+    "refuelAlt": "FL200–FL220",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "PUB VORTAC 183/22 → PNH VORTAC 331/76",
+        "points": [
+          [
+            37.935,
+            -104.51833
+          ],
+          [
+            36.42083,
+            -102.25833
+          ]
+        ],
+        "floorFt": 20000,
+        "ceilingFt": 22000,
+        "altText": "FL200–FL220"
+      },
+      {
+        "name": "PNH VORTAC 331/76 → PNH VORTAC 351/58",
+        "points": [
+          [
+            36.42083,
+            -102.25833
+          ],
+          [
+            36.2,
+            -101.71383
+          ]
+        ],
+        "floorFt": 20000,
+        "ceilingFt": 22000,
+        "altText": "FL200–FL220"
+      },
+      {
+        "name": "PNH VORTAC 351/58 → MMB VORTAC 213/50",
+        "points": [
+          [
+            36.2,
+            -101.71383
+          ],
+          [
+            35.73083,
+            -100.56667
+          ]
+        ],
+        "floorFt": 20000,
+        "ceilingFt": 22000,
+        "altText": "FL200–FL220"
+      }
+    ]
+  }
+]

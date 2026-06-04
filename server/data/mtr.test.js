@@ -70,6 +70,17 @@ test('AP/1B ingested routes load (IR-193 ≡ VR-106 geometry)', async () => {
   assert.deepEqual(vr106.geometry.points[0], ir193.geometry.points[0]);
 });
 
+test('AP/1B AR tracks load with refueling altitude and winds', async () => {
+  for (const id of ['AR197H', 'AR197L', 'AR312H', 'AR312L']) {
+    const d = await buildMtrDetail(id, true);
+    assert.equal(d.found, true, `${id} found`);
+    assert.equal(d.type, 'AR');
+    assert.match(d.refuelAlt, /^FL\d+–FL\d+$/);
+    assert.ok(d.segments.length >= 3);
+    assert.ok(d.segments[0].wind, `${id} leg has winds`);
+  }
+});
+
 test('AP/1B IR-154 has the full Altus point set', async () => {
   const d = await buildMtrDetail('IR-154', true);
   assert.equal(d.segments.length, 16); // 17 points A..Q
