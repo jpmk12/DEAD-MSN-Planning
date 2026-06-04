@@ -51,9 +51,9 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   recommendation, gust components, calm/`VRB` handling, and an SVG wind compass.
   Handles the correctness traps: METAR winds are **true**, runway numbers are
   **magnetic**; surveyed heading ≠ designator×10.
-- **NOTAMs** — fetched (FAA NOTAM API when `FAA_NOTAM_CLIENT_ID`/`_SECRET` are
-  set; fixture otherwise), then **categorized and ranked** so runway/approach/
-  lighting items surface first.
+- **NOTAMs** — live from the FAA **NMS-API** (OAuth2; set `NMS_CLIENT_ID`/
+  `NMS_CLIENT_SECRET`), or the legacy FAA NOTAM API, else fixture — then
+  **categorized and ranked** so runway/approach/lighting items surface first.
 - **Any airfield, live** — the bundled set is instant/offline, but any other
   ICAO you type is resolved on demand from OurAirports (public domain) with real
   surveyed runway headings. Cached after first lookup.
@@ -73,6 +73,9 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   (wind/vis/weather/clouds), with a one-click toggle back to raw.
 - **Convective outlook** — SPC categorical risk areas (TSTM→HIGH) near each
   field and on the map.
+- **Air Refueling tracks (AR)** — AP/1B AR tracks (e.g. AR‑197H/L, AR‑312H/L)
+  on the map and in the route lookup, with **winds resolved at the refueling
+  altitude block** (e.g. FL240–FL260) on each leg.
 - **Military Training Routes (MTR)** — IR/VR low-level routes on the map (toggle)
   and within 60 NM of each field; a designator lookup (`/api/mtr?id=IR-021`)
   shows each leg's bearing/length/altitude block **and the head/crosswind at the

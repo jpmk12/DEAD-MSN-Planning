@@ -7,6 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { nmsConfigured, fetchNmsRaw } from './nms.js';
 
 const CATEGORY_PRIORITY = {
   RUNWAY: 100,
@@ -96,6 +97,15 @@ async function fetchFaa(icao, signal) {
 
 /** @returns {Promise<{notams:any[], live:boolean}>} */
 export async function fetchNotams(icaos, offline, signal) {
+  // Preferred: FAA NMS-API (bearer token). Then legacy FAA NOTAM API. Then fixture.
+  if (!offline && nmsConfigured()) {
+    try {
+      const raw = await fetchNmsRaw(icaos, signal);
+      return { notams: rankNotams(raw.map(classify)), live: true };
+    } catch {
+      // fall through
+    }
+  }
   if (!offline && process.env.FAA_NOTAM_CLIENT_ID) {
     try {
       const lists = await Promise.all(icaos.map((i) => fetchFaa(i, signal)));
