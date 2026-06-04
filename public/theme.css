@@ -198,6 +198,21 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .as-row .when { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
 .section-title .cat { font-family: var(--mono); font-size: 9.5px; padding: 3px 6px; border-radius: 5px; border: 1px solid var(--border-bright); }
 
+/* ---- Route / climb winds tool -------------------------------------------- */
+.winds-tool #winds-results:empty { display: none; }
+.winds-tool #winds-results { margin-top: 14px; }
+.wind-profile { display: flex; flex-direction: column; gap: 2px; }
+.wind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; font-family: var(--mono); font-size: 12.5px; padding: 4px 8px; border-radius: 5px; }
+.wind-row .wa { color: var(--text-dim); }
+.wind-row .wd { text-align: center; color: var(--text); }
+.wind-row .ws { text-align: right; color: var(--accent); }
+.wind-row.mod .ws { color: var(--caution); }
+.wind-row.strong .ws { color: var(--nogo); }
+.wind-row:nth-child(even) { background: var(--panel-2); }
+.wind-row.hdr { color: var(--text-faint); font-size: 10px; letter-spacing: 0.6px; background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; }
+.wind-row.hdr .wd { text-align: center; }
+.wind-row.hdr .ws { text-align: right; color: var(--text-faint); }
+
 /* ---- Map ----------------------------------------------------------------- */
 .map-section { margin-bottom: 22px; }
 .map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }

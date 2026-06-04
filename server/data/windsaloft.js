@@ -13,11 +13,20 @@ import { fileURLToPath } from 'node:url';
 const FIXTURE_URL = new URL('../../data/fixtures/windsaloft-sample.json', import.meta.url);
 
 // Levels we request, with approximate standard-atmosphere MSL altitudes (ft)
-// for pressure levels, or AGL offsets for height levels.
+// for pressure levels, or AGL offsets for height levels. Spans the surface up
+// through ~FL300 so the profile is useful for climb-out and route planning.
 const PRESSURE_LEVELS = [
+  { key: '1000hPa', altMsl: 364 },
+  { key: '950hPa', altMsl: 1773 },
   { key: '925hPa', altMsl: 2500 },
+  { key: '900hPa', altMsl: 3243 },
   { key: '850hPa', altMsl: 4781 },
+  { key: '800hPa', altMsl: 6394 },
   { key: '700hPa', altMsl: 9882 },
+  { key: '600hPa', altMsl: 13801 },
+  { key: '500hPa', altMsl: 18289 },
+  { key: '400hPa', altMsl: 23574 },
+  { key: '300hPa', altMsl: 30065 },
 ];
 const HEIGHT_LEVELS = [
   { key: '80m', aglFt: 262 },

@@ -54,9 +54,15 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
 - **NOTAMs** — fetched (FAA NOTAM API when `FAA_NOTAM_CLIENT_ID`/`_SECRET` are
   set; fixture otherwise), then **categorized and ranked** so runway/approach/
   lighting items surface first.
+- **Any airfield, live** — the bundled set is instant/offline, but any other
+  ICAO you type is resolved on demand from OurAirports (public domain) with real
+  surveyed runway headings. Cached after first lookup.
 - **Winds aloft** — a forecast wind profile (Open-Meteo, free, no key) plus the
   **wind at pattern altitude** resolved onto the recommended runway (head/cross
   components), so you see what the pattern actually flies in.
+- **Route / climb winds tool** — enter airfields *or* navaids and get a full
+  surface→FL300 wind profile for each (`/api/winds`), for climb-out and en-route
+  planning.
 - **Bird/wildlife risk** — an AHAS/BAM-style LOW/MODERATE/SEVERE level per field
   with advisory text; SEVERE drives the status light.
 - **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)

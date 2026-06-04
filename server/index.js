@@ -12,6 +12,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
+import { buildRouteWinds } from './winds.js';
 import { knownAirports } from './data/airports.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
@@ -93,6 +94,20 @@ const server = createServer(async (req, res) => {
       }
       const offline = url.searchParams.get('offline') === '1';
       sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url)));
+      return;
+    }
+
+    if (url.pathname === '/api/winds') {
+      const ids = (url.searchParams.get('points') ?? url.searchParams.get('ids') ?? '')
+        .split(/[\s,]+/)
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+      if (ids.length === 0) {
+        sendJson(res, 400, { error: 'provide ?points=KCHS,LRP (airfields or navaids)' });
+        return;
+      }
+      const offline = url.searchParams.get('offline') === '1';
+      sendJson(res, 200, await buildRouteWinds(ids, offline));
       return;
     }
 

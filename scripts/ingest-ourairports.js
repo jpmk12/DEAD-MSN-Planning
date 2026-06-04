@@ -16,77 +16,17 @@
 
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+// Shared parsers live in the runtime module; re-export so tests can import them here.
+import { parseCsv, toObjects, buildRunwayEnds, num } from '../server/data/ourairports.js';
+export { parseCsv, toObjects, buildRunwayEnds };
 
 const BASE = 'https://davidmegginson.github.io/ourairports-data';
 const DEFAULT_FIELDS = ['KCHS', 'KSUU', 'KWRI', 'PHIK', 'KEDW'];
-
-// --- minimal RFC-4180-ish CSV parser (handles quotes, embedded commas) ------
-export function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ',') {
-      row.push(field); field = '';
-    } else if (c === '\n') {
-      row.push(field); rows.push(row); row = []; field = '';
-    } else if (c !== '\r') {
-      field += c;
-    }
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
-
-export function toObjects(rows) {
-  const header = rows[0];
-  return rows.slice(1).filter((r) => r.length > 1).map((r) => {
-    const o = {};
-    header.forEach((h, i) => { o[h] = r[i]; });
-    return o;
-  });
-}
 
 async function fetchCsv(name) {
   const res = await fetch(`${BASE}/${name}`);
   if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
   return toObjects(parseCsv(await res.text()));
-}
-
-const num = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) && v !== '' ? n : undefined;
-};
-const designatorToMag = (ident) => {
-  const m = String(ident).match(/^(\d{1,2})/);
-  return m ? Number(m[1]) * 10 : undefined;
-};
-
-export function buildRunwayEnds(rwy) {
-  const ends = [];
-  for (const side of ['le', 'he']) {
-    const ident = rwy[`${side}_ident`];
-    if (!ident) continue;
-    const end = { ident };
-    const t = num(rwy[`${side}_heading_degT`]);
-    if (t != null) end.trueHeading = Math.round(t * 10) / 10;
-    const mag = designatorToMag(ident);
-    if (mag != null) end.magHeading = mag;
-    if (num(rwy.length_ft) != null) end.lengthFt = num(rwy.length_ft);
-    if (num(rwy.width_ft) != null) end.widthFt = num(rwy.width_ft);
-    if (rwy.surface) end.surface = rwy.surface;
-    ends.push(end);
-  }
-  return ends;
 }
 
 async function main() {

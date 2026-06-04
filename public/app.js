@@ -94,7 +94,10 @@ const BIRD_COLOR = { LOW: 'var(--go)', MODERATE: 'var(--caution)', SEVERE: 'var(
 function windsAloftSection(brief) {
   const wa = brief.windsAloft;
   if (!wa || !wa.profile.length) return '';
-  const rows = wa.profile
+  // Per-card view keeps it low-level (pattern/departure); the full climb
+  // profile lives in the Route / Climb Winds tool.
+  const low = wa.profile.filter((p) => p.altFt <= 10000);
+  const rows = (low.length ? low : wa.profile)
     .slice()
     .reverse()
     .map((p) => {
@@ -268,6 +271,50 @@ async function loadQuickChips() {
   } catch { /* server may be down; chips are optional */ }
 }
 
+// ---- Route / climb winds tool ----------------------------------------------
+function windsProfileCard(pt) {
+  if (!pt.found) {
+    return `<div class="missing-card"><span class="icao">${esc(pt.id)}</span> — not found as an airfield or navaid.</div>`;
+  }
+  const rows = pt.profile
+    .slice()
+    .sort((a, b) => b.altFt - a.altFt) // highest first
+    .map((l) => {
+      const lbl = l.altFt >= 1000 ? (l.altFt / 1000).toFixed(1) + 'k' : String(l.altFt);
+      const strong = l.speedKt >= 50 ? ' strong' : l.speedKt >= 30 ? ' mod' : '';
+      return `<div class="wind-row${strong}"><span class="wa">${esc(lbl)} ft</span>
+        <span class="wd">${String(l.dirTrue).padStart(3, '0')}°</span>
+        <span class="ws">${l.speedKt} kt</span></div>`;
+    })
+    .join('');
+  const t = pt.time ? `<span class="count">${esc(pt.time.slice(11, 16))}Z fcst</span>` : '';
+  return `<div class="card"><div class="head">
+      <div><div class="icao">${esc(pt.id)}</div><div class="name">${esc(pt.kind)} · ${esc(pt.name)}</div></div>
+      <div class="spacer"></div>${t}</div>
+    <div class="body"><div class="wind-profile">
+      <div class="wind-row hdr"><span class="wa">ALT</span><span class="wd">DIR</span><span class="ws">SPD</span></div>
+      ${rows}</div></div></div>`;
+}
+
+async function getRouteWinds() {
+  const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+  if (!pts.length) return;
+  const params = new URLSearchParams({ points: pts.join(',') });
+  if ($('offline').checked) params.set('offline', '1');
+  $('winds-go').disabled = true;
+  $('winds-results').innerHTML = `<div class="loading"><div class="spinner"></div>Fetching winds aloft…</div>`;
+  try {
+    const res = await fetch(`/api/winds?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    $('winds-results').innerHTML = `<div class="grid">${data.points.map(windsProfileCard).join('')}</div>`;
+  } catch (err) {
+    $('winds-results').innerHTML = `<div class="errbox">Failed: ${esc(err.message)}</div>`;
+  } finally {
+    $('winds-go').disabled = false;
+  }
+}
+
 function renderMap(data) {
   const mapEl = $('map');
   const airfields = data.airfields
@@ -296,6 +343,8 @@ function updatePrintHead(data, ids, limits) {
 $('go').addEventListener('click', buildBrief);
 $('print').addEventListener('click', () => window.print());
 $('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
+$('winds-go').addEventListener('click', getRouteWinds);
+$('winds-points').addEventListener('keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
 loadQuickChips();
 buildBrief();
 

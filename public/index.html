@@ -50,6 +50,17 @@
         </div>
       </section>
 
+      <section class="controls winds-tool">
+        <div class="row">
+          <div class="field grow">
+            <label for="winds-points">Route / climb winds — airfields or navaids (space or comma separated)</label>
+            <input id="winds-points" type="text" value="KCHS KEDW" autocomplete="off" spellcheck="false" />
+          </div>
+          <button id="winds-go" class="go secondary">Get Winds Aloft</button>
+        </div>
+        <div id="winds-results"></div>
+      </section>
+
       <div id="print-head" class="print-head"></div>
 
       <section id="map" class="map-section"></section>

@@ -48,7 +48,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const fields = icaos.map((s) => s.toUpperCase());
 
   // Pre-fetch airport records (needed for coordinates + winds-aloft lookups).
-  const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i)]));
+  const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
   const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult] = await Promise.all([
