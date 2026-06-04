@@ -342,7 +342,7 @@ function card(brief, limits) {
 // ---- Data + events ---------------------------------------------------------
 function readLimits() {
   return {
-    xwind: Number(val('xwind')) || 25,
+    xwind: Number(val('xwind')) || 30,
     tailwind: Number(val('tailwind')) || 10,
     highda: Number(val('highda')) || 5000,
   };

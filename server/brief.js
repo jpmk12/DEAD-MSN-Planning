@@ -33,7 +33,7 @@ const MTR_THRESHOLD_NM = 60;
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
-  crosswindKt: 25,
+  crosswindKt: 30,
   tailwindKt: 10,
   highDensityAltitudeFt: 5000,
 };
