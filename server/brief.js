@@ -9,6 +9,7 @@ import { getAirport, knownAirports } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
+import { fetchAirSigmets } from './data/airsigmet.js';
 import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, nearestLevel } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
@@ -18,6 +19,8 @@ const PATTERN_AGL_FT = 1500;
 
 // How close airspace must be (NM) to a field to be flagged on its card.
 const AIRSPACE_THRESHOLD_NM = 100;
+// Hazardous-weather advisories use a wider relevance radius.
+const WX_THRESHOLD_NM = 150;
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
@@ -51,12 +54,13 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
-  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult] = await Promise.all([
+  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
     fetchSua(offline),
     fetchBirdRisk(fields, offline),
+    fetchAirSigmets(offline),
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
@@ -100,6 +104,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const lon = airport?.lon ?? null;
     const tfrs = nearby(lat, lon, tfrResult.tfrs, AIRSPACE_THRESHOLD_NM);
     const sua = nearby(lat, lon, suaResult.sua, AIRSPACE_THRESHOLD_NM);
+    const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
     const raim = raimOutlook(notams);
 
     // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
@@ -126,12 +131,14 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     // Bird/wildlife risk for this field.
     const birdRisk = birdResult.risk.get(icao) ?? null;
 
-    // Inside an active TFR / restricted area, RAIM outage, or SEVERE birds = caution.
+    // Inside an active TFR / restricted area, RAIM outage, SEVERE birds, or a
+    // convective SIGMET / overhead hazardous-wx area = caution.
     const alert =
       tfrs.some((t) => t.distanceNm === 0) ||
       sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED') ||
       raim.status === 'PREDICTED OUTAGE' ||
-      birdRisk?.level === 'SEVERE';
+      birdRisk?.level === 'SEVERE' ||
+      hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0);
 
     airfields.push({
       icao,
@@ -145,6 +152,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       closedRunways,
       recommendedRunway,
       airspace: { tfrs, sua, raim },
+      hazardWx,
       windsAloft,
       patternWind,
       birdRisk,
@@ -160,11 +168,13 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       airspace: tfrResult.live && suaResult.live,
       windsAloft: windsPairs.some(([, r]) => r && r.live),
       birds: birdResult.live,
+      hazardWx: sigmetResult.live,
     },
     limits,
     knownAirfields: await knownAirports(),
     // Full geometry sets for the map layer.
     airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },
+    airsigmets: sigmetResult.airsigmets,
     airfields,
   };
 }

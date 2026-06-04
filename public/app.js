@@ -111,6 +111,21 @@ function windsAloftSection(brief) {
     <div class="notams" style="margin-top:8px">${rows}</div></div>`;
 }
 
+function hazardWxSection(brief) {
+  const wx = brief.hazardWx;
+  if (!wx || !wx.length) return '';
+  const rows = wx.map((h) => {
+    const cls = h.hazard === 'CONVECTIVE' ? 'cat-RUNWAY' : h.type === 'SIGMET' ? 'cat-APPROACH' : 'cat-LIGHTING';
+    const dist = h.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(h.distanceNm) + ' NM';
+    const alt = h.lowFt != null ? ` · ${esc(h.lowFt.toLocaleString())}–${esc((h.hiFt ?? 0).toLocaleString())} ft` : '';
+    const end = h.validTo ? ` · until ${esc(h.validTo.slice(0, 16).replace('T', ' '))}Z` : '';
+    return `<div class="as-row"><span class="cat ${cls}">${esc(h.type)}</span>
+      <div><div class="txt">${esc(h.label)} · ${dist}</div><div class="when">${alt}${end}</div></div></div>`;
+  }).join('');
+  return `<div><div class="section-title">Hazardous Wx <span class="count">${wx.length}</span></div>
+    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+}
+
 function airspaceSection(brief) {
   const as = brief.airspace;
   if (!as) return '';
@@ -209,7 +224,7 @@ function card(brief, limits) {
   return `<div class="card">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${windsAloftSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
+    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------
@@ -326,7 +341,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua });
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [] });
 }
 
 function updatePrintHead(data, ids, limits) {

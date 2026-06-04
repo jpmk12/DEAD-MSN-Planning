@@ -1,0 +1,56 @@
+[
+  {
+    "airSigmetId": "SIGMET-CONV-1",
+    "airSigmetType": "SIGMET",
+    "hazard": "CONVECTIVE",
+    "severity": 2,
+    "altitudeLow1": 0,
+    "altitudeHi1": 45000,
+    "validTimeFrom": 1780930800,
+    "validTimeTo": 1780945200,
+    "coords": [
+      { "lat": 33.6, "lon": -80.8 },
+      { "lat": 33.4, "lon": -79.2 },
+      { "lat": 32.2, "lon": -79.6 },
+      { "lat": 32.5, "lon": -81.0 },
+      { "lat": 33.6, "lon": -80.8 }
+    ],
+    "rawAirSigmet": "CONVECTIVE SIGMET 21E ... SC ... LINE TS MOV NE 25KT TOPS FL450"
+  },
+  {
+    "airSigmetId": "AIRMET-ICE-1",
+    "airSigmetType": "AIRMET",
+    "hazard": "ICE",
+    "severity": 1,
+    "altitudeLow1": 8000,
+    "altitudeHi1": 18000,
+    "validTimeFrom": 1780930800,
+    "validTimeTo": 1780952400,
+    "coords": [
+      { "lat": 41.2, "lon": -75.6 },
+      { "lat": 41.0, "lon": -73.4 },
+      { "lat": 39.4, "lon": -73.8 },
+      { "lat": 39.6, "lon": -75.8 },
+      { "lat": 41.2, "lon": -75.6 }
+    ],
+    "rawAirSigmet": "AIRMET ICE ... NJ NY PA ... MOD ICE BTN 080 AND 180"
+  },
+  {
+    "airSigmetId": "AIRMET-TURB-1",
+    "airSigmetType": "AIRMET",
+    "hazard": "TURB",
+    "severity": 1,
+    "altitudeLow1": 18000,
+    "altitudeHi1": 39000,
+    "validTimeFrom": 1780930800,
+    "validTimeTo": 1780952400,
+    "coords": [
+      { "lat": 35.8, "lon": -119.0 },
+      { "lat": 35.6, "lon": -116.5 },
+      { "lat": 34.0, "lon": -116.8 },
+      { "lat": 34.2, "lon": -119.2 },
+      { "lat": 35.8, "lon": -119.0 }
+    ],
+    "rawAirSigmet": "AIRMET TURB ... CA ... MOD TURB BTN 180 AND 390"
+  }
+]
