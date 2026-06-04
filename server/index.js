@@ -17,7 +17,7 @@ import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
-import { nmsConfigured } from './data/nms.js';
+import { nmsConfigured, nmsProbe } from './data/nms.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -183,6 +183,7 @@ const server = createServer(async (req, res) => {
       catch (e) { out.metar = { live: false, error: String(e).slice(0, 200) }; }
       try { const t = await fetchTafs([field]); out.taf = { live: true, count: t.length, sample: (t[0]?.rawTaf || '').slice(0, 90) }; }
       catch (e) { out.taf = { live: false, error: String(e).slice(0, 200) }; }
+      if (nmsConfigured()) out.nms = await nmsProbe(field);
       sendJson(res, 200, out);
       return;
     }

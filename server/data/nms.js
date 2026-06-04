@@ -65,8 +65,34 @@ async function fetchLocation(icao, token, signal) {
   return feats.map((f) => mapNmsFeature(f, icao)).filter((x) => x.text);
 }
 
-/** Fetch raw (uncategorized) NOTAMs for a set of ICAOs from the NMS-API. */
-export async function fetchNmsRaw(icaos, signal) {
+/** Diagnostic probe: hit the NMS NOTAM endpoint for one field and surface the
+ *  raw status/shape (does not swallow errors). Used by /api/diag. */
+export async function nmsProbe(icao = 'KCHS', signal) {
+  try {
+    const token = await getToken(signal);
+    const c = cfg();
+    const url = `${c.base}/nmsapi/v1/notams?location=${encodeURIComponent(icao)}`;
+    const res = await fetch(url, {
+      signal,
+      headers: { Authorization: `Bearer ${token}`, nmsResponseFormat: 'GEOJSON', Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' },
+    });
+    let body = null;
+    try { body = await res.json(); } catch { /* non-JSON */ }
+    const feats = body?.data?.geojson ?? [];
+    return {
+      auth: 'ok',
+      status: res.status,
+      count: Array.isArray(feats) ? feats.length : 0,
+      sample: (feats[0]?.properties?.coreNOTAMData?.notam?.text || '').slice(0, 90),
+      bodyKeys: body ? Object.keys(body) : null,
+      dataKeys: body?.data ? Object.keys(body.data) : null,
+      message: body?.message || (res.ok ? null : `HTTP ${res.status}`),
+    };
+  } catch (e) {
+    return { auth: 'failed', error: String(e).slice(0, 200) };
+  }
+}
+
   let token = await getToken(signal);
   const one = async (icao) => {
     try {
