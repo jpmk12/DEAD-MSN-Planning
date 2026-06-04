@@ -10,7 +10,9 @@ import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
+import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
 import { fetchPireps } from './data/pireps.js';
+import { decodeTaf } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, nearestLevel } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
@@ -57,7 +59,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
-  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult] = await Promise.all([
+  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
@@ -65,6 +67,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     fetchBirdRisk(fields, offline),
     fetchAirSigmets(offline),
     fetchPireps(offline),
+    fetchConvective(offline),
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
@@ -110,6 +113,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const sua = nearby(lat, lon, suaResult.sua, AIRSPACE_THRESHOLD_NM);
     const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
     const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
+    const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
     const raim = raimOutlook(notams);
 
     // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
@@ -143,7 +147,8 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED') ||
       raim.status === 'PREDICTED OUTAGE' ||
       birdRisk?.level === 'SEVERE' ||
-      hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0);
+      hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0) ||
+      convective.some((c) => c.distanceNm === 0 && (CONV_RANK[c.risk] ?? 0) >= CONV_RANK.SLGT);
 
     airfields.push({
       icao,
@@ -153,12 +158,14 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       lon,
       analysis,
       taf: tafs.get(icao),
+      tafDecoded: decodeTaf(tafs.get(icao)),
       notams,
       closedRunways,
       recommendedRunway,
       airspace: { tfrs, sua, raim },
       hazardWx,
       pireps,
+      convective,
       windsAloft,
       patternWind,
       birdRisk,
@@ -176,6 +183,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       birds: birdResult.live,
       hazardWx: sigmetResult.live,
       pireps: pirepResult.live,
+      convective: convResult.live,
     },
     limits,
     knownAirfields: await knownAirports(),
@@ -183,6 +191,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },
     airsigmets: sigmetResult.airsigmets,
     pireps: pirepResult.pireps,
+    convective: convResult.convective,
     airfields,
   };
 }

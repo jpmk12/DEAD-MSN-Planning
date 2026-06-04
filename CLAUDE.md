@@ -8,21 +8,21 @@ this app for deployment.
 
 ## How THIS app meets the requirements
 
-The C-17 Mission Planner is a **zero-dependency, no-build** Node.js app, which
-maps cleanly onto Node.js Hosting:
+The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
+(one runtime dep, `mysql2`), which maps cleanly onto Node.js Hosting:
 
 | Requirement | This app |
 |---|---|
 | Root `package.json` with `start` script | ✅ `"start": "node server/index.js"` |
 | Entry point exists | ✅ `server/index.js` (also `main`) |
 | Listens on `process.env.PORT` | ✅ `process.env.PORT ?? 8787`, binds `0.0.0.0` |
-| Prod deps in `dependencies` (not dev) | ✅ **none** — Node built-ins only (`"dependencies": {}`) |
-| `npm install --production` safe | ✅ nothing to install; no devDeps needed at runtime |
+| Prod deps in `dependencies` (not dev) | ✅ only `mysql2` (pure JS, no native build) |
+| `npm install --production` safe | ✅ installs `mysql2`; no native postinstall |
 | Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
 | No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
-| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, map tiles |
-| **Managed MySQL** | ◻️ not used — app is stateless on bundled/live data (could back "saved sorties" later via `DB_*` env vars + `mysql2`) |
+| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, map tiles |
+| **Managed MySQL** | ✅ used for cross-device **saved sorties** (`DB_*` env vars; falls back to browser-local when unset) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
 | Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |
 

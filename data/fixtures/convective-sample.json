@@ -1,0 +1,22 @@
+{
+  "type": "FeatureCollection",
+  "_comment": "Illustrative SPC-style Day 1 convective outlook polygons for offline/demo use.",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "LABEL": "SLGT", "DN": 4 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-81.5, 34.2], [-78.8, 34.0], [-78.6, 31.8], [-81.4, 32.0], [-81.5, 34.2]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "LABEL": "MRGL", "DN": 3 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-76.2, 41.2], [-73.2, 41.0], [-73.0, 39.2], [-76.0, 39.4], [-76.2, 41.2]]]
+      }
+    }
+  ]
+}

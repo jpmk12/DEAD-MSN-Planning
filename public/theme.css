@@ -182,6 +182,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .notam .when { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
 
 .taf { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; line-height: 1.5; word-break: break-word; }
+.taf-toggle { margin-left: auto; font-family: var(--sans); font-size: 10px; letter-spacing: 0.4px; color: var(--accent); cursor: pointer; text-transform: none; }
+.taf-toggle:hover { text-decoration: underline; }
+.taf-decoded { display: flex; flex-direction: column; gap: 8px; }
+.taf-period { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent-dim); border-radius: 7px; padding: 7px 10px; }
+.taf-when { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+.taf-items { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; }
+.taf-items .extra { color: var(--text-faint); list-style: none; margin-left: -16px; font-family: var(--mono); font-size: 11px; }
 
 .empty, .loading, .errbox { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 14px; }
 .errbox { color: var(--nogo); }

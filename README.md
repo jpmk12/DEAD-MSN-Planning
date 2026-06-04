@@ -66,8 +66,13 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   radar on the map ("radar along route").
 - **PIREPs** — live pilot reports (turbulence/icing) near each field and on the
   map, colored by hazard/urgency.
-- **Saved sorties** — name and reload a set of airfields + limits from the
-  browser; no account needed.
+- **Saved sorties** — name and reload a set of airfields + limits; synced
+  **across devices** via the platform's managed MySQL when available, else
+  browser-local.
+- **Decoded TAFs** — raw TAFs decoded into plain-English forecast periods
+  (wind/vis/weather/clouds), with a one-click toggle back to raw.
+- **Convective outlook** — SPC categorical risk areas (TSTM→HIGH) near each
+  field and on the map.
 - **Bird/wildlife risk** — an AHAS/BAM-style LOW/MODERATE/SEVERE level per field
   with advisory text; SEVERE drives the status light.
 - **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)

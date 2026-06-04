@@ -22,6 +22,8 @@ export function initMap(container, data) {
   const sua = data.sua || [];
   const sigmets = data.sigmets || [];
   const pireps = data.pireps || [];
+  const convective = data.convective || [];
+  const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
 
   container.innerHTML = '';
   container.classList.add('map-panel');
@@ -45,6 +47,7 @@ export function initMap(container, data) {
     <label class="map-toggle"><input type="checkbox" data-act="airspace" checked> Airspace</label>
     <label class="map-toggle"><input type="checkbox" data-act="wx" checked> Wx</label>
     <label class="map-toggle"><input type="checkbox" data-act="pireps" checked> PIREP</label>
+    <label class="map-toggle"><input type="checkbox" data-act="conv" checked> Conv</label>
     <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">`;
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
@@ -55,7 +58,7 @@ export function initMap(container, data) {
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
 
-  const state = { ...fitView(airfields, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, opacity: 0.65 };
+  const state = { ...fitView(airfields, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, opacity: 0.65 };
 
   function unproject(px, py, z) {
     return { lat: tileYToLat(py / TILE, z), lon: tileXToLon(px / TILE, z) };
@@ -117,6 +120,13 @@ export function initMap(container, data) {
     overlay.setAttribute('viewBox', `0 0 ${w()} ${h()}`);
     overlay.innerHTML = '';
     const scr = (lat, lon) => { const p = project(lat, lon, z); return { x: p.x - topLeft.x, y: p.y - topLeft.y }; };
+
+    if (state.conv) {
+      for (const c of convective) {
+        if (!c.geometry || c.geometry.kind !== 'polygon') continue;
+        overlay.appendChild(polygon(c.geometry.points, scr, CONV_COLOR[c.risk] || '#d29922', 0.12));
+      }
+    }
 
     if (state.wx) {
       for (const s of sigmets) {
@@ -217,6 +227,7 @@ export function initMap(container, data) {
     if (act === 'airspace') { state.airspace = e.target.checked; render(); }
     if (act === 'wx') { state.wx = e.target.checked; render(); }
     if (act === 'pireps') { state.pireps = e.target.checked; render(); }
+    if (act === 'conv') { state.conv = e.target.checked; render(); }
     if (act === 'opacity') { state.opacity = e.target.value / 100; render(); }
   });
 

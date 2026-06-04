@@ -14,6 +14,7 @@ import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
 import { knownAirports } from './data/airports.js';
+import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -34,6 +35,20 @@ const MIME = {
 function sendJson(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
+}
+
+function readJsonBody(req, limit = 1e6) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+      if (data.length > limit) reject(new Error('body too large'));
+    });
+    req.on('end', () => {
+      try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
 }
 
 function parseLimits(url) {
@@ -108,6 +123,34 @@ const server = createServer(async (req, res) => {
       }
       const offline = url.searchParams.get('offline') === '1';
       sendJson(res, 200, await buildRouteWinds(ids, offline));
+      return;
+    }
+
+    if (url.pathname === '/api/sorties') {
+      if (!dbConfigured()) {
+        sendJson(res, 200, { configured: false, sorties: {} });
+        return;
+      }
+      try {
+        if (req.method === 'GET') {
+          sendJson(res, 200, { configured: true, sorties: await listSorties() });
+        } else if (req.method === 'POST' || req.method === 'PUT') {
+          const body = await readJsonBody(req);
+          const name = String(body.name || '').trim();
+          if (!name) { sendJson(res, 400, { error: 'name required' }); return; }
+          await saveSortie(name, body.data ?? {});
+          sendJson(res, 200, { ok: true });
+        } else if (req.method === 'DELETE') {
+          const name = String(url.searchParams.get('name') || '').trim();
+          if (!name) { sendJson(res, 400, { error: 'name required' }); return; }
+          await deleteSortie(name);
+          sendJson(res, 200, { ok: true });
+        } else {
+          sendJson(res, 405, { error: 'method not allowed' });
+        }
+      } catch (err) {
+        sendJson(res, 503, { error: 'database unavailable', detail: String(err) });
+      }
       return;
     }
 

@@ -15,5 +15,7 @@
     "ingest": "node scripts/ingest-ourairports.js",
     "test": "node --test"
   },
-  "dependencies": {}
+  "dependencies": {
+    "mysql2": "^3.22.4"
+  }
 }

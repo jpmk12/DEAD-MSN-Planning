@@ -111,10 +111,13 @@ function windsAloftSection(brief) {
     <div class="notams" style="margin-top:8px">${rows}</div></div>`;
 }
 
+const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };
+
 function hazardWxSection(brief) {
-  const wx = brief.hazardWx;
-  if (!wx || !wx.length) return '';
-  const rows = wx.map((h) => {
+  const wx = brief.hazardWx || [];
+  const conv = brief.convective || [];
+  if (!wx.length && !conv.length) return '';
+  const wxRows = wx.map((h) => {
     const cls = h.hazard === 'CONVECTIVE' ? 'cat-RUNWAY' : h.type === 'SIGMET' ? 'cat-APPROACH' : 'cat-LIGHTING';
     const dist = h.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(h.distanceNm) + ' NM';
     const alt = h.lowFt != null ? ` · ${esc(h.lowFt.toLocaleString())}–${esc((h.hiFt ?? 0).toLocaleString())} ft` : '';
@@ -122,8 +125,33 @@ function hazardWxSection(brief) {
     return `<div class="as-row"><span class="cat ${cls}">${esc(h.type)}</span>
       <div><div class="txt">${esc(h.label)} · ${dist}</div><div class="when">${alt}${end}</div></div></div>`;
   }).join('');
-  return `<div><div class="section-title">Hazardous Wx <span class="count">${wx.length}</span></div>
-    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+  const convRows = conv.map((c) => {
+    const dist = c.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(c.distanceNm) + ' NM';
+    return `<div class="as-row"><span class="cat ${CONV_CLASS[c.risk] || 'cat-LIGHTING'}">${esc(c.risk)}</span>
+      <div><div class="txt">Convective outlook: ${esc(c.label)} · ${dist}</div></div></div>`;
+  }).join('');
+  const count = wx.length + conv.length;
+  return `<div><div class="section-title">Hazardous Wx <span class="count">${count}</span></div>
+    <div class="notams" style="margin-top:8px">${wxRows}${convRows}</div></div>`;
+}
+
+function tafSection(brief) {
+  if (!brief.taf) return '';
+  const d = brief.tafDecoded;
+  let decoded = '';
+  if (d && d.periods && d.periods.length) {
+    const head = d.valid ? `<div class="when" style="margin-bottom:6px">Valid ${esc(d.valid)}${d.issued ? ` · issued ${esc(d.issued)}` : ''}</div>` : '';
+    const periods = d.periods.map((p) => {
+      const items = p.items.map((it) => `<li>${esc(it)}</li>`).join('');
+      const extra = p.extra && p.extra.length ? `<li class="extra">${esc(p.extra.join(' '))}</li>` : '';
+      return `<div class="taf-period"><div class="taf-when">${esc(p.label)}${p.when ? ` · ${esc(p.when)}` : ''}</div>
+        <ul class="taf-items">${items}${extra}</ul></div>`;
+    }).join('');
+    decoded = `${head}${periods}`;
+  }
+  return `<div><div class="section-title">TAF <span class="taf-toggle" data-taf-raw>show raw</span></div>
+    <div class="taf-decoded" style="margin-top:8px">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
+    <div class="taf raw-taf" style="margin-top:8px; display:none">${esc(brief.taf)}</div></div>`;
 }
 
 function pirepSection(brief) {
@@ -233,7 +261,7 @@ function card(brief, limits) {
 
   const notams = `<div><div class="section-title">NOTAMs <span class="count">${brief.notams.length}</span></div>
     <div class="notams" style="margin-top:8px">${brief.notams.length ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div></div>`;
-  const taf = brief.taf ? `<div><div class="section-title">TAF</div><div class="taf" style="margin-top:8px">${esc(brief.taf)}</div></div>` : '';
+  const taf = tafSection(brief);
 
   return `<div class="card">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
@@ -369,7 +397,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [] });
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [] });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -383,40 +411,65 @@ function updatePrintHead(data, ids, limits) {
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 
-// ---- Saved sorties (browser-local) -----------------------------------------
+// ---- Saved sorties (server-backed when a DB is configured, else browser-local)
 const SORTIE_KEY = 'c17-sorties';
+let sortieMode = 'local';   // 'remote' when the platform DB is available
+let sortieCache = {};       // name -> { icaos, xwind, tailwind, highda }
 
-function loadSorties() {
+function loadLocal() {
   try { return JSON.parse(localStorage.getItem(SORTIE_KEY)) || {}; } catch { return {}; }
 }
-function saveSorties(obj) {
-  try { localStorage.setItem(SORTIE_KEY, JSON.stringify(obj)); } catch { /* storage may be blocked */ }
+function saveLocal(obj) {
+  try { localStorage.setItem(SORTIE_KEY, JSON.stringify(obj)); } catch { /* storage blocked */ }
 }
+
 function refreshSortieList(selected) {
-  const sorties = loadSorties();
-  const names = Object.keys(sorties).sort();
+  const names = Object.keys(sortieCache).sort();
+  const where = sortieMode === 'remote' ? 'synced' : 'this device';
   const sel = $('sortie-list');
   sel.innerHTML = names.length
     ? names.map((n) => `<option${n === selected ? ' selected' : ''}>${esc(n)}</option>`).join('')
-    : '<option value="">— none saved —</option>';
+    : `<option value="">— none saved (${where}) —</option>`;
 }
-function saveCurrentSortie() {
+
+async function initSorties() {
+  try {
+    const res = await fetch('/api/sorties');
+    if (res.ok) {
+      const d = await res.json();
+      if (d.configured) { sortieMode = 'remote'; sortieCache = d.sorties || {}; refreshSortieList(); return; }
+    }
+  } catch { /* fall back to local */ }
+  sortieMode = 'local';
+  sortieCache = loadLocal();
+  refreshSortieList();
+}
+
+async function refreshRemote() {
+  const res = await fetch('/api/sorties');
+  const d = await res.json();
+  sortieCache = d.sorties || {};
+}
+
+async function saveCurrentSortie() {
   const name = $('sortie-name').value.trim();
   if (!name) { $('sortie-name').focus(); return; }
-  const sorties = loadSorties();
-  sorties[name] = {
-    icaos: $('icaos').value.trim(),
-    xwind: $('xwind').value,
-    tailwind: $('tailwind').value,
-    highda: $('highda').value,
-  };
-  saveSorties(sorties);
+  const data = { icaos: $('icaos').value.trim(), xwind: $('xwind').value, tailwind: $('tailwind').value, highda: $('highda').value };
+  if (sortieMode === 'remote') {
+    try {
+      await fetch('/api/sorties', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, data }) });
+      await refreshRemote();
+    } catch { /* ignore */ }
+  } else {
+    sortieCache[name] = data;
+    saveLocal(sortieCache);
+  }
   $('sortie-name').value = '';
   refreshSortieList(name);
 }
+
 function loadSelectedSortie() {
-  const name = $('sortie-list').value;
-  const s = loadSorties()[name];
+  const s = sortieCache[$('sortie-list').value];
   if (!s) return;
   $('icaos').value = s.icaos;
   if (s.xwind) $('xwind').value = s.xwind;
@@ -424,21 +477,37 @@ function loadSelectedSortie() {
   if (s.highda) $('highda').value = s.highda;
   buildBrief();
 }
-function deleteSelectedSortie() {
+
+async function deleteSelectedSortie() {
   const name = $('sortie-list').value;
   if (!name) return;
-  const sorties = loadSorties();
-  delete sorties[name];
-  saveSorties(sorties);
+  if (sortieMode === 'remote') {
+    try { await fetch(`/api/sorties?name=${encodeURIComponent(name)}`, { method: 'DELETE' }); await refreshRemote(); } catch { /* ignore */ }
+  } else {
+    delete sortieCache[name];
+    saveLocal(sortieCache);
+  }
   refreshSortieList();
 }
+
+$('results').addEventListener('click', (e) => {
+  const t = e.target.closest('[data-taf-raw]');
+  if (!t) return;
+  const wrap = t.closest('.section-title').parentElement;
+  const raw = wrap.querySelector('.raw-taf');
+  const dec = wrap.querySelector('.taf-decoded');
+  const showRaw = raw.style.display === 'none';
+  raw.style.display = showRaw ? 'block' : 'none';
+  dec.style.display = showRaw ? 'none' : 'block';
+  t.textContent = showRaw ? 'show decoded' : 'show raw';
+});
 
 $('go').addEventListener('click', buildBrief);
 $('print').addEventListener('click', () => window.print());
 $('sortie-save').addEventListener('click', saveCurrentSortie);
 $('sortie-load').addEventListener('click', loadSelectedSortie);
 $('sortie-del').addEventListener('click', deleteSelectedSortie);
-refreshSortieList();
+initSorties();
 $('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
 $('winds-go').addEventListener('click', getRouteWinds);
 $('winds-points').addEventListener('keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
