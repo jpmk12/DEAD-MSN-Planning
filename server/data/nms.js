@@ -93,6 +93,8 @@ export async function nmsProbe(icao = 'KCHS', signal) {
   }
 }
 
+/** Fetch raw (uncategorized) NOTAMs for a set of ICAOs from the NMS-API. */
+export async function fetchNmsRaw(icaos, signal) {
   let token = await getToken(signal);
   const one = async (icao) => {
     try {
