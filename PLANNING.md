@@ -227,7 +227,29 @@ crosswind= wspd × sin(θ)        (sign gives left/right; magnitude is what matt
 
 ---
 
-## 8. Decisions I Need From You
+## 8. Locked Decisions (2026-06-04)
+
+1. **Platform:** Both equally — responsive web/PWA that works well on iPad/EFB
+   *and* laptop from day one. Build offline-capable (PWA + local reference cache).
+2. **Coverage:** CONUS + OCONUS — FAA NASR as the US backbone, **OpenAIP /
+   OurAirports** for global airfields, and **DINS** for international NOTAMs.
+3. **Data sources:** Public/civil only for now — AWC weather, FAA NOTAM API,
+   NASR, OpenAIP, AHAS/BAM only where publicly reachable. DoD/CAC sources
+   (FLIP, 557th) are deferred; architecture leaves slots for them later.
+4. **C-17 limits:** User-configurable placeholders — editable crosswind/tailwind
+   limit fields in settings; **no sensitive -1/TO numbers committed to the repo.**
+
+### Implications for the build
+- TypeScript end-to-end is favored (share the wind-math + types between the PWA
+  and backend; one tested module).
+- Reference data (NASR + OpenAIP) ingested into a local DB for instant, offline
+  runway lookups — required for the "both platforms / offline" goal.
+- OCONUS means the magnetic-variation handling (§4.2) is non-negotiable, since
+  declared headings and mag var vary widely worldwide.
+
+---
+
+## 9. Original Open Questions (now resolved above)
 
 1. **Platform priority** — iPad/EFB-first, laptop/web-first, or both equally?
 2. **CONUS only or OCONUS too?** (Drives whether we lean FAA-only or add
