@@ -10,8 +10,11 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { knownAirports } from './data/airports.js';
+
+loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
 const PORT = Number(process.env.PORT ?? 8787);
 const WEB_ROOT = fileURLToPath(new URL('../public', import.meta.url));

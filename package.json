@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server/index.js",
     "demo": "node server/cli.js",
+    "ingest": "node scripts/ingest-ourairports.js",
     "test": "node --test"
   }
 }

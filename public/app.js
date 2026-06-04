@@ -185,6 +185,7 @@ async function buildBrief() {
     const data = await res.json();
     setSourcePills(data.live);
     $('results').innerHTML = `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
+    updatePrintHead(data, ids, limits);
   } catch (err) {
     $('results').innerHTML = `<div class="errbox">Failed to build brief: ${esc(err.message)}<br/>
       <span style="color:var(--text-dim);font-size:12px">Is the server running? Try the offline/demo toggle.</span></div>`;
@@ -208,7 +209,19 @@ async function loadQuickChips() {
   } catch { /* server may be down; chips are optional */ }
 }
 
+function updatePrintHead(data, ids, limits) {
+  const gen = new Date(data.generatedAt);
+  const z = gen.toISOString().slice(0, 16).replace('T', ' ');
+  const src = `WX ${data.live.weather ? 'LIVE' : 'DEMO'} · NOTAM ${data.live.notams ? 'LIVE' : 'DEMO'}`;
+  $('print-head').innerHTML =
+    `<div class="ph-title">C-17 MISSION BRIEF</div>
+     <div class="ph-meta">${esc(ids.join(' · '))}</div>
+     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft</div>
+     <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
+}
+
 $('go').addEventListener('click', buildBrief);
+$('print').addEventListener('click', () => window.print());
 $('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
 loadQuickChips();
 buildBrief();

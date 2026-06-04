@@ -2,7 +2,10 @@
 //   npm run demo
 //   node server/cli.js KCHS KEDW --offline
 
+import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
+
+loadEnv();
 
 const fmt = (n, d = 0) => n.toFixed(d);
 

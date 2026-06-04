@@ -42,12 +42,15 @@
             <input id="highda" type="number" value="5000" min="1" step="100" />
           </div>
           <button id="go" class="go">Build Brief</button>
+          <button id="print" class="go secondary" title="Print or save as a kneeboard PDF">Kneeboard PDF</button>
         </div>
         <div class="row" style="margin-top: 10px; justify-content: space-between;">
           <label class="toggle"><input id="offline" type="checkbox" /> Use offline/demo data</label>
           <div id="quick" class="chips"></div>
         </div>
       </section>
+
+      <div id="print-head" class="print-head"></div>
 
       <main id="results">
         <div class="empty">Enter airfields and build a brief.</div>

@@ -74,6 +74,18 @@ test('runway selection uses true-frame wind', () => {
   assert.ok(active.crosswindKt < 1);
   assert.equal(active.isTailwind, false);
 });
+test('explicit trueHeading is used directly (ignores magVar)', () => {
+  // Surveyed true heading provided; field magVar should be irrelevant.
+  const ap = {
+    icao: 'TRUE', name: 'TrueHdg', elevationFt: 0, magVar: 99,
+    runways: [{ ident: '09', trueHeading: 90, magHeading: 90 }],
+  };
+  const r = analyzeRunways(ap, { icao: 'TRUE', wind: { dirTrue: 90, speedKt: 12 } })[0];
+  near(r.trueHeading, 90);
+  near(r.headwindKt, 12);
+  near(r.crosswindKt, 0);
+});
+
 test('reciprocal end shows tailwind', () => {
   const obs = { icao: 'TEST', wind: { dirTrue: 320, speedKt: 15 } };
   const rwy15 = analyzeRunways(airport, obs).find((r) => r.ident === '15');

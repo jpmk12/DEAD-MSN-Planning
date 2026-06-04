@@ -13,7 +13,10 @@ export function analyzeRunways(airport, obs) {
   const indeterminate = windIsIndeterminate(wind);
 
   return airport.runways.map((rwy) => {
-    const trueHeading = magToTrue(rwy.magHeading, airport.magVar);
+    // Prefer an explicit surveyed TRUE heading (from authoritative ingest);
+    // otherwise derive it from the magnetic heading + field variation.
+    const trueHeading =
+      rwy.trueHeading != null ? rwy.trueHeading : magToTrue(rwy.magHeading, airport.magVar ?? 0);
 
     if (indeterminate) {
       return {

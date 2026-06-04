@@ -93,6 +93,14 @@ button.go {
 }
 button.go:hover { filter: brightness(1.06); }
 button.go:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+button.go.secondary {
+  color: var(--accent); background: transparent;
+  border: 1px solid var(--accent-dim); box-shadow: none;
+}
+button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
+
+/* Print header — hidden on screen, shown on the kneeboard printout */
+.print-head { display: none; }
 
 .toggle { display: flex; align-items: center; gap: 7px; color: var(--text-dim); font-size: 12.5px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -182,3 +190,34 @@ button.go:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
 
 .missing-card { border: 1px dashed var(--border-bright); border-radius: var(--radius); padding: 18px; color: var(--text-dim); font-size: 13px; }
 .missing-card .icao { font-family: var(--mono); font-weight: 700; color: var(--text); }
+
+/* ============================================================================
+   Kneeboard print / PDF — flip the whole themed UI to an ink-friendly layout by
+   redefining the CSS variables, hide on-screen chrome, and avoid card breaks.
+   ============================================================================ */
+@media print {
+  :root {
+    --bg: #fff; --bg-grad-1: #fff; --bg-grad-2: #fff;
+    --panel: #fff; --panel-2: #fff; --panel-raised: #fff;
+    --border: #b9c0c8; --border-bright: #8c95a0;
+    --text: #000; --text-dim: #333; --text-faint: #555;
+    --accent: #075b6b; --accent-dim: #0a6678;
+    --go: #1a7f2e; --caution: #8a5d00; --nogo: #b3231b;
+    --shadow: none;
+  }
+  @page { margin: 12mm; }
+  body { background: #fff; }
+  .app { max-width: none; padding: 0; }
+  .topbar, .controls, .footer { display: none !important; }
+
+  .print-head { display: block; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+  .print-head .ph-title { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+  .print-head .ph-meta { font-family: var(--mono); font-size: 11px; color: #222; margin-top: 2px; }
+  .print-head .ph-warn { color: #b3231b; font-weight: 700; margin-top: 4px; }
+
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .card { break-inside: avoid; box-shadow: none; border: 1px solid #999; }
+  .card .body { gap: 10px; }
+  .raw, .metric, .comp .box, .rwy-row, .notam, .taf, .warn-item { background: #fff !important; }
+  .status-led { border-width: 1.5px; }
+}

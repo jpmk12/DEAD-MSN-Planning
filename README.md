@@ -34,9 +34,10 @@ data/                   curated airport dataset + offline fixtures
 ## Run it
 
 ```bash
-npm test          # 21 tests via node --test (no deps, no build)
+npm test          # 26 tests via node --test (no deps, no build)
 npm start         # serve the app at http://localhost:8787
 npm run demo      # terminal brief for the default airfields
+npm run ingest    # refresh data/airports.json from OurAirports (needs network)
 ```
 
 Then open <http://localhost:8787>. Tick **Use offline/demo data** to run without
@@ -57,24 +58,62 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   says so and recommends the best **open** runway. A GO/CAUTION/NO-GO status
   light rolls up wind limits, density altitude, and closures per field.
 
+## Authoritative airfield data (NASR/OpenAIP seam)
+
+`data/airports.json` ships with a small curated set. To replace it with
+authoritative, global data:
+
+```bash
+npm run ingest                      # default field set
+node scripts/ingest-ourairports.js KCHS KSUU EGLL ETAR   # any ICAOs
+```
+
+This pulls [OurAirports](https://ourairports.com/data/) (free, public domain,
+worldwide) and writes `data/airports.json` using **surveyed runway TRUE
+headings** — which feed the wind engine directly, with no magnetic-variation
+guesswork. The engine accepts either an explicit `trueHeading` per runway or a
+`magHeading` + field `magVar`, so curated and ingested records interoperate.
+Run the ingest wherever outbound network is allowed, then commit the result.
+
+## Live FAA NOTAMs
+
+Set credentials (register a free app at <https://api.faa.gov>) and the brief
+switches from the bundled fixture to live NOTAMs automatically:
+
+```bash
+cp .env.example .env     # then fill in the two values
+```
+
+`.env` is gitignored and loaded at startup by a tiny built-in loader (no deps).
+On the deploy host, set `FAA_NOTAM_CLIENT_ID` / `FAA_NOTAM_CLIENT_SECRET` as
+environment variables instead.
+
+## Kneeboard PDF
+
+Click **Kneeboard PDF** (or your browser's Print) to produce a print-ready
+brief: the dark EFB theme flips to an ink-friendly light layout, on-screen
+controls are hidden, a header with ICAOs / generated time / data source is
+added, and cards avoid page breaks. Save-as-PDF for a kneeboard copy.
+
 ## Deploy (GoDaddy / generic Node host)
 
 - Entry point: `npm start` → `node server/index.js`.
 - Port: respects `process.env.PORT` (defaults to 8787).
 - No build, no `npm install` of native deps required.
-- Optional env for live NOTAMs: `FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`.
+- Optional env for live NOTAMs: `FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`
+  (host env vars, or a `.env` file at the repo root).
 
 ## Important caveats
 
 - **Planning aid only — verify with official sources.** Not authoritative.
-- `data/airports.json` is **illustrative**: runway headings, elevations, and
-  magnetic variation are approximate and must be replaced by FAA NASR (CONUS) /
-  OpenAIP (OCONUS) before operational use.
+- The bundled `data/airports.json` is **illustrative**. Run `npm run ingest` to
+  replace it with OurAirports data; still verify against FLIP / Chart Supplement
+  before operational use.
 - Aircraft limits are **user-configurable placeholders**, not official -1/TO
   values (set them in the UI controls or via `xwind`/`tailwind`/`highda` query
   params).
 
 ## Next steps (see PLANNING.md §5)
 
-NASR/OpenAIP ingest · live FAA NOTAM credentials · TFR/SUA/RAIM · AHAS/BAM bird
-hazards · winds-aloft for pattern altitude · kneeboard PDF export.
+TFR / SUA status · GPS-RAIM outage prediction · AHAS/BAM bird hazards ·
+winds-aloft for pattern altitude · map view with weather radar overlay.
