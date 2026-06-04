@@ -1,0 +1,70 @@
+{
+  "_comment": "ILLUSTRATIVE curated data for the demo. Runway headings, elevations, and magnetic variation are approximate and MUST be replaced by authoritative FAA NASR (CONUS) / OpenAIP (OCONUS) ingest before operational use. magVar is EAST-positive.",
+  "airports": [
+    {
+      "icao": "KCHS",
+      "name": "Charleston Intl / JB Charleston, SC",
+      "elevationFt": 46,
+      "magVar": -8,
+      "source": "curated",
+      "runways": [
+        { "ident": "03", "magHeading": 33, "lengthFt": 9001, "surface": "asphalt" },
+        { "ident": "21", "magHeading": 213, "lengthFt": 9001, "surface": "asphalt" },
+        { "ident": "15", "magHeading": 153, "lengthFt": 7000, "surface": "concrete" },
+        { "ident": "33", "magHeading": 333, "lengthFt": 7000, "surface": "concrete" }
+      ]
+    },
+    {
+      "icao": "KSUU",
+      "name": "Travis AFB, CA",
+      "elevationFt": 62,
+      "magVar": 13,
+      "source": "curated",
+      "runways": [
+        { "ident": "03L", "magHeading": 33, "lengthFt": 11000, "surface": "concrete" },
+        { "ident": "21R", "magHeading": 213, "lengthFt": 11000, "surface": "concrete" },
+        { "ident": "03R", "magHeading": 33, "lengthFt": 10996, "surface": "asphalt" },
+        { "ident": "21L", "magHeading": 213, "lengthFt": 10996, "surface": "asphalt" }
+      ]
+    },
+    {
+      "icao": "KWRI",
+      "name": "McGuire / JB MDL, NJ",
+      "elevationFt": 133,
+      "magVar": -13,
+      "source": "curated",
+      "runways": [
+        { "ident": "06", "magHeading": 60, "lengthFt": 10001, "surface": "asphalt" },
+        { "ident": "24", "magHeading": 240, "lengthFt": 10001, "surface": "asphalt" },
+        { "ident": "18", "magHeading": 180, "lengthFt": 7115, "surface": "asphalt" },
+        { "ident": "36", "magHeading": 360, "lengthFt": 7115, "surface": "asphalt" }
+      ]
+    },
+    {
+      "icao": "PHIK",
+      "name": "JB Pearl Harbor-Hickam / Honolulu, HI",
+      "elevationFt": 13,
+      "magVar": 9,
+      "source": "curated",
+      "runways": [
+        { "ident": "08L", "magHeading": 80, "lengthFt": 12000, "surface": "asphalt" },
+        { "ident": "26R", "magHeading": 260, "lengthFt": 12000, "surface": "asphalt" },
+        { "ident": "04R", "magHeading": 40, "lengthFt": 9000, "surface": "asphalt" },
+        { "ident": "22L", "magHeading": 220, "lengthFt": 9000, "surface": "asphalt" }
+      ]
+    },
+    {
+      "icao": "KEDW",
+      "name": "Edwards AFB, CA",
+      "elevationFt": 2312,
+      "magVar": 12,
+      "source": "curated",
+      "runways": [
+        { "ident": "04L", "magHeading": 40, "lengthFt": 12000, "surface": "concrete" },
+        { "ident": "22R", "magHeading": 220, "lengthFt": 12000, "surface": "concrete" },
+        { "ident": "06", "magHeading": 60, "lengthFt": 15000, "surface": "concrete" },
+        { "ident": "24", "magHeading": 240, "lengthFt": 15000, "surface": "concrete" }
+      ]
+    }
+  ]
+}

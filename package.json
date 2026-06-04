@@ -1,0 +1,19 @@
+{
+  "name": "c17-mission-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One-stop C-17 training sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

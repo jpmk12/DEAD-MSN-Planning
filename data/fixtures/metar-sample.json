@@ -1,0 +1,54 @@
+[
+  {
+    "icaoId": "KCHS",
+    "obsTime": 1780937760,
+    "wdir": 160,
+    "wspd": 12,
+    "wgst": 20,
+    "temp": 28,
+    "altim": 1019,
+    "elev": 14,
+    "rawOb": "KCHS 041656Z 16012G20KT 10SM FEW250 28/19 A3010 RMK AO2"
+  },
+  {
+    "icaoId": "KSUU",
+    "obsTime": 1780937760,
+    "wdir": 210,
+    "wspd": 15,
+    "temp": 22,
+    "altim": 1015,
+    "elev": 19,
+    "rawOb": "KSUU 041656Z 21015KT 10SM CLR 22/08 A2998 RMK AO2A"
+  },
+  {
+    "icaoId": "KWRI",
+    "obsTime": 1780937760,
+    "wdir": "VRB",
+    "wspd": 3,
+    "temp": 10,
+    "altim": 1021,
+    "elev": 41,
+    "rawOb": "KWRI 041656Z VRB03KT 10SM SCT040 10/04 A3015 RMK AO2A"
+  },
+  {
+    "icaoId": "PHIK",
+    "obsTime": 1780937760,
+    "wdir": 60,
+    "wspd": 14,
+    "temp": 27,
+    "altim": 1016,
+    "elev": 4,
+    "rawOb": "PHIK 041656Z 06014KT 10SM FEW025 27/21 A3000 RMK AO2A"
+  },
+  {
+    "icaoId": "KEDW",
+    "obsTime": 1780937760,
+    "wdir": 240,
+    "wspd": 28,
+    "wgst": 38,
+    "temp": 34,
+    "altim": 1009,
+    "elev": 705,
+    "rawOb": "KEDW 041656Z 24028G38KT 10SM CLR 34/M01 A2980 RMK AO2A"
+  }
+]
