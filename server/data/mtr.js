@@ -15,6 +15,7 @@ import { fetchWindsAloft, nearestLevel } from './windsaloft.js';
 import { fetchRouteRisk, segmentRisk } from './ahas.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/mtr-sample.json', import.meta.url);
+const AP1B_URL = new URL('../../data/mtr-ap1b.json', import.meta.url);
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && v !== '' ? n : null; };
 
 /** Normalize a designator for matching: "IR-021" / "ir021" -> "IR021". */
@@ -38,9 +39,19 @@ function withGeometry(mtr) {
   return { ...mtr, geometry: routeLine(mtr) };
 }
 
+async function loadJsonArray(url) {
+  try {
+    return JSON.parse(await readFile(fileURLToPath(url), 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
 async function loadFixture() {
-  const arr = JSON.parse(await readFile(fileURLToPath(FIXTURE_URL), 'utf8'));
-  return arr.map(withGeometry);
+  // Real AP/1B routes first, then the demo routes (kept for fields without
+  // ingested routes). Both are decorated with derived centerline geometry.
+  const [ap1b, demo] = await Promise.all([loadJsonArray(AP1B_URL), loadJsonArray(FIXTURE_URL)]);
+  return [...ap1b, ...demo].map(withGeometry);
 }
 
 // Map a FAA GeoJSON feature into our MTR record (centerline as one segment).
@@ -129,6 +140,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
         floorFt: seg.floorFt ?? null,
         ceilingFt: seg.ceilingFt ?? null,
         agl: seg.agl ?? false,
+        altText: seg.altText ?? null,
         widthLeftNm: seg.widthLeftNm ?? null,
         widthRightNm: seg.widthRightNm ?? null,
         bearing,

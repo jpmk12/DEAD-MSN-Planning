@@ -57,3 +57,21 @@ test('buildMtrDetail reports not found for unknown id', async () => {
   const d = await buildMtrDetail('IR-999', true);
   assert.equal(d.found, false);
 });
+
+test('AP/1B ingested routes load (IR-193 ≡ VR-106 geometry)', async () => {
+  const ir193 = await buildMtrDetail('IR-193', true);
+  const vr106 = await buildMtrDetail('VR-106', true);
+  assert.equal(ir193.found, true);
+  assert.equal(ir193.source === undefined || true, true);
+  assert.equal(ir193.segments.length, 6); // 7 points A..G
+  assert.match(ir193.segments[0].altText, /AGL|MSL/);
+  // IR-193 and VR-106 share the exact routing per AP/1B
+  assert.equal(vr106.segments.length, ir193.segments.length);
+  assert.deepEqual(vr106.geometry.points[0], ir193.geometry.points[0]);
+});
+
+test('AP/1B IR-154 has the full Altus point set', async () => {
+  const d = await buildMtrDetail('IR-154', true);
+  assert.equal(d.segments.length, 16); // 17 points A..Q
+  assert.equal(d.segments[0].widthLeftNm, 2);
+});

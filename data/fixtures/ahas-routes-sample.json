@@ -1,5 +1,9 @@
 {
-  "_comment": "Illustrative AHAS bird-risk per MTR (and per segment). Keys are normalized designators (IR021, VR1355).",
+  "_comment": "Illustrative AHAS bird-risk per MTR (and per segment). Keys are normalized designators. Replace with live AHAS when available.",
   "IR021": { "level": "SEVERE", "segments": { "A → B": "SEVERE", "B → C": "MODERATE" } },
-  "VR1355": { "level": "MODERATE", "segments": { "A → B": "MODERATE", "B → C": "LOW" } }
+  "VR1355": { "level": "MODERATE", "segments": { "A → B": "MODERATE", "B → C": "LOW" } },
+  "IR154": { "level": "MODERATE" },
+  "IR155": { "level": "LOW" },
+  "IR193": { "level": "SEVERE", "segments": { "C → D": "SEVERE", "D → E": "SEVERE" } },
+  "VR106": { "level": "MODERATE" }
 }

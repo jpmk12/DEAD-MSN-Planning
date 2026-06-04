@@ -445,14 +445,15 @@ async function getRouteWinds() {
 // ---- MTR (low-level route) lookup tool -------------------------------------
 function mtrDetailCard(d) {
   const segs = d.segments.map((s) => {
-    const alt = s.floorFt != null ? `${s.floorFt.toLocaleString()}–${(s.ceilingFt ?? 0).toLocaleString()} ${s.agl ? 'AGL' : 'MSL'}` : '—';
+    const alt = s.altText || (s.floorFt != null ? `${s.floorFt.toLocaleString()}–${(s.ceilingFt ?? 0).toLocaleString()} ${s.agl ? 'AGL' : 'MSL'}` : '—');
+    const wd = s.widthLeftNm != null ? ` · ${s.widthLeftNm}/${s.widthRightNm} NM` : '';
     const w = s.wind;
     const wind = w
       ? `${String(w.dirTrue).padStart(3, '0')}/${w.speedKt} → HW ${w.headwindKt} · XW ${w.crosswindKt}${w.crosswindSide !== 'none' ? ' ' + w.crosswindSide[0].toUpperCase() : ''}`
       : '—';
     const xwHi = w && Math.abs(w.crosswindKt) >= 20;
     return `<div class="mtr-seg">
-      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}</span> ${birdBadge(s.birdRisk)}</div>
+      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}${esc(wd)}</span> ${birdBadge(s.birdRisk)}</div>
       <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
     </div>`;
   }).join('');

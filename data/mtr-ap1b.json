@@ -1,0 +1,780 @@
+[
+  {
+    "id": "IR-154",
+    "type": "IR",
+    "name": "IR-154 (Altus AFB)",
+    "agency": "97 OSS, Altus AFB OK",
+    "widthNote": "ROUTE WIDTH - 2 NM either side of centerline A to Q.",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [
+          [
+            33.40833,
+            -101.22833
+          ],
+          [
+            33.25,
+            -100.97833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 10000,
+        "altText": "SFC–10000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "B → C",
+        "points": [
+          [
+            33.25,
+            -100.97833
+          ],
+          [
+            32.93333,
+            -100.48833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "C → D",
+        "points": [
+          [
+            32.93333,
+            -100.48833
+          ],
+          [
+            32.93333,
+            -100.425
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "D → E",
+        "points": [
+          [
+            32.93333,
+            -100.425
+          ],
+          [
+            32.98333,
+            -100.40833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "E → F",
+        "points": [
+          [
+            32.98333,
+            -100.40833
+          ],
+          [
+            33.61667,
+            -100.64167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "F → G",
+        "points": [
+          [
+            33.61667,
+            -100.64167
+          ],
+          [
+            33.65,
+            -100.63833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "G → H",
+        "points": [
+          [
+            33.65,
+            -100.63833
+          ],
+          [
+            34.005,
+            -100.50833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "H → I",
+        "points": [
+          [
+            34.005,
+            -100.50833
+          ],
+          [
+            34.02833,
+            -100.51167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "I → J",
+        "points": [
+          [
+            34.02833,
+            -100.51167
+          ],
+          [
+            34.67833,
+            -100.92167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "J → K",
+        "points": [
+          [
+            34.67833,
+            -100.92167
+          ],
+          [
+            34.70833,
+            -100.96667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "K → L",
+        "points": [
+          [
+            34.70833,
+            -100.96667
+          ],
+          [
+            34.67167,
+            -101.01667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "L → M",
+        "points": [
+          [
+            34.67167,
+            -101.01667
+          ],
+          [
+            34.48333,
+            -101.055
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "M → N",
+        "points": [
+          [
+            34.48333,
+            -101.055
+          ],
+          [
+            34.24167,
+            -101.12833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "N → O",
+        "points": [
+          [
+            34.24167,
+            -101.12833
+          ],
+          [
+            34.18333,
+            -101.15
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "O → P",
+        "points": [
+          [
+            34.18333,
+            -101.15
+          ],
+          [
+            34.08333,
+            -101.3
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      },
+      {
+        "name": "P → Q",
+        "points": [
+          [
+            34.08333,
+            -101.3
+          ],
+          [
+            33.96667,
+            -101.48333
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 2,
+        "widthRightNm": 2
+      }
+    ]
+  },
+  {
+    "id": "IR-155",
+    "type": "IR",
+    "name": "IR-155 (Altus AFB)",
+    "agency": "97 OSS, Altus AFB OK",
+    "widthNote": "ROUTE WIDTH - 1.5 NM either side of centerline from A to B; 5 NM either side of centerline from B to K; 2 NM either side of centerline K to N.",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [
+          [
+            33.495,
+            -101.20333
+          ],
+          [
+            33.68833,
+            -101.06333
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 9000,
+        "altText": "SFC–9000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "B → C",
+        "points": [
+          [
+            33.68833,
+            -101.06333
+          ],
+          [
+            34.005,
+            -100.50833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "C → D",
+        "points": [
+          [
+            34.005,
+            -100.50833
+          ],
+          [
+            34.04167,
+            -100.49167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "D → E",
+        "points": [
+          [
+            34.04167,
+            -100.49167
+          ],
+          [
+            34.99167,
+            -100.76667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "E → F",
+        "points": [
+          [
+            34.99167,
+            -100.76667
+          ],
+          [
+            35.025,
+            -100.79167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "F → G",
+        "points": [
+          [
+            35.025,
+            -100.79167
+          ],
+          [
+            35.14167,
+            -101.18833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "G → H",
+        "points": [
+          [
+            35.14167,
+            -101.18833
+          ],
+          [
+            35.12667,
+            -101.24167
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "H → I",
+        "points": [
+          [
+            35.12667,
+            -101.24167
+          ],
+          [
+            35.075,
+            -101.25
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "I → J",
+        "points": [
+          [
+            35.075,
+            -101.25
+          ],
+          [
+            34.48333,
+            -101.055
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "J → K",
+        "points": [
+          [
+            34.48333,
+            -101.055
+          ],
+          [
+            34.24167,
+            -101.11667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "SFC–5000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "K → L",
+        "points": [
+          [
+            34.24167,
+            -101.11667
+          ],
+          [
+            34.18333,
+            -101.15
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "L → M",
+        "points": [
+          [
+            34.18333,
+            -101.15
+          ],
+          [
+            34.08333,
+            -101.3
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      },
+      {
+        "name": "M → N",
+        "points": [
+          [
+            34.08333,
+            -101.3
+          ],
+          [
+            33.96667,
+            -101.48333
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 7000,
+        "altText": "SFC–7000 MSL",
+        "widthLeftNm": 1.5,
+        "widthRightNm": 1.5
+      }
+    ]
+  },
+  {
+    "id": "IR-193",
+    "type": "IR",
+    "name": "IR-193 (Altus AFB)",
+    "agency": "97 OSS, Altus AFB OK",
+    "widthNote": "ROUTE WIDTH - 10 NM either side of centerline from A to B; 5 NM either side of centerline from B to D; 5 NM right widening to 7 NM right and 5 NM left of centerline from D to E; 7 NM right narrowing to 5 NM right and 5 NM left of centerline from E to F; 10 NM",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [
+          [
+            34.57,
+            -99.7
+          ],
+          [
+            34.61167,
+            -100.10833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 4000,
+        "altText": "300 AGL–4000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "B → C",
+        "points": [
+          [
+            34.61167,
+            -100.10833
+          ],
+          [
+            34.72833,
+            -100.41667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "C → D",
+        "points": [
+          [
+            34.72833,
+            -100.41667
+          ],
+          [
+            35.125,
+            -100.61
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "D → E",
+        "points": [
+          [
+            35.125,
+            -100.61
+          ],
+          [
+            35.26833,
+            -100.24667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "E → F",
+        "points": [
+          [
+            35.26833,
+            -100.24667
+          ],
+          [
+            35.06167,
+            -99.695
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "F → G",
+        "points": [
+          [
+            35.06167,
+            -99.695
+          ],
+          [
+            34.57,
+            -99.7
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      }
+    ]
+  },
+  {
+    "id": "VR-106",
+    "type": "VR",
+    "name": "VR-106 (Altus AFB)",
+    "agency": "97 OSS, Altus AFB OK",
+    "widthNote": "ROUTE WIDTH - 10 NM either side of centerline from A to B; 5 NM either side of centerline from B to D; 5 NM right widening to 7 NM right and 5 NM left of centerline from D to E; 7 NM right narrowing to 5 NM right and 5 NM left of centerline from E to F; 10 NM",
+    "source": "ap1b",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [
+          [
+            34.57,
+            -99.7
+          ],
+          [
+            34.61167,
+            -100.10833
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 4000,
+        "altText": "300 AGL–4000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "B → C",
+        "points": [
+          [
+            34.61167,
+            -100.10833
+          ],
+          [
+            34.72833,
+            -100.41667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "C → D",
+        "points": [
+          [
+            34.72833,
+            -100.41667
+          ],
+          [
+            35.125,
+            -100.61
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "D → E",
+        "points": [
+          [
+            35.125,
+            -100.61
+          ],
+          [
+            35.26833,
+            -100.24667
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "E → F",
+        "points": [
+          [
+            35.26833,
+            -100.24667
+          ],
+          [
+            35.06167,
+            -99.695
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 5000,
+        "altText": "300 AGL–5000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      },
+      {
+        "name": "F → G",
+        "points": [
+          [
+            35.06167,
+            -99.695
+          ],
+          [
+            34.57,
+            -99.7
+          ]
+        ],
+        "floorFt": 0,
+        "ceilingFt": 4000,
+        "altText": "300 AGL–4000 MSL",
+        "widthLeftNm": 10,
+        "widthRightNm": 10
+      }
+    ]
+  }
+]
