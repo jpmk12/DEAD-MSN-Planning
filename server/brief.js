@@ -63,7 +63,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
-  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
+  const [wxRes, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
@@ -74,6 +74,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     fetchConvective(offline),
     fetchMtrs(offline),
   ]);
+  const { obs, tafs, live: wxLive } = wxRes;
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
   // AHAS bird risk for the routes in play, attached to MTR records.
@@ -181,6 +182,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     generatedAt: new Date().toISOString(),
     live: {
       weather: wxLive,
+      taf: wxRes.tafLive,
       notams: notamResult.live,
       airspace: tfrResult.live && suaResult.live,
       windsAloft: windsPairs.some(([, r]) => r && r.live),

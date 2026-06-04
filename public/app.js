@@ -127,8 +127,19 @@ function formatWind(wind) {
 
 function notamRow(n) {
   const end = n.effectiveEnd ? `<div class="when">until ${esc(n.effectiveEnd.slice(0, 16).replace('T', ' '))}Z</div>` : '';
-  return `<div class="notam"><span class="cat cat-${esc(n.category)}">${esc(n.category)}</span>
+  return `<div class="notam" data-cat="${esc(n.category)}"><span class="cat cat-${esc(n.category)}">${esc(n.category)}</span>
     <div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
+}
+
+// Category filter chips for a card's NOTAMs (click to filter the list below).
+function notamFilterBar(notams) {
+  if (notams.length <= 1) return '';
+  const counts = {};
+  for (const n of notams) counts[n.category] = (counts[n.category] || 0) + 1;
+  const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const chip = (cat, label, count, active) =>
+    `<span class="nfilter${active ? ' active' : ''}" data-cat="${esc(cat)}">${esc(label)} <b>${count}</b></span>`;
+  return `<div class="nfilters">${chip('ALL', 'All', notams.length, true)}${cats.map((c) => chip(c, c, counts[c], false)).join('')}</div>`;
 }
 
 function runwayRows(a, brief) {
@@ -319,7 +330,7 @@ function card(brief, limits) {
   // many; the highest-priority items are already ranked first.
   const nCount = brief.notams.length;
   const notams = sectionEl(`NOTAMs <span class="count">${nCount}</span>`,
-    `<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, nCount > 0 && nCount <= 8);
+    `${notamFilterBar(brief.notams)}<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, nCount > 0 && nCount <= 8);
   const taf = tafSection(brief);
 
   return `<div class="card" data-icao="${esc(ap.icao)}">
@@ -339,10 +350,21 @@ function readLimits() {
 
 function setSourcePills(live) {
   const wx = $('wx-source'), nt = $('notam-source');
-  wx.textContent = live.weather ? 'WX: LIVE' : 'WX: DEMO';
-  wx.className = 'pill ' + (live.weather ? 'live' : 'fixture');
-  nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: DEMO';
-  nt.className = 'pill ' + (live.notams ? 'live' : 'fixture');
+  if (wx) { wx.textContent = live.weather ? 'WX: LIVE' : 'WX: DEMO'; wx.className = 'pill ' + (live.weather ? 'live' : 'fixture'); }
+  if (nt) { nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: DEMO'; nt.className = 'pill ' + (live.notams ? 'live' : 'fixture'); }
+}
+
+// Prominent data-source status strip.
+function updateStatusStrip(live) {
+  const el = $('status-strip');
+  if (!el) return;
+  const badge = (label, isLive) => `<span class="sbadge ${isLive ? 'live' : 'demo'}">${label} ${isLive ? 'LIVE' : 'DEMO'}</span>`;
+  el.innerHTML =
+    badge('WX', live.weather) +
+    badge('TAF', live.taf) +
+    badge('NOTAM', live.notams) +
+    badge('WINDS', live.windsAloft) +
+    badge('AIRSPACE', live.airspace);
 }
 
 async function buildBrief() {
@@ -363,6 +385,7 @@ async function buildBrief() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     setSourcePills(data.live);
+    updateStatusStrip(data.live);
     cardData = {};
     data.airfields.forEach((b) => { cardData[b.icao.toUpperCase()] = { brief: b, limits }; });
     $('results').innerHTML = `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
@@ -605,6 +628,19 @@ async function deleteSelectedSortie() {
 
 function init() {
 $('results')?.addEventListener('click', (e) => {
+  // NOTAM category filter: show only the chosen category within this card.
+  const nf = e.target.closest('.nfilter');
+  if (nf) {
+    const cat = nf.dataset.cat;
+    const bar = nf.parentElement;
+    bar.querySelectorAll('.nfilter').forEach((c) => c.classList.remove('active'));
+    nf.classList.add('active');
+    bar.parentElement.querySelectorAll('.notam').forEach((r) => {
+      r.style.display = cat === 'ALL' || r.dataset.cat === cat ? '' : 'none';
+    });
+    return;
+  }
+
   // Runway compare: click a runway row to recompute the wind block for it.
   const row = e.target.closest('.rwy-row.selectable');
   if (row && row.dataset.rwy) {

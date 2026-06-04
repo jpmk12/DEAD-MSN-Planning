@@ -171,6 +171,13 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/diag') {
+      // Gated: when DIAG_KEY is set, require a matching ?key=. (If unset, open —
+      // set DIAG_KEY in the host env to lock it down on the published site.)
+      const diagKey = process.env.DIAG_KEY;
+      if (diagKey && url.searchParams.get('key') !== diagKey) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+        return;
+      }
       const field = (url.searchParams.get('ids') || 'KCHS').split(',')[0].trim().toUpperCase();
       const out = {
         time: new Date().toISOString(),
