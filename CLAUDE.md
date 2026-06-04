@@ -8,20 +8,23 @@ this app for deployment.
 
 ## How THIS app meets the requirements
 
-The C-17 Mission Planner is a **zero-dependency, no-build** Node.js app — which
+The C-17 Mission Planner is a **zero-dependency, no-build** Node.js app, which
 maps cleanly onto Node.js Hosting:
 
 | Requirement | This app |
 |---|---|
 | Root `package.json` with `start` script | ✅ `"start": "node server/index.js"` |
-| Entry point exists | ✅ `server/index.js` |
+| Entry point exists | ✅ `server/index.js` (also `main`) |
 | Listens on `process.env.PORT` | ✅ `process.env.PORT ?? 8787`, binds `0.0.0.0` |
-| Prod deps in `dependencies` (not dev) | ✅ **No dependencies at all** — Node built-ins only |
-| `npm install --production` safe | ✅ Nothing to install; no devDeps needed at runtime |
-| Build step (if any) defined | ✅ no-op `"build"` script (there is no build) |
+| Prod deps in `dependencies` (not dev) | ✅ **none** — Node built-ins only (`"dependencies": {}`) |
+| `npm install --production` safe | ✅ nothing to install; no devDeps needed at runtime |
+| Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
-| No hardcoded ports / secrets / local paths | ✅ all paths are module-relative; secrets via env |
+| No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
+| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, map tiles |
+| **Managed MySQL** | ◻️ not used — app is stateless on bundled/live data (could back "saved sorties" later via `DB_*` env vars + `mysql2`) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
+| Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |
 
 **Upload the whole repository folder.** `node_modules` and `.env` are gitignored
 and not needed. Static assets are in `public/`, server code in `server/`, data
@@ -87,6 +90,30 @@ everything the app needs.
 - Additional env vars can be configured through the Node.js Hosting UI after upload.
 - Never commit secrets or `.env` files in the upload folder.
 
+## Network Connectivity
+
+Only outbound connections on ports 80 (HTTP) and 443 (HTTPS) are allowed from
+the container. Connections to GoDaddy databases are also supported. Do not rely
+on arbitrary outbound ports or external services reachable only on non-standard
+ports — those connections will be blocked at runtime. Design the app to
+communicate over HTTP/HTTPS only.
+
+**This app:** every outbound call is HTTPS — AWC weather
+(`aviationweather.gov`), FAA NOTAMs (`external-api.faa.gov`), winds aloft
+(`api.open-meteo.com`), optional airspace GeoJSON URLs, and browser map tiles.
+
+## Database (Managed MySQL)
+
+Node.js Hosting includes a managed MySQL database for every app. Credentials are
+injected as env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
+Use the `mysql2` driver, read credentials from `process.env`, prefer short-lived
+connections and parameterized queries. Preview and production share the same
+database.
+
+**This app does not use a database** — it is stateless over bundled/live data.
+If we later add saved sortie sets or multi-user sharing, wire `mysql2` against
+the `DB_*` env vars (add `mysql2` to `dependencies`).
+
 ## What the Platform Handles
 
 SSL/TLS certificates, CDN, process management/restarts, and server
@@ -98,9 +125,11 @@ infrastructure are all fully managed.
 - [x] `package.json` has a `"start"` script
 - [x] All production dependencies are in `"dependencies"` (this app has none)
 - [x] App listens on `process.env.PORT`
-- [x] No hardcoded ports, secrets, or local file paths
+- [x] No hardcoded ports, secrets, database credentials, or local file paths
+- [x] (DB not used) — would add `mysql2` + read `DB_*` env vars if it were
 - [x] App runs locally with `npm install && npm start`
 - [x] `"build"` script is defined (no-op here)
+- [x] All outbound connections use HTTP (80) or HTTPS (443)
 
 ## Troubleshooting
 
@@ -119,6 +148,10 @@ infrastructure are all fully managed.
 ### Build failures
 - If a build step is needed, define a `"build"` script and ensure its output
   paths match what `"start"` expects. This app has no build step.
+
+### Blocked outbound connections
+- Only ports 80/443 are allowed outbound. Use HTTPS endpoints only. External
+  databases must be reachable over HTTPS or use the managed MySQL instance.
 
 ## Getting Help
 
