@@ -4,6 +4,10 @@
 import { initMap } from './map.js';
 
 const $ = (id) => document.getElementById(id);
+// Null-safe helpers: never let a missing/late element abort init or a handler.
+const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
+const val = (id, d = '') => { const el = $(id); return el ? el.value : d; };
+const checked = (id) => { const el = $(id); return el ? el.checked : false; };
 const fmt = (n, d = 0) => Number(n).toFixed(d);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -324,9 +328,9 @@ function card(brief, limits) {
 // ---- Data + events ---------------------------------------------------------
 function readLimits() {
   return {
-    xwind: Number($('xwind').value) || 25,
-    tailwind: Number($('tailwind').value) || 10,
-    highda: Number($('highda').value) || 5000,
+    xwind: Number(val('xwind')) || 25,
+    tailwind: Number(val('tailwind')) || 10,
+    highda: Number(val('highda')) || 5000,
   };
 }
 
@@ -339,15 +343,15 @@ function setSourcePills(live) {
 }
 
 async function buildBrief() {
-  const ids = $('icaos').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+  const ids = val('icaos').split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!ids.length) return;
   const limits = readLimits();
   const params = new URLSearchParams({
     ids: ids.join(','), xwind: limits.xwind, tailwind: limits.tailwind, highda: limits.highda,
   });
-  const agls = $('agls').value.replace(/\s+/g, '');
+  const agls = val('agls').replace(/\s+/g, '');
   if (agls) params.set('agls', agls);
-  if ($('offline').checked) params.set('offline', '1');
+  if (checked('offline')) params.set('offline', '1');
 
   $('go').disabled = true;
   $('results').innerHTML = `<div class="loading"><div class="spinner"></div>Pulling weather &amp; NOTAMs…</div>`;
@@ -420,7 +424,7 @@ async function getRouteWinds() {
   const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!pts.length) return;
   const params = new URLSearchParams({ points: pts.join(',') });
-  if ($('offline').checked) params.set('offline', '1');
+  if (checked('offline')) params.set('offline', '1');
   $('winds-go').disabled = true;
   $('winds-results').innerHTML = `<div class="loading"><div class="spinner"></div>Fetching winds aloft…</div>`;
   try {
@@ -469,7 +473,7 @@ async function lookupMtr() {
   const id = $('mtr-id').value.trim();
   if (!id) return;
   const params = new URLSearchParams({ id });
-  if ($('offline').checked) params.set('offline', '1');
+  if (checked('offline')) params.set('offline', '1');
   $('mtr-go').disabled = true;
   $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
   try {
@@ -512,7 +516,7 @@ function updatePrintHead(data, ids, limits) {
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
-     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(($('agls').value || '').trim())} ft</div>
+     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 
@@ -596,7 +600,8 @@ async function deleteSelectedSortie() {
   refreshSortieList();
 }
 
-$('results').addEventListener('click', (e) => {
+function init() {
+$('results')?.addEventListener('click', (e) => {
   // Runway compare: click a runway row to recompute the wind block for it.
   const row = e.target.closest('.rwy-row.selectable');
   if (row && row.dataset.rwy) {
@@ -634,19 +639,27 @@ window.addEventListener('afterprint', () => {
   document.querySelectorAll('details.sec').forEach((d) => { if (d.dataset.wasopen === '0') d.open = false; });
 });
 
-$('go').addEventListener('click', buildBrief);
-$('print').addEventListener('click', () => window.print());
-$('sortie-save').addEventListener('click', saveCurrentSortie);
-$('sortie-load').addEventListener('click', loadSelectedSortie);
-$('sortie-del').addEventListener('click', deleteSelectedSortie);
-initSorties();
-$('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
-$('winds-go').addEventListener('click', getRouteWinds);
-$('winds-points').addEventListener('keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
-$('mtr-go').addEventListener('click', lookupMtr);
-$('mtr-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') lookupMtr(); });
-loadQuickChips();
-buildBrief();
+  on('go', 'click', buildBrief);
+  on('print', 'click', () => window.print());
+  on('sortie-save', 'click', saveCurrentSortie);
+  on('sortie-load', 'click', loadSelectedSortie);
+  on('sortie-del', 'click', deleteSelectedSortie);
+  initSorties();
+  on('icaos', 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
+  on('winds-go', 'click', getRouteWinds);
+  on('winds-points', 'keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
+  on('mtr-go', 'click', lookupMtr);
+  on('mtr-id', 'keydown', (e) => { if (e.key === 'Enter') lookupMtr(); });
+  loadQuickChips();
+  buildBrief();
+}
+
+// Run init only once the DOM is ready, and never let a missing element abort it.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
