@@ -345,6 +345,8 @@ async function buildBrief() {
   const params = new URLSearchParams({
     ids: ids.join(','), xwind: limits.xwind, tailwind: limits.tailwind, highda: limits.highda,
   });
+  const agls = $('agls').value.replace(/\s+/g, '');
+  if (agls) params.set('agls', agls);
   if ($('offline').checked) params.set('offline', '1');
 
   $('go').disabled = true;
@@ -508,7 +510,7 @@ function updatePrintHead(data, ids, limits) {
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
-     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft</div>
+     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(($('agls').value || '').trim())} ft</div>
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 
@@ -555,7 +557,7 @@ async function refreshRemote() {
 async function saveCurrentSortie() {
   const name = $('sortie-name').value.trim();
   if (!name) { $('sortie-name').focus(); return; }
-  const data = { icaos: $('icaos').value.trim(), xwind: $('xwind').value, tailwind: $('tailwind').value, highda: $('highda').value };
+  const data = { icaos: $('icaos').value.trim(), xwind: $('xwind').value, tailwind: $('tailwind').value, highda: $('highda').value, agls: $('agls').value.trim() };
   if (sortieMode === 'remote') {
     try {
       await fetch('/api/sorties', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, data }) });
@@ -576,6 +578,7 @@ function loadSelectedSortie() {
   if (s.xwind) $('xwind').value = s.xwind;
   if (s.tailwind) $('tailwind').value = s.tailwind;
   if (s.highda) $('highda').value = s.highda;
+  if (s.agls) $('agls').value = s.agls;
   buildBrief();
 }
 

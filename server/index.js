@@ -109,7 +109,12 @@ const server = createServer(async (req, res) => {
         return;
       }
       const offline = url.searchParams.get('offline') === '1';
-      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url)));
+      const agls = (url.searchParams.get('agls') ?? '')
+        .split(',')
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n) && n > 0 && n <= 60000)
+        .slice(0, 6);
+      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined));
       return;
     }
 

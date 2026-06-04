@@ -18,8 +18,9 @@ import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 
-// Pattern altitudes (ft AGL) reported in the wind section, each with its MSL.
-const PATTERN_AGLS = [1500, 2500, 6000];
+// Default pattern altitudes (ft AGL) reported in the wind section; configurable
+// per request. Each is shown with its MSL (field elev + AGL).
+export const DEFAULT_PATTERN_AGLS = [1500, 2500, 6000];
 
 // How close airspace must be (NM) to a field to be flagged on its card.
 const AIRSPACE_THRESHOLD_NM = 100;
@@ -55,7 +56,7 @@ function deriveStatus(analysis, notams, airspaceAlert) {
   return 'GO';
 }
 
-export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
+export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS) {
   const fields = icaos.map((s) => s.toUpperCase());
 
   // Pre-fetch airport records (needed for coordinates + winds-aloft lookups).
@@ -132,7 +133,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     let patternWinds = [];
     if (windsAloft && windsAloft.profile.length) {
       const elev = airport?.elevationFt ?? 0;
-      patternWinds = PATTERN_AGLS.map((aglFt) => {
+      patternWinds = patternAgls.map((aglFt) => {
         const mslFt = elev + aglFt;
         const w = interpolateWind(windsAloft.profile, mslFt);
         return w ? { aglFt, mslFt, dirTrue: w.dirTrue, speedKt: w.speedKt } : null;
