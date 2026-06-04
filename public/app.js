@@ -218,6 +218,17 @@ function pirepSection(brief) {
   return sectionEl(`PIREPs <span class="count">${ps.length}</span>`, `<div class="notams">${rows}</div>`, false);
 }
 
+function mtrSection(brief) {
+  const ms = brief.mtrs;
+  if (!ms || !ms.length) return '';
+  const rows = ms.map((m) => {
+    const cls = m.type === 'IR' ? 'cat-APPROACH' : 'cat-LIGHTING';
+    return `<div class="as-row"><span class="cat ${cls}">${esc(m.type)}</span>
+      <div><div class="txt">${esc(m.id)} · ${esc(m.name || '')} · ${esc(m.distanceNm)} NM</div></div></div>`;
+  }).join('');
+  return sectionEl(`Low-Level (MTR) <span class="count">${ms.length}</span>`, `<div class="notams">${rows}</div>`, false);
+}
+
 function airspaceSection(brief) {
   const as = brief.airspace;
   if (!as) return '';
@@ -292,7 +303,7 @@ function card(brief, limits) {
   return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${pirepSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
+    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${pirepSection(brief)}${mtrSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------
@@ -414,6 +425,51 @@ async function getRouteWinds() {
   }
 }
 
+// ---- MTR (low-level route) lookup tool -------------------------------------
+function mtrDetailCard(d) {
+  const segs = d.segments.map((s) => {
+    const alt = s.floorFt != null ? `${s.floorFt.toLocaleString()}–${(s.ceilingFt ?? 0).toLocaleString()} ${s.agl ? 'AGL' : 'MSL'}` : '—';
+    const w = s.wind;
+    const wind = w
+      ? `${String(w.dirTrue).padStart(3, '0')}/${w.speedKt} → HW ${w.headwindKt} · XW ${w.crosswindKt}${w.crosswindSide !== 'none' ? ' ' + w.crosswindSide[0].toUpperCase() : ''}`
+      : '—';
+    const xwHi = w && Math.abs(w.crosswindKt) >= 20;
+    return `<div class="mtr-seg">
+      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}</span></div>
+      <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card"><div class="head">
+      <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div></div>
+    <div class="body"><div class="mtr-segs">${segs}</div></div></div>`;
+}
+
+async function lookupMtr() {
+  const id = $('mtr-id').value.trim();
+  if (!id) return;
+  const params = new URLSearchParams({ id });
+  if ($('offline').checked) params.set('offline', '1');
+  $('mtr-go').disabled = true;
+  $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
+  try {
+    const res = await fetch(`/api/mtr?${params}`);
+    const d = await res.json();
+    if (!d.found) {
+      $('mtr-results').innerHTML = `<div class="missing-card"><span class="icao">${esc(id)}</span> — route not found. Try IR-021 or VR-1355 (demo), or wire a live MTR source.</div>`;
+      return;
+    }
+    $('mtr-results').innerHTML = `<div class="grid">${mtrDetailCard(d)}</div>`;
+    // Plot the route on the map.
+    const mapEl = $('map');
+    mapEl.style.display = '';
+    initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
+  } catch (err) {
+    $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
+  } finally {
+    $('mtr-go').disabled = false;
+  }
+}
+
 function renderMap(data) {
   const mapEl = $('map');
   const airfields = data.airfields
@@ -425,7 +481,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [] });
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [] });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -565,6 +621,8 @@ initSorties();
 $('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
 $('winds-go').addEventListener('click', getRouteWinds);
 $('winds-points').addEventListener('keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
+$('mtr-go').addEventListener('click', lookupMtr);
+$('mtr-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') lookupMtr(); });
 loadQuickChips();
 buildBrief();
 

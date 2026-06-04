@@ -1,0 +1,42 @@
+[
+  {
+    "id": "IR-021",
+    "type": "IR",
+    "name": "Gamecock IR-021",
+    "agency": "Shaw AFB / SOF",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [[33.05, -80.55], [33.5, -81.5]],
+        "floorFt": 500, "ceilingFt": 3000, "agl": true,
+        "widthLeftNm": 5, "widthRightNm": 5
+      },
+      {
+        "name": "B → C",
+        "points": [[33.5, -81.5], [34.2, -82.5]],
+        "floorFt": 1000, "ceilingFt": 5000, "agl": true,
+        "widthLeftNm": 5, "widthRightNm": 8
+      }
+    ]
+  },
+  {
+    "id": "VR-1355",
+    "type": "VR",
+    "name": "High Desert VR-1355",
+    "agency": "Edwards AFB",
+    "segments": [
+      {
+        "name": "A → B",
+        "points": [[35.0, -118.5], [35.4, -117.4]],
+        "floorFt": 500, "ceilingFt": 1500, "agl": true,
+        "widthLeftNm": 4, "widthRightNm": 8
+      },
+      {
+        "name": "B → C",
+        "points": [[35.4, -117.4], [34.85, -116.6]],
+        "floorFt": 500, "ceilingFt": 1500, "agl": true,
+        "widthLeftNm": 4, "widthRightNm": 4
+      }
+    ]
+  }
+]

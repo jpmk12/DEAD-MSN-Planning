@@ -23,7 +23,9 @@ export function initMap(container, data) {
   const sigmets = data.sigmets || [];
   const pireps = data.pireps || [];
   const convective = data.convective || [];
+  const mtrs = data.mtrs || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
+  const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff' };
 
   container.innerHTML = '';
   container.classList.add('map-panel');
@@ -48,6 +50,7 @@ export function initMap(container, data) {
     <label class="map-toggle"><input type="checkbox" data-act="wx" checked> Wx</label>
     <label class="map-toggle"><input type="checkbox" data-act="pireps" checked> PIREP</label>
     <label class="map-toggle"><input type="checkbox" data-act="conv" checked> Conv</label>
+    <label class="map-toggle"><input type="checkbox" data-act="mtr" checked> MTR</label>
     <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">`;
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
@@ -58,7 +61,10 @@ export function initMap(container, data) {
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
 
-  const state = { ...fitView(airfields, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, opacity: 0.65 };
+  // Center on airfields if present, otherwise on the route geometry (MTR lookup).
+  const focusPts = airfields.length ? airfields
+    : mtrs.flatMap((m) => (m.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
+  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65 };
 
   function unproject(px, py, z) {
     return { lat: tileYToLat(py / TILE, z), lon: tileXToLon(px / TILE, z) };
@@ -125,6 +131,24 @@ export function initMap(container, data) {
       for (const c of convective) {
         if (!c.geometry || c.geometry.kind !== 'polygon') continue;
         overlay.appendChild(polygon(c.geometry.points, scr, CONV_COLOR[c.risk] || '#d29922', 0.12));
+      }
+    }
+
+    if (state.mtr) {
+      for (const m of mtrs) {
+        const pts = m.geometry?.points;
+        if (!pts || pts.length < 2) continue;
+        const color = MTR_COLOR[m.type] || '#4aa3df';
+        const d = pts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', '2.5');
+        path.setAttribute('stroke-linejoin', 'round');
+        overlay.appendChild(path);
+        const sp = scr(pts[0][0], pts[0][1]);
+        overlay.appendChild(label(sp.x + 6, sp.y - 4, m.id, color));
       }
     }
 
@@ -228,6 +252,7 @@ export function initMap(container, data) {
     if (act === 'wx') { state.wx = e.target.checked; render(); }
     if (act === 'pireps') { state.pireps = e.target.checked; render(); }
     if (act === 'conv') { state.conv = e.target.checked; render(); }
+    if (act === 'mtr') { state.mtr = e.target.checked; render(); }
     if (act === 'opacity') { state.opacity = e.target.value / 100; render(); }
   });
 

@@ -238,6 +238,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .wind-row.hdr .wd { text-align: center; }
 .wind-row.hdr .ws { text-align: right; color: var(--text-faint); }
 
+/* ---- MTR detail ---------------------------------------------------------- */
+.mtr-segs { display: flex; flex-direction: column; gap: 8px; }
+.mtr-seg { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid #4aa3df; border-radius: 7px; padding: 8px 10px; }
+.mtr-seg-h { font-family: var(--mono); font-size: 13px; color: var(--text); }
+.mtr-seg-w { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-top: 4px; }
+.mtr-seg-w.hi { color: var(--nogo); }
+
 /* ---- Map ----------------------------------------------------------------- */
 .map-section { margin-bottom: 22px; }
 .map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }

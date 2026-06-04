@@ -11,6 +11,7 @@ import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
 import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
+import { fetchMtrs } from './data/mtr.js';
 import { fetchPireps } from './data/pireps.js';
 import { decodeTaf } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
@@ -26,6 +27,8 @@ const AIRSPACE_THRESHOLD_NM = 100;
 const WX_THRESHOLD_NM = 150;
 // PIREP relevance radius around a field.
 const PIREP_THRESHOLD_NM = 125;
+// Low-level routes within this radius of a field are noted.
+const MTR_THRESHOLD_NM = 60;
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
@@ -59,7 +62,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
-  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult] = await Promise.all([
+  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
@@ -68,6 +71,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     fetchAirSigmets(offline),
     fetchPireps(offline),
     fetchConvective(offline),
+    fetchMtrs(offline),
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
@@ -114,6 +118,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
     const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
     const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
+    const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm }));
     const raim = raimOutlook(notams);
 
     // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
@@ -166,6 +171,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       hazardWx,
       pireps,
       convective,
+      mtrs,
       windsAloft,
       patternWind,
       birdRisk,
@@ -184,6 +190,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       hazardWx: sigmetResult.live,
       pireps: pirepResult.live,
       convective: convResult.live,
+      mtrs: mtrResult.live,
     },
     limits,
     knownAirfields: await knownAirports(),
@@ -192,6 +199,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     airsigmets: sigmetResult.airsigmets,
     pireps: pirepResult.pireps,
     convective: convResult.convective,
+    mtrs: mtrResult.mtrs,
     airfields,
   };
 }

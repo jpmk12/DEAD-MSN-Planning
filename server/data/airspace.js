@@ -24,7 +24,31 @@ export function distanceToGeometry(lat, lon, geom) {
     // Approximate: distance to the nearest vertex (advisory-grade).
     return Math.min(...geom.points.map(([la, lo]) => haversineNm(lat, lon, la, lo)));
   }
+  if (geom.kind === 'line' && Array.isArray(geom.points) && geom.points.length) {
+    return pointToPolylineNm(lat, lon, geom.points);
+  }
   return Infinity;
+}
+
+/** Shortest distance (NM) from a point to a polyline, using a local planar approx. */
+export function pointToPolylineNm(lat, lon, points) {
+  if (points.length === 1) return haversineNm(lat, lon, points[0][0], points[0][1]);
+  const ky = 60; // NM per degree latitude
+  let min = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [alat, alon] = points[i];
+    const [blat, blon] = points[i + 1];
+    const kx = 60 * Math.cos(((lat + alat + blat) / 3) * (Math.PI / 180));
+    const ax = (alon - lon) * kx, ay = (alat - lat) * ky;
+    const bx = (blon - lon) * kx, by = (blat - lat) * ky;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? -(ax * dx + ay * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    min = Math.min(min, Math.hypot(cx, cy));
+  }
+  return min;
 }
 
 /** Items within `thresholdNm` of the field, annotated with distance, nearest first. */
@@ -46,6 +70,8 @@ export function geometryFromGeoJson(g) {
   const ring = (coords) => coords.map(([lon, lat]) => [lat, lon]);
   if (g.type === 'Polygon' && g.coordinates?.[0]) return { kind: 'polygon', points: ring(g.coordinates[0]) };
   if (g.type === 'MultiPolygon' && g.coordinates?.[0]?.[0]) return { kind: 'polygon', points: ring(g.coordinates[0][0]) };
+  if (g.type === 'LineString' && g.coordinates) return { kind: 'line', points: ring(g.coordinates) };
+  if (g.type === 'MultiLineString' && g.coordinates?.[0]) return { kind: 'line', points: ring(g.coordinates.flat()) };
   if (g.type === 'Point' && g.coordinates) return { kind: 'circle', lat: g.coordinates[1], lon: g.coordinates[0], radiusNm: 5 };
   return null;
 }

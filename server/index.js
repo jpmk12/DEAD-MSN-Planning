@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
+import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 
@@ -123,6 +124,14 @@ const server = createServer(async (req, res) => {
       }
       const offline = url.searchParams.get('offline') === '1';
       sendJson(res, 200, await buildRouteWinds(ids, offline));
+      return;
+    }
+
+    if (url.pathname === '/api/mtr') {
+      const id = (url.searchParams.get('id') ?? '').trim();
+      if (!id) { sendJson(res, 400, { error: 'provide ?id=IR-021' }); return; }
+      const offline = url.searchParams.get('offline') === '1';
+      sendJson(res, 200, await buildMtrDetail(id, offline));
       return;
     }
 

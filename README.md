@@ -73,6 +73,11 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   (wind/vis/weather/clouds), with a one-click toggle back to raw.
 - **Convective outlook** — SPC categorical risk areas (TSTM→HIGH) near each
   field and on the map.
+- **Military Training Routes (MTR)** — IR/VR low-level routes on the map (toggle)
+  and within 60 NM of each field; a designator lookup (`/api/mtr?id=IR-021`)
+  shows each leg's bearing/length/altitude block **and the head/crosswind at the
+  leg's altitude**. Configurable FAA GeoJSON feed (`MTR_GEOJSON_URL`) + demo
+  fixture.
 - **Bird/wildlife risk** — an AHAS/BAM-style LOW/MODERATE/SEVERE level per field
   with advisory text; SEVERE drives the status light.
 - **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)
