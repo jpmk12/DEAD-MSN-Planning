@@ -191,6 +191,29 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .missing-card { border: 1px dashed var(--border-bright); border-radius: var(--radius); padding: 18px; color: var(--text-dim); font-size: 13px; }
 .missing-card .icao { font-family: var(--mono); font-weight: 700; color: var(--text); }
 
+/* Airspace rows (reuse NOTAM look) */
+.as-row { display: grid; grid-template-columns: 50px 1fr; gap: 9px; align-items: start; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+.as-row .cat { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.4px; text-align: center; padding: 3px 4px; border-radius: 5px; align-self: start; border: 1px solid var(--border-bright); color: var(--text-dim); }
+.as-row .txt { font-family: var(--mono); line-height: 1.45; color: var(--text); }
+.as-row .when { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
+.section-title .cat { font-family: var(--mono); font-size: 9.5px; padding: 3px 6px; border-radius: 5px; border: 1px solid var(--border-bright); }
+
+/* ---- Map ----------------------------------------------------------------- */
+.map-section { margin-bottom: 22px; }
+.map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.map-viewport { position: relative; width: 100%; height: clamp(260px, 42vh, 460px); overflow: hidden; background: #0c121a; cursor: grab; touch-action: none; }
+.map-viewport.dragging { cursor: grabbing; }
+.map-tiles { position: absolute; inset: 0; }
+.map-tiles.radar { pointer-events: none; mix-blend-mode: screen; }
+.map-tile { position: absolute; width: 256px; height: 256px; user-select: none; pointer-events: none; }
+.map-overlay { position: absolute; inset: 0; pointer-events: none; }
+.map-controls { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 6px 9px; background: rgba(14, 19, 27, 0.85); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 12px; color: var(--text-dim); backdrop-filter: blur(4px); }
+.map-controls button { width: 26px; height: 26px; font-size: 16px; line-height: 1; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 6px; cursor: pointer; }
+.map-controls button:hover { border-color: var(--accent); color: var(--accent); }
+.map-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.map-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
+.map-attrib { position: absolute; bottom: 4px; right: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
+
 /* ============================================================================
    Kneeboard print / PDF — flip the whole themed UI to an ink-friendly layout by
    redefining the CSS variables, hide on-screen chrome, and avoid card breaks.
@@ -208,7 +231,8 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   @page { margin: 12mm; }
   body { background: #fff; }
   .app { max-width: none; padding: 0; }
-  .topbar, .controls, .footer { display: none !important; }
+  .topbar, .controls, .footer, .map-section { display: none !important; }
+  .as-row { background: #fff !important; }
 
   .print-head { display: block; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; }
   .print-head .ph-title { font-size: 18px; font-weight: 800; letter-spacing: 1px; }

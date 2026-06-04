@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1/2345",
+    "type": "VIP",
+    "name": "VIP Movement (91.141)",
+    "geometry": { "kind": "circle", "lat": 40.05, "lon": -74.6, "radiusNm": 30 },
+    "lowerFt": 0,
+    "upperFt": 18000,
+    "effectiveStart": "2026-06-04T13:00:00Z",
+    "effectiveEnd": "2026-06-04T23:00:00Z",
+    "url": "https://tfr.faa.gov"
+  },
+  {
+    "id": "4/5566",
+    "type": "HAZARD",
+    "name": "Aerial Hazard / Rocket Ops",
+    "geometry": { "kind": "circle", "lat": 34.75, "lon": -117.8, "radiusNm": 25 },
+    "lowerFt": 0,
+    "upperFt": 60000,
+    "effectiveStart": "2026-06-04T15:00:00Z",
+    "effectiveEnd": "2026-06-04T19:00:00Z",
+    "url": "https://tfr.faa.gov"
+  },
+  {
+    "id": "9/8801",
+    "type": "STADIUM",
+    "name": "Stadium TFR (FDC 9/8801)",
+    "geometry": { "kind": "circle", "lat": 32.95, "lon": -80.05, "radiusNm": 3 },
+    "lowerFt": 0,
+    "upperFt": 3000,
+    "effectiveStart": "2026-06-04T22:00:00Z",
+    "effectiveEnd": "2026-06-05T03:00:00Z",
+    "url": "https://tfr.faa.gov"
+  }
+]

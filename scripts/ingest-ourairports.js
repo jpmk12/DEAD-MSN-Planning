@@ -126,6 +126,8 @@ async function main() {
       icao,
       name: a.name + (a.municipality ? `, ${a.municipality}` : ''),
       elevationFt: num(a.elevation_ft) ?? 0,
+      lat: num(a.latitude_deg),
+      lon: num(a.longitude_deg),
       magVar: 0, // headings are TRUE from source; no variation needed
       source: 'ourairports',
       runways: runwaysOut,

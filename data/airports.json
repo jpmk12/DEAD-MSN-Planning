@@ -8,11 +8,33 @@
       "magVar": -8,
       "source": "curated",
       "runways": [
-        { "ident": "03", "magHeading": 33, "lengthFt": 9001, "surface": "asphalt" },
-        { "ident": "21", "magHeading": 213, "lengthFt": 9001, "surface": "asphalt" },
-        { "ident": "15", "magHeading": 153, "lengthFt": 7000, "surface": "concrete" },
-        { "ident": "33", "magHeading": 333, "lengthFt": 7000, "surface": "concrete" }
-      ]
+        {
+          "ident": "03",
+          "magHeading": 33,
+          "lengthFt": 9001,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "21",
+          "magHeading": 213,
+          "lengthFt": 9001,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "15",
+          "magHeading": 153,
+          "lengthFt": 7000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "33",
+          "magHeading": 333,
+          "lengthFt": 7000,
+          "surface": "concrete"
+        }
+      ],
+      "lat": 32.8986,
+      "lon": -80.0405
     },
     {
       "icao": "KSUU",
@@ -21,11 +43,33 @@
       "magVar": 13,
       "source": "curated",
       "runways": [
-        { "ident": "03L", "magHeading": 33, "lengthFt": 11000, "surface": "concrete" },
-        { "ident": "21R", "magHeading": 213, "lengthFt": 11000, "surface": "concrete" },
-        { "ident": "03R", "magHeading": 33, "lengthFt": 10996, "surface": "asphalt" },
-        { "ident": "21L", "magHeading": 213, "lengthFt": 10996, "surface": "asphalt" }
-      ]
+        {
+          "ident": "03L",
+          "magHeading": 33,
+          "lengthFt": 11000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "21R",
+          "magHeading": 213,
+          "lengthFt": 11000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "03R",
+          "magHeading": 33,
+          "lengthFt": 10996,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "21L",
+          "magHeading": 213,
+          "lengthFt": 10996,
+          "surface": "asphalt"
+        }
+      ],
+      "lat": 38.2627,
+      "lon": -121.9272
     },
     {
       "icao": "KWRI",
@@ -34,11 +78,33 @@
       "magVar": -13,
       "source": "curated",
       "runways": [
-        { "ident": "06", "magHeading": 60, "lengthFt": 10001, "surface": "asphalt" },
-        { "ident": "24", "magHeading": 240, "lengthFt": 10001, "surface": "asphalt" },
-        { "ident": "18", "magHeading": 180, "lengthFt": 7115, "surface": "asphalt" },
-        { "ident": "36", "magHeading": 360, "lengthFt": 7115, "surface": "asphalt" }
-      ]
+        {
+          "ident": "06",
+          "magHeading": 60,
+          "lengthFt": 10001,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "24",
+          "magHeading": 240,
+          "lengthFt": 10001,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "18",
+          "magHeading": 180,
+          "lengthFt": 7115,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "36",
+          "magHeading": 360,
+          "lengthFt": 7115,
+          "surface": "asphalt"
+        }
+      ],
+      "lat": 40.0155,
+      "lon": -74.5917
     },
     {
       "icao": "PHIK",
@@ -47,11 +113,33 @@
       "magVar": 9,
       "source": "curated",
       "runways": [
-        { "ident": "08L", "magHeading": 80, "lengthFt": 12000, "surface": "asphalt" },
-        { "ident": "26R", "magHeading": 260, "lengthFt": 12000, "surface": "asphalt" },
-        { "ident": "04R", "magHeading": 40, "lengthFt": 9000, "surface": "asphalt" },
-        { "ident": "22L", "magHeading": 220, "lengthFt": 9000, "surface": "asphalt" }
-      ]
+        {
+          "ident": "08L",
+          "magHeading": 80,
+          "lengthFt": 12000,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "26R",
+          "magHeading": 260,
+          "lengthFt": 12000,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "04R",
+          "magHeading": 40,
+          "lengthFt": 9000,
+          "surface": "asphalt"
+        },
+        {
+          "ident": "22L",
+          "magHeading": 220,
+          "lengthFt": 9000,
+          "surface": "asphalt"
+        }
+      ],
+      "lat": 21.3187,
+      "lon": -157.9224
     },
     {
       "icao": "KEDW",
@@ -60,11 +148,33 @@
       "magVar": 12,
       "source": "curated",
       "runways": [
-        { "ident": "04L", "magHeading": 40, "lengthFt": 12000, "surface": "concrete" },
-        { "ident": "22R", "magHeading": 220, "lengthFt": 12000, "surface": "concrete" },
-        { "ident": "06", "magHeading": 60, "lengthFt": 15000, "surface": "concrete" },
-        { "ident": "24", "magHeading": 240, "lengthFt": 15000, "surface": "concrete" }
-      ]
+        {
+          "ident": "04L",
+          "magHeading": 40,
+          "lengthFt": 12000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "22R",
+          "magHeading": 220,
+          "lengthFt": 12000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "06",
+          "magHeading": 60,
+          "lengthFt": 15000,
+          "surface": "concrete"
+        },
+        {
+          "ident": "24",
+          "magHeading": 240,
+          "lengthFt": 15000,
+          "surface": "concrete"
+        }
+      ],
+      "lat": 34.9054,
+      "lon": -117.8839
     }
   ]
 }

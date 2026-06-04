@@ -54,9 +54,18 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
 - **NOTAMs** — fetched (FAA NOTAM API when `FAA_NOTAM_CLIENT_ID`/`_SECRET` are
   set; fixture otherwise), then **categorized and ranked** so runway/approach/
   lighting items surface first.
+- **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)
+  within 100 NM of each field, with distance, altitudes, and active/scheduled
+  status. Being inside an active TFR or restricted area drives the status light.
+- **GPS-RAIM outlook** — predicted outage windows derived from GPS/RAIM NOTAMs
+  (the operational signal crews use), with a pointer to FAA SAPT for the
+  authoritative satellite-geometry prediction.
+- **Map** — a self-contained slippy map (no map library) with a dark basemap,
+  a **NEXRAD weather-radar overlay** (toggle + opacity), airfield markers with
+  10 NM range rings, and TFR/SUA shapes. Drag to pan, scroll/buttons to zoom.
 - **Smart synthesis** — if the wind-optimal runway is closed by NOTAM, the brief
   says so and recommends the best **open** runway. A GO/CAUTION/NO-GO status
-  light rolls up wind limits, density altitude, and closures per field.
+  light rolls up wind limits, density altitude, closures, and airspace per field.
 
 ## Authoritative airfield data (NASR/OpenAIP seam)
 
@@ -113,7 +122,12 @@ added, and cards avoid page breaks. Save-as-PDF for a kneeboard copy.
   values (set them in the UI controls or via `xwind`/`tailwind`/`highda` query
   params).
 
+The airspace and TFR/SUA/RAIM data are currently bundled fixtures (the modules
+expose a clean seam for live FAA ingest). The map needs runtime network for its
+tiles (basemap + radar); offline, the vector overlay still draws airfields and
+airspace against the dark backdrop.
+
 ## Next steps (see PLANNING.md §5)
 
-TFR / SUA status · GPS-RAIM outage prediction · AHAS/BAM bird hazards ·
-winds-aloft for pattern altitude · map view with weather radar overlay.
+Live FAA TFR/SUA ingest · AHAS/BAM bird hazards · winds-aloft for pattern
+altitude · route/low-level (MTRs) · per-leg fuel & timing.

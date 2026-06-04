@@ -1,0 +1,50 @@
+[
+  {
+    "id": "R-2508",
+    "name": "R-2508 Complex (Edwards)",
+    "type": "RESTRICTED",
+    "status": "active",
+    "schedule": "Continuous",
+    "geometry": { "kind": "circle", "lat": 35.2, "lon": -117.7, "radiusNm": 40 },
+    "lowerFt": 0,
+    "upperFt": 60000,
+    "effectiveStart": "2026-06-04T00:00:00Z",
+    "effectiveEnd": "2026-06-04T23:59:00Z"
+  },
+  {
+    "id": "GAMECOCK-A",
+    "name": "Gamecock A MOA",
+    "type": "MOA",
+    "status": "scheduled",
+    "schedule": "1400-1800Z Mon-Fri",
+    "geometry": { "kind": "circle", "lat": 33.4, "lon": -80.1, "radiusNm": 35 },
+    "lowerFt": 8000,
+    "upperFt": 17999,
+    "effectiveStart": "2026-06-04T14:00:00Z",
+    "effectiveEnd": "2026-06-04T18:00:00Z"
+  },
+  {
+    "id": "W-122",
+    "name": "Warning Area W-122",
+    "type": "WARNING",
+    "status": "cold",
+    "schedule": "By NOTAM",
+    "geometry": { "kind": "circle", "lat": 32.4, "lon": -79.2, "radiusNm": 50 },
+    "lowerFt": 0,
+    "upperFt": 60000,
+    "effectiveStart": null,
+    "effectiveEnd": null
+  },
+  {
+    "id": "TRAVIS-MOA",
+    "name": "Travis MOA",
+    "type": "MOA",
+    "status": "scheduled",
+    "schedule": "Sunrise-Sunset",
+    "geometry": { "kind": "circle", "lat": 38.6, "lon": -122.1, "radiusNm": 30 },
+    "lowerFt": 1500,
+    "upperFt": 17999,
+    "effectiveStart": "2026-06-04T13:00:00Z",
+    "effectiveEnd": "2026-06-05T03:00:00Z"
+  }
+]

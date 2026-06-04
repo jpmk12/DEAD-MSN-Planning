@@ -1,6 +1,8 @@
 // C-17 Mission Planner — static frontend (no framework, no build).
 // Talks to the zero-dependency Node API and renders the EFB-style brief.
 
+import { initMap } from './map.js';
+
 const $ = (id) => document.getElementById(id);
 const fmt = (n, d = 0) => Number(n).toFixed(d);
 const esc = (s) =>
@@ -87,6 +89,38 @@ function runwayRows(a, brief) {
   }).join('');
 }
 
+function airspaceSection(brief) {
+  const as = brief.airspace;
+  if (!as) return '';
+  const raimClass = as.raim.status === 'PREDICTED OUTAGE' ? 'cat-RUNWAY' : 'cat-LIGHTING';
+  const tfrRows = as.tfrs.map((t) => {
+    const inside = t.distanceNm === 0;
+    return `<div class="as-row"><span class="cat cat-RUNWAY">TFR</span>
+      <div><div class="txt">${esc(t.type)} · ${esc(t.name)} ${inside ? '<b style="color:var(--nogo)">INSIDE</b>' : esc(t.distanceNm) + ' NM'}</div>
+      <div class="when">SFC–${t.upperFt != null ? esc(t.upperFt.toLocaleString()) + ' ft' : '—'}${t.effectiveEnd ? ' · until ' + esc(t.effectiveEnd.slice(0, 16).replace('T', ' ')) + 'Z' : ''}</div></div></div>`;
+  }).join('');
+  const suaRows = as.sua.map((s) => {
+    const sc = s.status === 'active' ? 'cat-RUNWAY' : s.status === 'scheduled' ? 'cat-APPROACH' : 'cat-LIGHTING';
+    return `<div class="as-row"><span class="cat ${sc}">${esc(s.type)}</span>
+      <div><div class="txt">${esc(s.id)} · ${esc(s.status.toUpperCase())} · ${s.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(s.distanceNm) + ' NM'}</div>
+      <div class="when">${esc(s.schedule || '')}${s.lowerFt != null ? ' · ' + esc(s.lowerFt.toLocaleString()) + '–' + esc((s.upperFt ?? 0).toLocaleString()) + ' ft' : ''}</div></div></div>`;
+  }).join('');
+  const raimWin = as.raim.windows.map((w) => {
+    const inl = (w.inlineRanges || []).map((r) => `${r.start}–${r.end}`).join(', ');
+    const abs = w.start ? `${w.start.slice(11, 16)}Z–${(w.end || '').slice(11, 16)}Z` : '';
+    return `<div class="when" style="margin-left:2px">• ${esc(inl || abs || w.raw)}</div>`;
+  }).join('');
+
+  return `<div><div class="section-title">Airspace &amp; RAIM
+      <span class="cat ${raimClass}" style="margin-left:auto">RAIM: ${esc(as.raim.status)}</span></div>
+    <div class="notams" style="margin-top:8px">
+      ${tfrRows || ''}${suaRows || ''}
+      ${raimWin ? `<div class="as-row"><span class="cat ${raimClass}">GPS</span><div><div class="txt">Predicted RAIM outage</div>${raimWin}</div></div>` : ''}
+      ${!as.tfrs.length && !as.sua.length && as.raim.status !== 'PREDICTED OUTAGE'
+        ? '<div class="readout" style="font-size:12px">No TFRs or SUA within 100 NM · RAIM nominal.</div>' : ''}
+    </div></div>`;
+}
+
 function card(brief, limits) {
   if (!brief.found) {
     return `<div class="missing-card"><span class="icao">${esc(brief.icao)}</span> — not in the reference dataset yet.
@@ -148,7 +182,7 @@ function card(brief, limits) {
   return `<div class="card">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${notams}${taf}</div></div>`;
+    <div class="body">${body}${airspaceSection(brief)}${notams}${taf}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------
@@ -186,6 +220,7 @@ async function buildBrief() {
     setSourcePills(data.live);
     $('results').innerHTML = `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
     updatePrintHead(data, ids, limits);
+    renderMap(data);
   } catch (err) {
     $('results').innerHTML = `<div class="errbox">Failed to build brief: ${esc(err.message)}<br/>
       <span style="color:var(--text-dim);font-size:12px">Is the server running? Try the offline/demo toggle.</span></div>`;
@@ -207,6 +242,20 @@ async function loadQuickChips() {
       });
     });
   } catch { /* server may be down; chips are optional */ }
+}
+
+function renderMap(data) {
+  const mapEl = $('map');
+  const airfields = data.airfields
+    .filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lon))
+    .map((b) => ({ icao: b.icao, lat: b.lat, lon: b.lon, status: b.status }));
+  if (airfields.length === 0) {
+    mapEl.style.display = 'none';
+    return;
+  }
+  mapEl.style.display = '';
+  const as = data.airspace || { tfrs: [], sua: [] };
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua });
 }
 
 function updatePrintHead(data, ids, limits) {

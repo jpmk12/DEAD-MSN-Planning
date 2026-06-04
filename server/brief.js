@@ -7,6 +7,11 @@ import { analyzeAirfield } from './core/analyze.js';
 import { getAirport, knownAirports } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
+import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
+import { raimOutlook } from './data/raim.js';
+
+// How close airspace must be (NM) to a field to be flagged on its card.
+const AIRSPACE_THRESHOLD_NM = 100;
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
@@ -25,19 +30,21 @@ export function parseClosedRunways(notams) {
   return [...closed];
 }
 
-function deriveStatus(analysis, notams) {
+function deriveStatus(analysis, notams, airspaceAlert) {
   if (!analysis) return 'NO-DATA';
   if (analysis.warnings.some((w) => w.includes('exceeds'))) return 'NO-GO';
   const hasClosure = notams.some((n) => n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
-  if (analysis.warnings.length > 0 || hasClosure) return 'CAUTION';
+  if (analysis.warnings.length > 0 || hasClosure || airspaceAlert) return 'CAUTION';
   return 'GO';
 }
 
 export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const fields = icaos.map((s) => s.toUpperCase());
-  const [{ obs, tafs, live: wxLive }, notamResult] = await Promise.all([
+  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
+    fetchTfrs(offline),
+    fetchSua(offline),
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
@@ -64,24 +71,42 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       }
     }
 
+    // Airspace + RAIM outlook for this field.
+    const lat = airport?.lat ?? null;
+    const lon = airport?.lon ?? null;
+    const tfrs = nearby(lat, lon, tfrResult.tfrs, AIRSPACE_THRESHOLD_NM);
+    const sua = nearby(lat, lon, suaResult.sua, AIRSPACE_THRESHOLD_NM);
+    const raim = raimOutlook(notams);
+
+    // Inside an active TFR, or inside an active restricted area = caution.
+    const airspaceAlert =
+      tfrs.some((t) => t.distanceNm === 0) ||
+      sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED') ||
+      raim.status === 'PREDICTED OUTAGE';
+
     airfields.push({
       icao,
       found: !!airport,
       airport,
+      lat,
+      lon,
       analysis,
       taf: tafs.get(icao),
       notams,
       closedRunways,
       recommendedRunway,
-      status: deriveStatus(analysis, notams),
+      airspace: { tfrs, sua, raim },
+      status: deriveStatus(analysis, notams, airspaceAlert),
     });
   }
 
   return {
     generatedAt: new Date().toISOString(),
-    live: { weather: wxLive, notams: notamResult.live },
+    live: { weather: wxLive, notams: notamResult.live, airspace: tfrResult.live && suaResult.live },
     limits,
     knownAirfields: await knownAirports(),
+    // Full geometry sets for the map layer.
+    airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },
     airfields,
   };
 }
