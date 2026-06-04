@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findHourIndex, parseProfile, nearestLevel, buildUrl } from './windsaloft.js';
+import { findHourIndex, parseProfile, nearestLevel, interpolateWind, buildUrl } from './windsaloft.js';
 
 const sample = {
   hourly: {
@@ -47,6 +47,26 @@ test('parseProfile skips missing levels', () => {
   const p = parseProfile(partial, 0, 0);
   assert.equal(p.length, 1);
   assert.equal(p[0].altFt, 2500);
+});
+
+test('interpolateWind: halfway between two levels (same direction)', () => {
+  const profile = [{ altFt: 1000, dirTrue: 270, speedKt: 10 }, { altFt: 3000, dirTrue: 270, speedKt: 30 }];
+  const w = interpolateWind(profile, 2000);
+  assert.equal(w.dirTrue, 270);
+  assert.equal(w.speedKt, 20); // linear in speed when direction constant
+});
+
+test('interpolateWind: clamps below/above the profile', () => {
+  const profile = [{ altFt: 1000, dirTrue: 200, speedKt: 8 }, { altFt: 5000, dirTrue: 260, speedKt: 40 }];
+  assert.deepEqual(interpolateWind(profile, 0), { dirTrue: 200, speedKt: 8 });
+  assert.deepEqual(interpolateWind(profile, 9000), { dirTrue: 260, speedKt: 40 });
+});
+
+test('interpolateWind: direction interpolates across the compass via vectors', () => {
+  const profile = [{ altFt: 1000, dirTrue: 350, speedKt: 20 }, { altFt: 3000, dirTrue: 10, speedKt: 20 }];
+  const w = interpolateWind(profile, 2000);
+  assert.equal(w.dirTrue, 0); // midpoint of 350 and 010 is 360/000, not 180
+  assert.ok(Math.abs(w.speedKt - 20) <= 1);
 });
 
 test('nearestLevel picks the closest altitude', () => {

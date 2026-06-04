@@ -156,6 +156,14 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .comp .box.xw.mod .val { color: var(--caution); }
 .comp .box.tw .val { color: var(--caution); }
 .gust-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.pw-block { margin-top: 6px; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.pw-hdr { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-faint); background: var(--panel-2); padding: 4px 8px; }
+.pw-row { display: grid; grid-template-columns: 1.5fr 0.8fr 1.4fr; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; padding: 4px 8px; }
+.pw-row:nth-child(even) { background: var(--panel-2); }
+.pw-alt { color: var(--text-dim); }
+.pw-alt small { color: var(--text-faint); }
+.pw-wind { text-align: center; color: var(--text); }
+.pw-comp { text-align: right; color: var(--accent); }
 
 .rwys-cap { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; margin: 2px 0 4px; }
 .rwys-cap b { color: var(--accent); font-weight: 600; }

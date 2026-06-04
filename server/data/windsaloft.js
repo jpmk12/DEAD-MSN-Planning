@@ -86,6 +86,34 @@ export function nearestLevel(profile, targetFt) {
   return profile.reduce((best, p) => (Math.abs(p.altFt - targetFt) < Math.abs(best.altFt - targetFt) ? p : best));
 }
 
+/**
+ * Wind at an exact MSL altitude, linearly interpolated between the bracketing
+ * forecast levels. Interpolates the wind vector (u,v) then converts back, so
+ * direction is handled correctly across the compass. Returns {dirTrue, speedKt}.
+ */
+export function interpolateWind(profile, targetFt) {
+  if (!profile.length) return null;
+  const s = [...profile].sort((a, b) => a.altFt - b.altFt);
+  const pick = (lvl) => ({ dirTrue: Math.round(lvl.dirTrue), speedKt: Math.round(lvl.speedKt) });
+  if (targetFt <= s[0].altFt) return pick(s[0]);
+  if (targetFt >= s[s.length - 1].altFt) return pick(s[s.length - 1]);
+
+  let lo = s[0], hi = s[s.length - 1];
+  for (let i = 0; i < s.length - 1; i++) {
+    if (s[i].altFt <= targetFt && s[i + 1].altFt >= targetFt) { lo = s[i]; hi = s[i + 1]; break; }
+  }
+  const f = hi.altFt === lo.altFt ? 0 : (targetFt - lo.altFt) / (hi.altFt - lo.altFt);
+  const toUV = (d, sp) => ({ u: -sp * Math.sin((d * Math.PI) / 180), v: -sp * Math.cos((d * Math.PI) / 180) });
+  const a = toUV(lo.dirTrue, lo.speedKt);
+  const b = toUV(hi.dirTrue, hi.speedKt);
+  const u = a.u + (b.u - a.u) * f;
+  const v = a.v + (b.v - a.v) * f;
+  const speedKt = Math.round(Math.hypot(u, v));
+  let dir = (Math.atan2(-u, -v) * 180) / Math.PI;
+  dir = ((Math.round(dir) % 360) + 360) % 360;
+  return { dirTrue: dir, speedKt };
+}
+
 async function loadFixture() {
   return JSON.parse(await readFile(fileURLToPath(FIXTURE_URL), 'utf8'));
 }

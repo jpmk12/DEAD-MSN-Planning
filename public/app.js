@@ -91,18 +91,25 @@ function windBlock(brief, rwy, limits) {
     const len = lengthByIdent[rwy.ident] ? `<span class="rwy-len">${lengthByIdent[rwy.ident].toLocaleString()} ft</span>` : '';
     const gust = rwy.gustCrosswindKt != null
       ? `<div class="gust-note">gust: HW ${fmt(Math.abs(rwy.gustHeadwindKt))} · XW ${fmt(rwy.gustCrosswindKt)} kt</div>` : '';
-    let pwLine = '';
-    const pw = brief.patternWind;
-    if (pw) {
-      const c = windComp(rwy.trueHeading, pw.dirTrue, pw.speedKt);
-      pwLine = `<div class="gust-note" style="color:var(--accent)">pattern @${pw.altFt.toLocaleString()} MSL: ${String(pw.dirTrue).padStart(3, '0')}/${pw.speedKt} → HW ${fmt(c.headwindKt)} · XW ${fmt(c.crosswindKt)}${c.crosswindSide !== 'none' ? ' ' + c.crosswindSide[0].toUpperCase() : ''}</div>`;
+    const pws = brief.patternWinds || [];
+    let pwBlock = '';
+    if (pws.length) {
+      const rows = pws.map((pw) => {
+        const c = windComp(rwy.trueHeading, pw.dirTrue, pw.speedKt);
+        const side = c.crosswindSide !== 'none' ? ' ' + c.crosswindSide[0].toUpperCase() : '';
+        const hw = c.headwindKt < 0 ? `TW ${fmt(-c.headwindKt)}` : `HW ${fmt(c.headwindKt)}`;
+        return `<div class="pw-row"><span class="pw-alt">${pw.aglFt.toLocaleString()} AGL <small>(${pw.mslFt.toLocaleString()} MSL)</small></span>
+          <span class="pw-wind">${String(pw.dirTrue).padStart(3, '0')}/${pw.speedKt}</span>
+          <span class="pw-comp">${hw} · XW ${fmt(c.crosswindKt)}${side}</span></div>`;
+      }).join('');
+      pwBlock = `<div class="pw-block"><div class="pw-hdr">Pattern winds (on RWY ${esc(rwy.ident)})</div>${rows}</div>`;
     }
     readout = `
       <div class="active-rwy">RWY <b>${esc(rwy.ident)}</b> ${tag} ${len}</div>
       <div class="comp">
         <div class="box ${rwy.isTailwind ? 'tw' : ''}"><div class="lbl">${rwy.isTailwind ? 'Tailwind' : 'Headwind'}</div><div class="val">${fmt(Math.abs(rwy.headwindKt))}</div></div>
         <div class="box xw ${xwClass}"><div class="lbl">Xwind ${rwy.crosswindSide !== 'none' ? rwy.crosswindSide[0].toUpperCase() : ''}</div><div class="val">${fmt(rwy.crosswindKt)}</div></div>
-      </div>${gust}${pwLine}`;
+      </div>${gust}${pwBlock}`;
   }
   return `<div class="wind-block" data-icao="${esc(brief.icao)}"><div class="compass">${compassSvg(a, limits.xwind, rwy || null)}</div><div class="wind-readout">${readout}</div></div>`;
 }

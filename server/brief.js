@@ -4,7 +4,6 @@
 // wind-optimal runway.
 
 import { analyzeAirfield } from './core/analyze.js';
-import { windComponents } from './core/wind.js';
 import { getAirport, knownAirports } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
@@ -16,11 +15,11 @@ import { fetchRouteRisk } from './data/ahas.js';
 import { fetchPireps } from './data/pireps.js';
 import { decodeTaf } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
-import { fetchWindsAloft, nearestLevel } from './data/windsaloft.js';
+import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 
-// Pattern altitude offset (ft AGL) used to pick the winds-aloft level.
-const PATTERN_AGL_FT = 1500;
+// Pattern altitudes (ft AGL) reported in the wind section, each with its MSL.
+const PATTERN_AGLS = [1500, 2500, 6000];
 
 // How close airspace must be (NM) to a field to be flagged on its card.
 const AIRSPACE_THRESHOLD_NM = 100;
@@ -126,25 +125,18 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm, birdRisk: mtrLevel(m.id) }));
     const raim = raimOutlook(notams);
 
-    // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
+    // Winds aloft: profile + pattern winds at 1500 & 2500 AGL (with MSL),
+    // interpolated to those altitudes. Head/cross is recomputed client-side for
+    // the selected runway.
     const windsAloft = windsMap.get(icao) ?? null;
-    let patternWind = null;
-    if (windsAloft && windsAloft.profile.length && analysis && analysis.active) {
-      const lvl = nearestLevel(windsAloft.profile, (airport.elevationFt ?? 0) + PATTERN_AGL_FT);
-      if (lvl) {
-        const ident = recommendedRunway ?? analysis.active.ident;
-        const rwy = analysis.runways.find((r) => r.ident === ident) ?? analysis.active;
-        const c = windComponents(rwy.trueHeading, lvl.dirTrue, lvl.speedKt);
-        patternWind = {
-          altFt: lvl.altFt,
-          dirTrue: lvl.dirTrue,
-          speedKt: lvl.speedKt,
-          runway: rwy.ident,
-          headwindKt: Math.round(c.headwindKt),
-          crosswindKt: Math.round(c.crosswindKt),
-          crosswindSide: c.crosswindSide,
-        };
-      }
+    let patternWinds = [];
+    if (windsAloft && windsAloft.profile.length) {
+      const elev = airport?.elevationFt ?? 0;
+      patternWinds = PATTERN_AGLS.map((aglFt) => {
+        const mslFt = elev + aglFt;
+        const w = interpolateWind(windsAloft.profile, mslFt);
+        return w ? { aglFt, mslFt, dirTrue: w.dirTrue, speedKt: w.speedKt } : null;
+      }).filter(Boolean);
     }
 
     // Bird/wildlife risk for this field.
@@ -178,7 +170,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       convective,
       mtrs,
       windsAloft,
-      patternWind,
+      patternWinds,
       birdRisk,
       status: deriveStatus(analysis, notams, alert),
     });
