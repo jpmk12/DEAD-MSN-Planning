@@ -126,6 +126,20 @@ function hazardWxSection(brief) {
     <div class="notams" style="margin-top:8px">${rows}</div></div>`;
 }
 
+function pirepSection(brief) {
+  const ps = brief.pireps;
+  if (!ps || !ps.length) return '';
+  const rows = ps.map((p) => {
+    const cls = p.urgent ? 'cat-RUNWAY' : p.turb || p.ice ? 'cat-APPROACH' : 'cat-LIGHTING';
+    const alt = p.altFt != null ? `${(p.altFt / 1000).toFixed(0)}k ft` : '—';
+    const dist = p.distanceNm === 0 ? 'overhead' : esc(p.distanceNm) + ' NM';
+    return `<div class="as-row"><span class="cat ${cls}">${esc(p.hazard)}</span>
+      <div><div class="txt">${esc(alt)} · ${dist}</div><div class="when">${esc(p.rawText)}</div></div></div>`;
+  }).join('');
+  return `<div><div class="section-title">PIREPs <span class="count">${ps.length}</span></div>
+    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+}
+
 function airspaceSection(brief) {
   const as = brief.airspace;
   if (!as) return '';
@@ -224,7 +238,7 @@ function card(brief, limits) {
   return `<div class="card">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
+    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${pirepSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------
@@ -303,10 +317,17 @@ function windsProfileCard(pt) {
     })
     .join('');
   const t = pt.time ? `<span class="count">${esc(pt.time.slice(11, 16))}Z fcst</span>` : '';
+  const hz = (pt.hazards || []);
+  let banner = '';
+  if (hz.length) {
+    const conv = hz.some((h) => h.hazard === 'CONVECTIVE');
+    const list = hz.map((h) => `${esc(h.label)} (${h.distanceNm === 0 ? 'overhead' : esc(h.distanceNm) + ' NM'})`).join(', ');
+    banner = `<div class="warn-item ${conv ? 'crit' : ''}" style="margin-bottom:10px"><span class="ico">⚠</span><span>Hazardous wx near route: ${list}</span></div>`;
+  }
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(pt.id)}</div><div class="name">${esc(pt.kind)} · ${esc(pt.name)}</div></div>
       <div class="spacer"></div>${t}</div>
-    <div class="body"><div class="wind-profile">
+    <div class="body">${banner}<div class="wind-profile">
       <div class="wind-row hdr"><span class="wa">ALT</span><span class="wd">DIR</span><span class="ws">SPD</span></div>
       ${rows}</div></div></div>`;
 }
@@ -323,6 +344,13 @@ async function getRouteWinds() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     $('winds-results').innerHTML = `<div class="grid">${data.points.map(windsProfileCard).join('')}</div>`;
+    // Radar-along-route: drop the route points + hazardous wx onto the map.
+    const routePts = data.points.filter((p) => p.found).map((p) => ({ icao: p.id, lat: p.lat, lon: p.lon, status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO' }));
+    if (routePts.length) {
+      const mapEl = $('map');
+      mapEl.style.display = '';
+      initMap(mapEl, { airfields: routePts, tfrs: [], sua: [], sigmets: data.airsigmets || [], pireps: [] });
+    }
   } catch (err) {
     $('winds-results').innerHTML = `<div class="errbox">Failed: ${esc(err.message)}</div>`;
   } finally {
@@ -341,7 +369,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [] });
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [] });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -355,8 +383,62 @@ function updatePrintHead(data, ids, limits) {
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 
+// ---- Saved sorties (browser-local) -----------------------------------------
+const SORTIE_KEY = 'c17-sorties';
+
+function loadSorties() {
+  try { return JSON.parse(localStorage.getItem(SORTIE_KEY)) || {}; } catch { return {}; }
+}
+function saveSorties(obj) {
+  try { localStorage.setItem(SORTIE_KEY, JSON.stringify(obj)); } catch { /* storage may be blocked */ }
+}
+function refreshSortieList(selected) {
+  const sorties = loadSorties();
+  const names = Object.keys(sorties).sort();
+  const sel = $('sortie-list');
+  sel.innerHTML = names.length
+    ? names.map((n) => `<option${n === selected ? ' selected' : ''}>${esc(n)}</option>`).join('')
+    : '<option value="">— none saved —</option>';
+}
+function saveCurrentSortie() {
+  const name = $('sortie-name').value.trim();
+  if (!name) { $('sortie-name').focus(); return; }
+  const sorties = loadSorties();
+  sorties[name] = {
+    icaos: $('icaos').value.trim(),
+    xwind: $('xwind').value,
+    tailwind: $('tailwind').value,
+    highda: $('highda').value,
+  };
+  saveSorties(sorties);
+  $('sortie-name').value = '';
+  refreshSortieList(name);
+}
+function loadSelectedSortie() {
+  const name = $('sortie-list').value;
+  const s = loadSorties()[name];
+  if (!s) return;
+  $('icaos').value = s.icaos;
+  if (s.xwind) $('xwind').value = s.xwind;
+  if (s.tailwind) $('tailwind').value = s.tailwind;
+  if (s.highda) $('highda').value = s.highda;
+  buildBrief();
+}
+function deleteSelectedSortie() {
+  const name = $('sortie-list').value;
+  if (!name) return;
+  const sorties = loadSorties();
+  delete sorties[name];
+  saveSorties(sorties);
+  refreshSortieList();
+}
+
 $('go').addEventListener('click', buildBrief);
 $('print').addEventListener('click', () => window.print());
+$('sortie-save').addEventListener('click', saveCurrentSortie);
+$('sortie-load').addEventListener('click', loadSelectedSortie);
+$('sortie-del').addEventListener('click', deleteSelectedSortie);
+refreshSortieList();
 $('icaos').addEventListener('keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
 $('winds-go').addEventListener('click', getRouteWinds);
 $('winds-points').addEventListener('keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });

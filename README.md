@@ -62,7 +62,12 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
   components), so you see what the pattern actually flies in.
 - **Route / climb winds tool** — enter airfields *or* navaids and get a full
   surface→FL300 wind profile for each (`/api/winds`), for climb-out and en-route
-  planning.
+  planning. Flags hazardous wx near each route point and plots the route +
+  radar on the map ("radar along route").
+- **PIREPs** — live pilot reports (turbulence/icing) near each field and on the
+  map, colored by hazard/urgency.
+- **Saved sorties** — name and reload a set of airfields + limits from the
+  browser; no account needed.
 - **Bird/wildlife risk** — an AHAS/BAM-style LOW/MODERATE/SEVERE level per field
   with advisory text; SEVERE drives the status light.
 - **Airspace** — TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert)

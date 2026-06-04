@@ -10,6 +10,7 @@ import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
+import { fetchPireps } from './data/pireps.js';
 import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, nearestLevel } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
@@ -21,6 +22,8 @@ const PATTERN_AGL_FT = 1500;
 const AIRSPACE_THRESHOLD_NM = 100;
 // Hazardous-weather advisories use a wider relevance radius.
 const WX_THRESHOLD_NM = 150;
+// PIREP relevance radius around a field.
+const PIREP_THRESHOLD_NM = 125;
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
@@ -54,13 +57,14 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
-  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult] = await Promise.all([
+  const [{ obs, tafs, live: wxLive }, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
     fetchSua(offline),
     fetchBirdRisk(fields, offline),
     fetchAirSigmets(offline),
+    fetchPireps(offline),
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
@@ -105,6 +109,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const tfrs = nearby(lat, lon, tfrResult.tfrs, AIRSPACE_THRESHOLD_NM);
     const sua = nearby(lat, lon, suaResult.sua, AIRSPACE_THRESHOLD_NM);
     const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
+    const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
     const raim = raimOutlook(notams);
 
     // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
@@ -153,6 +158,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       recommendedRunway,
       airspace: { tfrs, sua, raim },
       hazardWx,
+      pireps,
       windsAloft,
       patternWind,
       birdRisk,
@@ -169,12 +175,14 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       windsAloft: windsPairs.some(([, r]) => r && r.live),
       birds: birdResult.live,
       hazardWx: sigmetResult.live,
+      pireps: pirepResult.live,
     },
     limits,
     knownAirfields: await knownAirports(),
     // Full geometry sets for the map layer.
     airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },
     airsigmets: sigmetResult.airsigmets,
+    pireps: pirepResult.pireps,
     airfields,
   };
 }

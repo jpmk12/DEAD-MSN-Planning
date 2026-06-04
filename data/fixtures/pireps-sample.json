@@ -1,0 +1,32 @@
+[
+  {
+    "pirepId": "PIREP-1",
+    "pirepType": "PIREP",
+    "obsTime": 1780936800,
+    "lat": 33.2,
+    "lon": -80.3,
+    "fltlvl": "120",
+    "turbInt1": "MOD",
+    "rawOb": "KCHS UA /OV KCHS180015 /TM 1620 /FL120 /TP C17 /TB MOD /RM DURD"
+  },
+  {
+    "pirepId": "PIREP-2",
+    "pirepType": "Urgent PIREP",
+    "obsTime": 1780937100,
+    "lat": 40.4,
+    "lon": -74.9,
+    "fltlvl": "100",
+    "icgInt1": "MOD",
+    "rawOb": "KWRI UUA /OV KWRI /TM 1625 /FL100 /TP C17 /IC MOD RIME /RM CLIMB"
+  },
+  {
+    "pirepId": "PIREP-3",
+    "pirepType": "PIREP",
+    "obsTime": 1780936500,
+    "lat": 35.1,
+    "lon": -118.2,
+    "fltlvl": "240",
+    "turbInt1": "LGT-MOD",
+    "rawOb": "KEDW UA /OV KEDW270020 /TM 1615 /FL240 /TP C17 /TB LGT-MOD"
+  }
+]

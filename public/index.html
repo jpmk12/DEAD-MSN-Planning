@@ -48,6 +48,19 @@
           <label class="toggle"><input id="offline" type="checkbox" /> Use offline/demo data</label>
           <div id="quick" class="chips"></div>
         </div>
+        <div class="row sortie-row" style="margin-top: 10px;">
+          <div class="field grow">
+            <label for="sortie-name">Save current setup as a sortie</label>
+            <input id="sortie-name" type="text" placeholder="e.g. Altus pattern day" autocomplete="off" />
+          </div>
+          <button id="sortie-save" class="go secondary">Save</button>
+          <div class="field grow">
+            <label for="sortie-list">Saved sorties</label>
+            <select id="sortie-list"></select>
+          </div>
+          <button id="sortie-load" class="go secondary">Load</button>
+          <button id="sortie-del" class="go secondary" title="Delete selected sortie">Delete</button>
+        </div>
       </section>
 
       <section class="controls winds-tool">

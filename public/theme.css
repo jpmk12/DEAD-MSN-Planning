@@ -82,6 +82,8 @@ body {
   border-radius: 8px; padding: 9px 11px; outline: none;
 }
 .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,182,195,0.18); }
+.field select { font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 8px; padding: 9px 11px; outline: none; min-width: 180px; }
+.field select:focus { border-color: var(--accent); }
 .field.grow { flex: 1; min-width: 240px; }
 .field.num input { width: 90px; text-align: center; }
 

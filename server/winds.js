@@ -5,6 +5,11 @@
 import { getAirport } from './data/airports.js';
 import { resolveNavaid } from './data/ourairports.js';
 import { fetchWindsAloft } from './data/windsaloft.js';
+import { fetchAirSigmets } from './data/airsigmet.js';
+import { nearby } from './data/airspace.js';
+
+// How close hazardous wx must be to a route point to flag it.
+const ROUTE_WX_NM = 100;
 
 async function resolvePoint(id, offline) {
   const ap = await getAirport(id, offline);
@@ -19,11 +24,13 @@ async function resolvePoint(id, offline) {
 }
 
 export async function buildRouteWinds(ids, offline, targetIso) {
+  const sigmetResult = await fetchAirSigmets(offline);
   const points = await Promise.all(
     ids.map(async (id) => {
       const pt = await resolvePoint(id, offline);
       if (!pt) return { id, found: false };
       const w = await fetchWindsAloft(pt.lat, pt.lon, pt.elevationFt, offline, targetIso).catch(() => null);
+      const hazards = nearby(pt.lat, pt.lon, sigmetResult.airsigmets, ROUTE_WX_NM);
       return {
         id,
         found: true,
@@ -35,8 +42,13 @@ export async function buildRouteWinds(ids, offline, targetIso) {
         time: w?.time ?? null,
         live: w?.live ?? false,
         profile: w?.profile ?? [],
+        hazards,
       };
     }),
   );
-  return { generatedAt: new Date().toISOString(), points };
+  return {
+    generatedAt: new Date().toISOString(),
+    points,
+    airsigmets: sigmetResult.airsigmets,
+  };
 }

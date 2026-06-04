@@ -21,6 +21,7 @@ export function initMap(container, data) {
   const tfrs = data.tfrs || [];
   const sua = data.sua || [];
   const sigmets = data.sigmets || [];
+  const pireps = data.pireps || [];
 
   container.innerHTML = '';
   container.classList.add('map-panel');
@@ -43,6 +44,7 @@ export function initMap(container, data) {
     <label class="map-toggle"><input type="checkbox" data-act="radar" checked> Radar</label>
     <label class="map-toggle"><input type="checkbox" data-act="airspace" checked> Airspace</label>
     <label class="map-toggle"><input type="checkbox" data-act="wx" checked> Wx</label>
+    <label class="map-toggle"><input type="checkbox" data-act="pireps" checked> PIREP</label>
     <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">`;
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
@@ -53,7 +55,7 @@ export function initMap(container, data) {
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
 
-  const state = { ...fitView(airfields, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, opacity: 0.65 };
+  const state = { ...fitView(airfields, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, opacity: 0.65 };
 
   function unproject(px, py, z) {
     return { lat: tileYToLat(py / TILE, z), lon: tileXToLon(px / TILE, z) };
@@ -144,6 +146,19 @@ export function initMap(container, data) {
       }
     }
 
+    if (state.pireps) {
+      for (const r of pireps) {
+        const pt = scr(r.lat, r.lon);
+        const color = r.urgent ? '#f85149' : r.turb || r.ice ? '#d29922' : '#37b6c3';
+        const dm = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        dm.setAttribute('d', `M${pt.x} ${pt.y - 5} L${pt.x + 5} ${pt.y} L${pt.x} ${pt.y + 5} L${pt.x - 5} ${pt.y} Z`);
+        dm.setAttribute('fill', color);
+        dm.setAttribute('stroke', '#0a0e14');
+        dm.setAttribute('stroke-width', '1');
+        overlay.appendChild(dm);
+      }
+    }
+
     for (const a of airfields) {
       const p = scr(a.lat, a.lon);
       const col = a.status === 'NO-GO' ? '#f85149' : a.status === 'CAUTION' ? '#d29922' : '#3fb950';
@@ -201,6 +216,7 @@ export function initMap(container, data) {
     if (act === 'radar') { state.radar = e.target.checked; render(); }
     if (act === 'airspace') { state.airspace = e.target.checked; render(); }
     if (act === 'wx') { state.wx = e.target.checked; render(); }
+    if (act === 'pireps') { state.pireps = e.target.checked; render(); }
     if (act === 'opacity') { state.opacity = e.target.value / 100; render(); }
   });
 
