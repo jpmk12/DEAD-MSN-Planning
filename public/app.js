@@ -218,13 +218,18 @@ function pirepSection(brief) {
   return sectionEl(`PIREPs <span class="count">${ps.length}</span>`, `<div class="notams">${rows}</div>`, false);
 }
 
+function birdBadge(level) {
+  if (!level) return '';
+  return `<span class="bird-badge" style="color:${BIRD_COLOR[level]};border-color:${BIRD_COLOR[level]}">BIRD ${esc(level)}</span>`;
+}
+
 function mtrSection(brief) {
   const ms = brief.mtrs;
   if (!ms || !ms.length) return '';
   const rows = ms.map((m) => {
     const cls = m.type === 'IR' ? 'cat-APPROACH' : 'cat-LIGHTING';
     return `<div class="as-row"><span class="cat ${cls}">${esc(m.type)}</span>
-      <div><div class="txt">${esc(m.id)} · ${esc(m.name || '')} · ${esc(m.distanceNm)} NM</div></div></div>`;
+      <div><div class="txt">${esc(m.id)} · ${esc(m.name || '')} · ${esc(m.distanceNm)} NM ${birdBadge(m.birdRisk)}</div></div></div>`;
   }).join('');
   return sectionEl(`Low-Level (MTR) <span class="count">${ms.length}</span>`, `<div class="notams">${rows}</div>`, false);
 }
@@ -435,13 +440,15 @@ function mtrDetailCard(d) {
       : '—';
     const xwHi = w && Math.abs(w.crosswindKt) >= 20;
     return `<div class="mtr-seg">
-      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}</span></div>
+      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}</span> ${birdBadge(s.birdRisk)}</div>
       <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
     </div>`;
   }).join('');
+  const routeBird = d.birdRisk ? `<div class="mtr-bird" style="color:${BIRD_COLOR[d.birdRisk.level]}">⚠ AHAS bird risk: <b>${esc(d.birdRisk.level)}</b> — ${esc(d.birdRisk.note || '')}</div>` : '';
   return `<div class="card"><div class="head">
-      <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div></div>
-    <div class="body"><div class="mtr-segs">${segs}</div></div></div>`;
+      <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
+      <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}</div>
+    <div class="body">${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
 }
 
 async function lookupMtr() {

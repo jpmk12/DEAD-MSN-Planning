@@ -11,7 +11,8 @@ import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
 import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
-import { fetchMtrs } from './data/mtr.js';
+import { fetchMtrs, normalizeId } from './data/mtr.js';
+import { fetchRouteRisk } from './data/ahas.js';
 import { fetchPireps } from './data/pireps.js';
 import { decodeTaf } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
@@ -75,6 +76,10 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
   ]);
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
+  // AHAS bird risk for the routes in play, attached to MTR records.
+  const ahasRes = await fetchRouteRisk(mtrResult.mtrs.map((m) => m.id), offline);
+  const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
+
   // Winds aloft per field (needs coordinates), aligned to the observation hour.
   const windsPairs = await Promise.all(
     fields.map(async (icao) => {
@@ -118,7 +123,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
     const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
     const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
-    const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm }));
+    const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm, birdRisk: mtrLevel(m.id) }));
     const raim = raimOutlook(notams);
 
     // Winds aloft: profile + the wind at pattern altitude on the chosen runway.
@@ -191,6 +196,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
       pireps: pirepResult.live,
       convective: convResult.live,
       mtrs: mtrResult.live,
+      ahas: ahasRes.live,
     },
     limits,
     knownAirfields: await knownAirports(),
@@ -199,7 +205,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS) {
     airsigmets: sigmetResult.airsigmets,
     pireps: pirepResult.pireps,
     convective: convResult.convective,
-    mtrs: mtrResult.mtrs,
+    mtrs: mtrResult.mtrs.map((m) => ({ ...m, birdRisk: mtrLevel(m.id) })),
     airfields,
   };
 }

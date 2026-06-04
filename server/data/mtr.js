@@ -12,6 +12,7 @@ import { bearingDeg, haversineNm } from '../core/geo.js';
 import { windComponents } from '../core/wind.js';
 import { geojsonToAirspace } from './airspace.js';
 import { fetchWindsAloft, nearestLevel } from './windsaloft.js';
+import { fetchRouteRisk, segmentRisk } from './ahas.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/mtr-sample.json', import.meta.url);
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && v !== '' ? n : null; };
@@ -96,6 +97,9 @@ export async function buildMtrDetail(id, offline, targetIso) {
   const mtr = await lookupMtr(id, offline);
   if (!mtr) return { found: false, id };
 
+  const { risk } = await fetchRouteRisk([mtr.id], offline);
+  const routeRisk = risk.get(normalizeId(mtr.id)) || null;
+
   const segments = await Promise.all(
     (mtr.segments || []).map(async (seg) => {
       const pts = seg.points || [];
@@ -130,6 +134,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
         bearing,
         lengthNm: Math.round(segLengthNm(pts)),
         wind,
+        birdRisk: segmentRisk(routeRisk, seg.name),
       };
     }),
   );
@@ -141,6 +146,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
     name: mtr.name,
     agency: mtr.agency,
     geometry: mtr.geometry,
+    birdRisk: routeRisk ? { level: routeRisk.level, note: routeRisk.note, source: routeRisk.source } : null,
     segments,
   };
 }
