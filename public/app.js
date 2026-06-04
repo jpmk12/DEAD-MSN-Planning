@@ -21,15 +21,14 @@ function arrowHead(from, to, color) {
   const p2 = { x: to.x - len * Math.cos(ang + spread), y: to.y - len * Math.sin(ang + spread) };
   return `<polyline points="${p1.x},${p1.y} ${to.x},${to.y} ${p2.x},${p2.y}" stroke="${color}" fill="none"/>`;
 }
-function compassSvg(analysis, xwLimit) {
-  const active = analysis.active;
+function compassSvg(analysis, xwLimit, rwy) {
   const wind = analysis.observation.wind;
   const hasWind = !analysis.windIndeterminate && typeof wind.dirTrue === 'number';
 
   let windColor = 'var(--go)';
-  if (active) {
-    if (active.crosswindKt >= xwLimit) windColor = 'var(--nogo)';
-    else if (active.crosswindKt >= xwLimit * 0.6) windColor = 'var(--caution)';
+  if (rwy) {
+    if (rwy.crosswindKt >= xwLimit) windColor = 'var(--nogo)';
+    else if (rwy.crosswindKt >= xwLimit * 0.6) windColor = 'var(--caution)';
   }
 
   let s = `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-label="wind compass">`;
@@ -42,10 +41,13 @@ function compassSvg(analysis, xwLimit) {
     const p = pt(i * 90, R - 16);
     s += `<text x="${p.x}" y="${p.y + 3}" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="${lbl === 'N' ? 'var(--accent)' : 'var(--text-faint)'}">${lbl}</text>`;
   });
-  if (active) {
-    const e1 = pt(active.trueHeading, R - 8), e2 = pt(active.trueHeading + 180, R - 8);
+  if (rwy) {
+    const e1 = pt(rwy.trueHeading, R - 8), e2 = pt(rwy.trueHeading + 180, R - 8);
     s += `<line x1="${e1.x}" y1="${e1.y}" x2="${e2.x}" y2="${e2.y}" stroke="#e6edf3" stroke-width="9" stroke-linecap="round" opacity="0.9"/>`;
     s += `<line x1="${e1.x}" y1="${e1.y}" x2="${e2.x}" y2="${e2.y}" stroke="#0a0e14" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    // runway-end label at the approach end
+    const lp = pt(rwy.trueHeading + 180, R - 2);
+    s += `<text x="${lp.x}" y="${lp.y + 3}" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--accent)">${esc(rwy.ident)}</text>`;
   }
   if (hasWind) {
     const src = pt(wind.dirTrue, R + 4), tip = pt(wind.dirTrue, 14);
@@ -59,6 +61,50 @@ function compassSvg(analysis, xwLimit) {
     s += `<text x="${CX}" y="${CX + 22}" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--text-dim)">${wind.dirTrue === 'VRB' ? 'VRB' : 'CALM'}</text>`;
   }
   return s + `</svg>`;
+}
+
+/** Client-side wind components (mirrors server) — used to recompute pattern wind
+ *  when comparing a runway other than the recommended one. */
+function windComp(rwyTrueHeading, windDirTrue, speedKt) {
+  const theta = (((windDirTrue - rwyTrueHeading) % 360) + 540) % 360 - 180;
+  const r = (theta * Math.PI) / 180;
+  const cross = speedKt * Math.sin(r);
+  const headwindKt = speedKt * Math.cos(r);
+  const crosswindKt = Math.abs(cross);
+  const crosswindSide = crosswindKt < 0.5 ? 'none' : cross > 0 ? 'right' : 'left';
+  return { headwindKt, crosswindKt, crosswindSide };
+}
+
+/** The compass + readout block for a chosen runway (defaults to recommended). */
+function windBlock(brief, rwy, limits) {
+  const a = brief.analysis;
+  const lengthByIdent = {};
+  (brief.airport?.runways || []).forEach((r) => { if (r.lengthFt) lengthByIdent[r.ident] = r.lengthFt; });
+
+  let readout;
+  if (!rwy) {
+    readout = `<div class="active-rwy" style="color:var(--text-dim)">Wind calm / variable — pilot discretion</div>`;
+  } else {
+    const xwClass = rwy.crosswindKt >= limits.xwind ? 'high' : rwy.crosswindKt >= limits.xwind * 0.6 ? 'mod' : '';
+    const isRec = brief.recommendedRunway ? rwy.ident === brief.recommendedRunway : (a.active && a.active.ident === rwy.ident);
+    const tag = isRec ? '<span class="rec-tag">recommended</span>' : '<span class="cmp-tag">comparing</span>';
+    const len = lengthByIdent[rwy.ident] ? `<span class="rwy-len">${lengthByIdent[rwy.ident].toLocaleString()} ft</span>` : '';
+    const gust = rwy.gustCrosswindKt != null
+      ? `<div class="gust-note">gust: HW ${fmt(Math.abs(rwy.gustHeadwindKt))} · XW ${fmt(rwy.gustCrosswindKt)} kt</div>` : '';
+    let pwLine = '';
+    const pw = brief.patternWind;
+    if (pw) {
+      const c = windComp(rwy.trueHeading, pw.dirTrue, pw.speedKt);
+      pwLine = `<div class="gust-note" style="color:var(--accent)">pattern @${pw.altFt.toLocaleString()} MSL: ${String(pw.dirTrue).padStart(3, '0')}/${pw.speedKt} → HW ${fmt(c.headwindKt)} · XW ${fmt(c.crosswindKt)}${c.crosswindSide !== 'none' ? ' ' + c.crosswindSide[0].toUpperCase() : ''}</div>`;
+    }
+    readout = `
+      <div class="active-rwy">RWY <b>${esc(rwy.ident)}</b> ${tag} ${len}</div>
+      <div class="comp">
+        <div class="box ${rwy.isTailwind ? 'tw' : ''}"><div class="lbl">${rwy.isTailwind ? 'Tailwind' : 'Headwind'}</div><div class="val">${fmt(Math.abs(rwy.headwindKt))}</div></div>
+        <div class="box xw ${xwClass}"><div class="lbl">Xwind ${rwy.crosswindSide !== 'none' ? rwy.crosswindSide[0].toUpperCase() : ''}</div><div class="val">${fmt(rwy.crosswindKt)}</div></div>
+      </div>${gust}${pwLine}`;
+  }
+  return `<div class="wind-block" data-icao="${esc(brief.icao)}"><div class="compass">${compassSvg(a, limits.xwind, rwy || null)}</div><div class="wind-readout">${readout}</div></div>`;
 }
 
 // ---- Card rendering --------------------------------------------------------
@@ -76,11 +122,12 @@ function notamRow(n) {
 
 function runwayRows(a, brief) {
   const closed = new Set(brief.closedRunways.map((r) => r.toUpperCase()));
+  const selIdent = brief.recommendedRunway || (a.active && a.active.ident);
   return a.runways.map((r) => {
     const isClosed = closed.has(r.ident.toUpperCase());
-    const isActive = a.active && a.active.ident === r.ident;
+    const isSel = r.ident === selIdent;
     const xw = `XW ${fmt(r.crosswindKt)}${r.crosswindSide !== 'none' ? ' ' + r.crosswindSide[0].toUpperCase() : ''}`;
-    return `<div class="rwy-row ${isActive ? 'active' : ''} ${isClosed ? 'closed' : ''}">
+    return `<div class="rwy-row selectable ${isSel ? 'selected' : ''} ${isClosed ? 'closed' : ''}" data-rwy="${esc(r.ident)}" title="Click to compare RWY ${esc(r.ident)}">
       <span class="id">${esc(r.ident)}</span>
       <span class="${r.isTailwind ? 'tw' : ''}">${r.isTailwind ? 'TW' : 'HW'} ${fmt(Math.abs(r.headwindKt))}</span>
       <span>${xw}</span>
@@ -90,6 +137,12 @@ function runwayRows(a, brief) {
 }
 
 const BIRD_COLOR = { LOW: 'var(--go)', MODERATE: 'var(--caution)', SEVERE: 'var(--nogo)' };
+let cardData = {}; // icao -> { brief, limits } for runway-compare interaction
+
+// Collapsible card section (native <details>, accessible, prints expanded).
+function sectionEl(titleHtml, inner, open = true) {
+  return `<details class="sec"${open ? ' open' : ''}><summary class="section-title">${titleHtml}</summary><div class="sec-body">${inner}</div></details>`;
+}
 
 function windsAloftSection(brief) {
   const wa = brief.windsAloft;
@@ -107,8 +160,7 @@ function windsAloftSection(brief) {
     })
     .join('');
   const t = wa.time ? `<span class="count">${esc(wa.time.slice(11, 16))}Z fcst</span>` : '';
-  return `<div><div class="section-title">Winds Aloft ${t}</div>
-    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+  return sectionEl(`Winds Aloft ${t}`, `<div class="notams">${rows}</div>`, false);
 }
 
 const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };
@@ -131,8 +183,7 @@ function hazardWxSection(brief) {
       <div><div class="txt">Convective outlook: ${esc(c.label)} · ${dist}</div></div></div>`;
   }).join('');
   const count = wx.length + conv.length;
-  return `<div><div class="section-title">Hazardous Wx <span class="count">${count}</span></div>
-    <div class="notams" style="margin-top:8px">${wxRows}${convRows}</div></div>`;
+  return sectionEl(`Hazardous Wx <span class="count">${count}</span>`, `<div class="notams">${wxRows}${convRows}</div>`, true);
 }
 
 function tafSection(brief) {
@@ -149,9 +200,9 @@ function tafSection(brief) {
     }).join('');
     decoded = `${head}${periods}`;
   }
-  return `<div><div class="section-title">TAF <span class="taf-toggle" data-taf-raw>show raw</span></div>
-    <div class="taf-decoded" style="margin-top:8px">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
-    <div class="taf raw-taf" style="margin-top:8px; display:none">${esc(brief.taf)}</div></div>`;
+  const inner = `<div class="taf-decoded">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
+    <div class="taf raw-taf" style="display:none">${esc(brief.taf)}</div>`;
+  return sectionEl(`TAF <span class="taf-toggle" data-taf-raw>show raw</span>`, inner, true);
 }
 
 function pirepSection(brief) {
@@ -164,8 +215,7 @@ function pirepSection(brief) {
     return `<div class="as-row"><span class="cat ${cls}">${esc(p.hazard)}</span>
       <div><div class="txt">${esc(alt)} · ${dist}</div><div class="when">${esc(p.rawText)}</div></div></div>`;
   }).join('');
-  return `<div><div class="section-title">PIREPs <span class="count">${ps.length}</span></div>
-    <div class="notams" style="margin-top:8px">${rows}</div></div>`;
+  return sectionEl(`PIREPs <span class="count">${ps.length}</span>`, `<div class="notams">${rows}</div>`, false);
 }
 
 function airspaceSection(brief) {
@@ -190,14 +240,13 @@ function airspaceSection(brief) {
     return `<div class="when" style="margin-left:2px">• ${esc(inl || abs || w.raw)}</div>`;
   }).join('');
 
-  return `<div><div class="section-title">Airspace &amp; RAIM
-      <span class="cat ${raimClass}" style="margin-left:auto">RAIM: ${esc(as.raim.status)}</span></div>
-    <div class="notams" style="margin-top:8px">
+  const inner = `<div class="notams">
       ${tfrRows || ''}${suaRows || ''}
       ${raimWin ? `<div class="as-row"><span class="cat ${raimClass}">GPS</span><div><div class="txt">Predicted RAIM outage</div>${raimWin}</div></div>` : ''}
       ${!as.tfrs.length && !as.sua.length && as.raim.status !== 'PREDICTED OUTAGE'
         ? '<div class="readout" style="font-size:12px">No TFRs or SUA within 100 NM · RAIM nominal.</div>' : ''}
-    </div></div>`;
+    </div>`;
+  return sectionEl(`Airspace &amp; RAIM <span class="cat ${raimClass}" style="margin-left:auto">RAIM: ${esc(as.raim.status)}</span>`, inner, true);
 }
 
 function card(brief, limits) {
@@ -211,32 +260,9 @@ function card(brief, limits) {
   let body = '';
 
   if (a) {
-    const active = a.active;
     const highDA = a.densityAltitudeFt != null && limits.highda && a.densityAltitudeFt > limits.highda;
-    const xwClass = active
-      ? (active.crosswindKt >= limits.xwind ? 'high' : active.crosswindKt >= limits.xwind * 0.6 ? 'mod' : '')
-      : '';
-
-    let windReadout;
-    if (active) {
-      const rec = brief.recommendedRunway || active.ident;
-      const closedNote = brief.recommendedRunway && brief.recommendedRunway !== active.ident
-        ? `<span style="color:var(--caution);font-size:11px">(wind-best ${esc(active.ident)} closed)</span>` : '';
-      const gust = active.gustCrosswindKt != null
-        ? `<div class="gust-note">gust: HW ${fmt(Math.abs(active.gustHeadwindKt))} · XW ${fmt(active.gustCrosswindKt)} kt</div>` : '';
-      const pw = brief.patternWind;
-      const pwLine = pw
-        ? `<div class="gust-note" style="color:var(--accent)">pattern @${pw.altFt.toLocaleString()} MSL: ${String(pw.dirTrue).padStart(3, '0')}/${pw.speedKt} → HW ${pw.headwindKt} · XW ${pw.crosswindKt}${pw.crosswindSide !== 'none' ? ' ' + pw.crosswindSide[0].toUpperCase() : ''}</div>`
-        : '';
-      windReadout = `
-        <div class="active-rwy">RWY <b>${esc(rec)}</b>${closedNote}</div>
-        <div class="comp">
-          <div class="box ${active.isTailwind ? 'tw' : ''}"><div class="lbl">${active.isTailwind ? 'Tailwind' : 'Headwind'}</div><div class="val">${fmt(Math.abs(active.headwindKt))}</div></div>
-          <div class="box xw ${xwClass}"><div class="lbl">Xwind ${active.crosswindSide !== 'none' ? active.crosswindSide[0].toUpperCase() : ''}</div><div class="val">${fmt(active.crosswindKt)}</div></div>
-        </div>${gust}${pwLine}`;
-    } else {
-      windReadout = `<div class="active-rwy" style="color:var(--text-dim)">Wind calm / variable — pilot discretion</div>`;
-    }
+    // Default selected runway: the recommended (or active) one.
+    const selRwy = a.active ? (a.runways.find((r) => r.ident === (brief.recommendedRunway || a.active.ident)) || a.active) : null;
 
     const warns = a.warnings.length
       ? `<div class="warnings">${a.warnings.map((w) =>
@@ -252,18 +278,18 @@ function card(brief, limits) {
         <div class="metric ${highDA ? 'warn' : ''}"><div class="k">Density Alt</div><div class="v">${a.densityAltitudeFt != null ? a.densityAltitudeFt.toLocaleString() : '--'}<small> ft</small></div></div>
         ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}"><div class="k">Bird Risk</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
       </div>
-      <div class="wind-block"><div class="compass">${compassSvg(a, limits.xwind)}</div><div class="wind-readout">${windReadout}</div></div>
+      ${windBlock(brief, selRwy, limits)}
       <div class="rwys">${runwayRows(a, brief)}</div>
       ${warns}`;
   } else {
     body = `<div class="readout">No weather observation available for this field.</div>`;
   }
 
-  const notams = `<div><div class="section-title">NOTAMs <span class="count">${brief.notams.length}</span></div>
-    <div class="notams" style="margin-top:8px">${brief.notams.length ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div></div>`;
+  const notams = sectionEl(`NOTAMs <span class="count">${brief.notams.length}</span>`,
+    `<div class="notams">${brief.notams.length ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, true);
   const taf = tafSection(brief);
 
-  return `<div class="card">
+  return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
     <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${pirepSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
@@ -302,6 +328,8 @@ async function buildBrief() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     setSourcePills(data.live);
+    cardData = {};
+    data.airfields.forEach((b) => { cardData[b.icao.toUpperCase()] = { brief: b, limits }; });
     $('results').innerHTML = `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
     updatePrintHead(data, ids, limits);
     renderMap(data);
@@ -491,15 +519,41 @@ async function deleteSelectedSortie() {
 }
 
 $('results').addEventListener('click', (e) => {
+  // Runway compare: click a runway row to recompute the wind block for it.
+  const row = e.target.closest('.rwy-row.selectable');
+  if (row && row.dataset.rwy) {
+    const cardEl = row.closest('.card');
+    const entry = cardData[(cardEl?.dataset.icao || '').toUpperCase()];
+    if (entry && entry.brief.analysis) {
+      const rwy = entry.brief.analysis.runways.find((r) => r.ident === row.dataset.rwy);
+      const wb = cardEl.querySelector('.wind-block');
+      if (rwy && wb) {
+        wb.outerHTML = windBlock(entry.brief, rwy, entry.limits);
+        cardEl.querySelectorAll('.rwy-row').forEach((r) => r.classList.remove('selected'));
+        row.classList.add('selected');
+      }
+    }
+    return;
+  }
+
   const t = e.target.closest('[data-taf-raw]');
   if (!t) return;
-  const wrap = t.closest('.section-title').parentElement;
+  e.preventDefault(); // don't toggle the <details> when clicking "show raw"
+  const wrap = t.closest('details') || t.closest('.section-title').parentElement;
   const raw = wrap.querySelector('.raw-taf');
   const dec = wrap.querySelector('.taf-decoded');
   const showRaw = raw.style.display === 'none';
   raw.style.display = showRaw ? 'block' : 'none';
   dec.style.display = showRaw ? 'none' : 'block';
   t.textContent = showRaw ? 'show decoded' : 'show raw';
+});
+
+// Expand all collapsible sections for printing, then restore.
+window.addEventListener('beforeprint', () => {
+  document.querySelectorAll('details.sec').forEach((d) => { d.dataset.wasopen = d.open ? '1' : '0'; d.open = true; });
+});
+window.addEventListener('afterprint', () => {
+  document.querySelectorAll('details.sec').forEach((d) => { if (d.dataset.wasopen === '0') d.open = false; });
 });
 
 $('go').addEventListener('click', buildBrief);

@@ -160,7 +160,14 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .rwys { display: flex; flex-direction: column; gap: 3px; }
 .rwy-row { display: grid; grid-template-columns: 56px 1fr 1fr 18px; align-items: center; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 6px; }
 .rwy-row.active { background: rgba(55,182,195,0.1); }
-.rwy-row.closed { opacity: 0.45; text-decoration: line-through; }
+.rwy-row.selectable { cursor: pointer; }
+.rwy-row.selectable:hover { background: rgba(55,182,195,0.08); }
+.rwy-row.selected { background: rgba(55,182,195,0.16); box-shadow: inset 2px 0 0 var(--accent); }
+.rwy-row.closed { opacity: 0.45; text-decoration: line-through; cursor: default; }
+.rec-tag, .cmp-tag { font-family: var(--sans); font-size: 9px; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; vertical-align: middle; }
+.rec-tag { color: var(--go); background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.4); }
+.cmp-tag { color: var(--accent); background: rgba(55,182,195,0.12); border: 1px solid var(--accent-dim); }
+.rwy-len { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-left: 4px; }
 .rwy-row .id { font-weight: 700; }
 .rwy-row .tw { color: var(--caution); }
 .rwy-row .star { color: var(--accent); }
@@ -171,6 +178,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .warn-item .ico { flex: none; }
 
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); display: flex; align-items: center; gap: 8px; }
+
+/* Collapsible card sections */
+.sec { border-top: 1px solid var(--border); padding-top: 10px; }
+.sec > summary { list-style: none; cursor: pointer; user-select: none; }
+.sec > summary::-webkit-details-marker { display: none; }
+.sec > summary::before { content: '▸'; color: var(--text-faint); font-size: 9px; transition: transform 0.15s ease; }
+.sec[open] > summary::before { transform: rotate(90deg); }
+.sec > summary:hover { color: var(--text-dim); }
+.sec-body { padding-top: 8px; }
 .section-title .count { font-family: var(--mono); background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--text-dim); }
 .notams { display: flex; flex-direction: column; gap: 5px; }
 .notam { display: grid; grid-template-columns: 78px 1fr; gap: 9px; align-items: start; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
@@ -231,12 +247,37 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .map-tiles.radar { pointer-events: none; mix-blend-mode: screen; }
 .map-tile { position: absolute; width: 256px; height: 256px; user-select: none; pointer-events: none; }
 .map-overlay { position: absolute; inset: 0; pointer-events: none; }
-.map-controls { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 6px 9px; background: rgba(14, 19, 27, 0.85); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 12px; color: var(--text-dim); backdrop-filter: blur(4px); }
+.map-controls { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 20px); padding: 6px 9px; background: rgba(14, 19, 27, 0.85); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 12px; color: var(--text-dim); backdrop-filter: blur(4px); }
 .map-controls button { width: 26px; height: 26px; font-size: 16px; line-height: 1; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 6px; cursor: pointer; }
 .map-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .map-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .map-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
 .map-attrib { position: absolute; bottom: 4px; right: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
+
+/* ---- Responsive (tablet / phone) ----------------------------------------- */
+@media (max-width: 1040px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 680px) {
+  .app { padding: 14px 12px 50px; }
+  .topbar { gap: 10px; padding-bottom: 14px; margin-bottom: 16px; }
+  .topbar h1 { font-size: 15px; }
+  .topbar .subtitle { font-size: 11px; }
+  .controls .row { gap: 10px; }
+  .field.grow { min-width: 100%; }
+  .field.num { flex: 1; min-width: 0; }
+  .field.num input { width: 100%; }
+  button.go { flex: 1 1 auto; }
+  .sortie-row .field.grow { min-width: 100%; }
+  .field select { min-width: 0; width: 100%; }
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .map-viewport { height: clamp(220px, 50vh, 360px); }
+  .map-controls { font-size: 11px; gap: 6px; padding: 5px 7px; }
+  .map-controls button { width: 24px; height: 24px; }
+  .map-controls input[type="range"] { width: 56px; }
+  .wind-block { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .wind-readout { width: 100%; }
+}
 
 /* ============================================================================
    Kneeboard print / PDF — flip the whole themed UI to an ink-friendly layout by
