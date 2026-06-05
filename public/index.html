@@ -9,6 +9,32 @@
     <link rel="apple-touch-icon" href="./icon.svg" />
     <link rel="stylesheet" href="./theme.css" />
     <title>C-17 Mission Planner</title>
+    <!-- Surface any script load/runtime error on-screen (esp. on mobile, where a
+         dev console isn't handy). Runs before the app module so it can catch a
+         failed module load too. -->
+    <script>
+      (function () {
+        function showErr(msg) {
+          var el = document.getElementById('fatal-banner');
+          if (!el) {
+            el = document.createElement('div');
+            el.id = 'fatal-banner';
+            el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b3231b;color:#fff;font:12px/1.45 ui-monospace,monospace;padding:9px 12px;white-space:pre-wrap;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+            (document.body || document.documentElement).appendChild(el);
+          }
+          el.textContent = '⚠ ' + msg + '   (tap to dismiss)';
+          el.onclick = function () { el.remove(); };
+        }
+        window.addEventListener('error', function (e) {
+          var where = e.filename ? ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno : '';
+          showErr((e.message || (e.error && e.error.message) || 'Script error') + where);
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason;
+          showErr('Unhandled: ' + ((r && r.message) ? r.message : r));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div class="app">

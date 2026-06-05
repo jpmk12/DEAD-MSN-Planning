@@ -3,7 +3,9 @@
 
 import { initMap } from './map.js';
 import { zuluLocal, hhZ, hhL, TZ_ABBR } from './timefmt.js';
-import { exportBrief } from './export.js';
+// NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
+// so a missing/stale export module can never abort app.js and break the core
+// app (brief, route lookup, map).
 
 const $ = (id) => document.getElementById(id);
 // Null-safe helpers: never let a missing/late element abort init or a handler.
@@ -762,6 +764,17 @@ async function deleteSelectedSortie() {
   refreshSortieList();
 }
 
+// Lazy-load the export module only when a user actually exports, so the core
+// app never depends on it loading successfully.
+async function runExport(format) {
+  try {
+    const { exportBrief } = await import('./export.js');
+    await exportBrief(format, { map: currentMap });
+  } catch (err) {
+    alert('Export unavailable: ' + (err && err.message ? err.message : err));
+  }
+}
+
 function init() {
   // Collapse/expand the tool panels (Route Winds, Route Lookup).
   document.addEventListener('click', (e) => {
@@ -845,8 +858,8 @@ window.addEventListener('afterprint', () => {
 });
 
   on('go', 'click', buildBrief);
-  on('export-html', 'click', () => exportBrief('html', { map: currentMap }));
-  on('export-pdf', 'click', () => exportBrief('pdf', { map: currentMap }));
+  on('export-html', 'click', () => runExport('html'));
+  on('export-pdf', 'click', () => runExport('pdf'));
   on('sortie-save', 'click', saveCurrentSortie);
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);
