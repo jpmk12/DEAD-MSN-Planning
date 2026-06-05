@@ -67,8 +67,9 @@ async function loadFixture(icaos) {
 }
 
 const FAA_BASE = 'https://external-api.faa.gov/notamapi/v1/notams';
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchFaa(icao, signal) {
+async function fetchFaa(icao, signal, attempt = 0) {
   const clientId = process.env.FAA_NOTAM_CLIENT_ID;
   const clientSecret = process.env.FAA_NOTAM_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error('no FAA credentials');
@@ -78,6 +79,12 @@ async function fetchFaa(icao, signal) {
     signal,
     headers: { client_id: clientId, client_secret: clientSecret, Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' },
   });
+  // Transient throttling / upstream hiccup: back off and retry so one field
+  // doesn't silently drop out of a multi-airfield brief.
+  if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+    await delay(300 * 2 ** attempt);
+    return fetchFaa(icao, signal, attempt + 1);
+  }
   if (!res.ok) throw new Error(`FAA NOTAM ${res.status}`);
   const json = await res.json();
   const items = json.items ?? [];
@@ -107,12 +114,18 @@ export async function fetchNotams(icaos, offline, signal) {
     }
   }
   if (!offline && process.env.FAA_NOTAM_CLIENT_ID) {
-    try {
-      const lists = await Promise.all(icaos.map((i) => fetchFaa(i, signal)));
-      return { notams: rankNotams(lists.flat()), live: true };
-    } catch {
-      // fall through to fixture
+    // Sequential (not Promise.all): the FAA NOTAM API throttles concurrent
+    // bursts. Fetch one field at a time (with retry/backoff in fetchFaa), keep
+    // whatever succeeds, and skip a field that still fails so it doesn't drop
+    // the rest. Only fall back to the fixture if every field failed.
+    const uniq = [...new Set(icaos.map((i) => i.toUpperCase()))];
+    const all = [];
+    let any = false;
+    for (const i of uniq) {
+      try { all.push(...await fetchFaa(i, signal)); any = true; }
+      catch { /* skip this field, keep the rest */ }
     }
+    if (any) return { notams: rankNotams(all), live: true };
   }
   return { notams: await loadFixture(icaos), live: false };
 }
