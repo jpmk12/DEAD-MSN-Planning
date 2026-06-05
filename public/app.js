@@ -181,8 +181,8 @@ function windsAloftSection(brief) {
         <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt</div></div></div>`;
     })
     .join('');
-  const t = wa.time ? `<span class="count">${esc(wa.time.slice(11, 16))}Z fcst</span>` : '';
-  return sectionEl(`Winds Aloft ${t}`, `<div class="notams">${rows}</div>`, false);
+  const t = wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(wa.time.slice(11, 16))}Z · pattern/departure band</div>` : '';
+  return `${t}<div class="notams">${rows}</div>`;
 }
 
 const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };
@@ -204,13 +204,12 @@ function hazardWxSection(brief) {
     return `<div class="as-row"><span class="cat ${CONV_CLASS[c.risk] || 'cat-LIGHTING'}">${esc(c.risk)}</span>
       <div><div class="txt">Convective outlook: ${esc(c.label)} · ${dist}</div></div></div>`;
   }).join('');
-  const count = wx.length + conv.length;
-  return sectionEl(`Hazardous Wx <span class="count">${count}</span>`, `<div class="notams">${wxRows}${convRows}</div>`, true);
+  return `<div class="notams">${wxRows}${convRows}</div>`;
 }
 
 function tafSection(brief) {
   if (!brief.taf) {
-    return sectionEl('TAF (decoded)', '<div class="readout" style="font-size:12px">No TAF retrieved for this field (many fields don\'t issue TAFs; live TAFs appear here when available).</div>', false);
+    return '<div class="readout" style="font-size:12px">No TAF retrieved for this field (many fields don\'t issue TAFs; live TAFs appear here when available).</div>';
   }
   const d = brief.tafDecoded;
   let decoded = '';
@@ -224,9 +223,9 @@ function tafSection(brief) {
     }).join('');
     decoded = `${head}${periods}`;
   }
-  const inner = `<div class="taf-decoded">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
+  return `<div class="taf-hd"><span class="taf-toggle" data-taf-raw>show raw</span></div>
+    <div class="taf-decoded">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
     <div class="taf raw-taf" style="display:none">${esc(brief.taf)}</div>`;
-  return sectionEl(`TAF (decoded) <span class="taf-toggle" data-taf-raw>show raw</span>`, inner, true);
 }
 
 function pirepSection(brief) {
@@ -239,7 +238,7 @@ function pirepSection(brief) {
     return `<div class="as-row"><span class="cat ${cls}">${esc(p.hazard)}</span>
       <div><div class="txt">${esc(alt)} · ${dist}</div><div class="when">${esc(p.rawText)}</div></div></div>`;
   }).join('');
-  return sectionEl(`PIREPs <span class="count">${ps.length}</span>`, `<div class="notams">${rows}</div>`, false);
+  return `<div class="sub-hd">PIREPs</div><div class="notams">${rows}</div>`;
 }
 
 function birdBadge(level) {
@@ -255,7 +254,7 @@ function mtrSection(brief) {
     return `<div class="as-row"><span class="cat ${cls}">${esc(m.type)}</span>
       <div><div class="txt">${esc(m.id)} · ${esc(m.name || '')} · ${esc(m.distanceNm)} NM ${birdBadge(m.birdRisk)}</div></div></div>`;
   }).join('');
-  return sectionEl(`Low-Level (MTR) <span class="count">${ms.length}</span>`, `<div class="notams">${rows}</div>`, false);
+  return `<div class="notams">${rows}</div>`;
 }
 
 function airspaceSection(brief) {
@@ -286,7 +285,32 @@ function airspaceSection(brief) {
       ${!as.tfrs.length && !as.sua.length && as.raim.status !== 'PREDICTED OUTAGE'
         ? '<div class="readout" style="font-size:12px">No TFRs or SUA within 100 NM · RAIM nominal.</div>' : ''}
     </div>`;
-  return sectionEl(`Airspace &amp; RAIM <span class="cat ${raimClass}" style="margin-left:auto">RAIM: ${esc(as.raim.status)}</span>`, inner, true);
+  return `<div class="sub-hd">RAIM: <span class="cat ${raimClass}">${esc(as.raim.status)}</span></div>${inner}`;
+}
+
+// Detail sections as a tab bar + panels (keeps cards compact; NOTAMs default).
+function tabbedDetails(brief) {
+  const panels = [];
+  const push = (key, label, count, html) => { if (html && html.trim()) panels.push({ key, label, count, html }); };
+
+  const nCount = brief.notams.length;
+  push('notams', 'NOTAMs', nCount,
+    `${notamFilterBar(brief.notams)}<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`);
+
+  const hazards = (hazardWxSection(brief) || '') + (pirepSection(brief) || '');
+  push('hazards', 'Hazards', (brief.hazardWx?.length || 0) + (brief.convective?.length || 0) + (brief.pireps?.length || 0) || null, hazards);
+
+  push('taf', 'TAF', null, tafSection(brief));
+  push('airspace', 'Airspace', (brief.airspace ? brief.airspace.tfrs.length + brief.airspace.sua.length : 0) || null, airspaceSection(brief));
+  push('lowlevel', 'Low-Level', (brief.mtrs || []).length || null, mtrSection(brief));
+  push('winds', 'Winds Aloft', null, windsAloftSection(brief));
+
+  if (!panels.length) return '';
+  const tabs = panels.map((p, i) =>
+    `<button class="tab${i === 0 ? ' active' : ''}" data-tab="${p.key}">${esc(p.label)}${p.count ? ` <span class="count">${p.count}</span>` : ''}</button>`).join('');
+  const bodies = panels.map((p, i) =>
+    `<div class="tabpanel${i === 0 ? ' active' : ''}" data-panel="${p.key}">${p.html}</div>`).join('');
+  return `<div class="card-tabs">${tabs}</div><div class="tabpanels">${bodies}</div>`;
 }
 
 function card(brief, limits) {
@@ -316,7 +340,7 @@ function card(brief, limits) {
         <div class="metric"><div class="k">Temp</div><div class="v">${a.observation.tempC ?? '--'}<small>°C</small></div></div>
         <div class="metric"><div class="k">Altimeter</div><div class="v">${a.observation.altimHpa ?? '--'}<small> hPa</small></div></div>
         <div class="metric ${highDA ? 'warn' : ''}"><div class="k">Density Alt</div><div class="v">${a.densityAltitudeFt != null ? a.densityAltitudeFt.toLocaleString() : '--'}<small> ft</small></div></div>
-        ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}"><div class="k">Bird Risk</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
+        ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}" title="${esc(brief.birdRisk.note || '')}"><div class="k">AHAS Birds</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
       </div>
       ${windBlock(brief, selRwy, limits)}
       ${a.active ? '<div class="rwys-cap">All runways — <b>tap any runway to compare its crosswind ↑</b></div>' : ''}
@@ -326,17 +350,10 @@ function card(brief, limits) {
     body = `<div class="readout">No weather observation available for this field.</div>`;
   }
 
-  // Live NOTAM counts can be large (80+), so collapse by default when there are
-  // many; the highest-priority items are already ranked first.
-  const nCount = brief.notams.length;
-  const notams = sectionEl(`NOTAMs <span class="count">${nCount}</span>`,
-    `${notamFilterBar(brief.notams)}<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`, nCount > 0 && nCount <= 8);
-  const taf = tafSection(brief);
-
   return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
-    <div class="body">${body}${windsAloftSection(brief)}${hazardWxSection(brief)}${pirepSection(brief)}${mtrSection(brief)}${airspaceSection(brief)}${notams}${taf}</div></div>`;
+    <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
 
 // ---- Data + events ---------------------------------------------------------
@@ -509,7 +526,7 @@ async function lookupMtr() {
       $('mtr-results').innerHTML = `<div class="missing-card"><span class="icao">${esc(id)}</span> — route not found. Try IR-021 or VR-1355 (demo), or wire a live MTR source.</div>`;
       return;
     }
-    $('mtr-results').innerHTML = `<div class="grid">${mtrDetailCard(d)}</div>`;
+    $('mtr-results').innerHTML = `<div class="route-detail">${mtrDetailCard(d)}</div>`;
     // Plot the route on the map.
     const mapEl = $('map');
     mapEl.style.display = '';
@@ -628,6 +645,16 @@ async function deleteSelectedSortie() {
 
 function init() {
 $('results')?.addEventListener('click', (e) => {
+  // Tab switching within a card.
+  const tab = e.target.closest('.card-tabs .tab');
+  if (tab) {
+    const cardEl = tab.closest('.card');
+    const key = tab.dataset.tab;
+    cardEl.querySelectorAll('.card-tabs .tab').forEach((x) => x.classList.toggle('active', x === tab));
+    cardEl.querySelectorAll('.tabpanel').forEach((p) => p.classList.toggle('active', p.dataset.panel === key));
+    return;
+  }
+
   // NOTAM category filter: show only the chosen category within this card.
   const nf = e.target.closest('.nfilter');
   if (nf) {
@@ -660,8 +687,8 @@ $('results')?.addEventListener('click', (e) => {
 
   const t = e.target.closest('[data-taf-raw]');
   if (!t) return;
-  e.preventDefault(); // don't toggle the <details> when clicking "show raw"
-  const wrap = t.closest('details') || t.closest('.section-title').parentElement;
+  e.preventDefault();
+  const wrap = t.closest('.tabpanel') || t.closest('details') || t.closest('.card');
   const raw = wrap.querySelector('.raw-taf');
   const dec = wrap.querySelector('.taf-decoded');
   const showRaw = raw.style.display === 'none';

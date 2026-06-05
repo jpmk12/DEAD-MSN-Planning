@@ -74,6 +74,18 @@ body {
 .sbadge.live { color: var(--go); border-color: rgba(63, 185, 80, 0.45); background: rgba(63, 185, 80, 0.1); }
 .sbadge.demo { color: var(--caution); border-color: rgba(210, 153, 34, 0.45); background: rgba(210, 153, 34, 0.1); }
 
+/* Card detail tabs */
+.card-tabs { display: flex; flex-wrap: wrap; gap: 3px; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 2px; }
+.tab { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.3px; padding: 5px 10px; border-radius: 7px 7px 0 0; background: transparent; border: 1px solid transparent; border-bottom: none; color: var(--text-dim); cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-color: var(--border); background: var(--panel-2); }
+.tab .count { font-family: var(--mono); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; font-size: 9.5px; color: var(--text-dim); }
+.tabpanels { border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 10px; }
+.tabpanel { display: none; }
+.tabpanel.active { display: block; }
+.sub-hd { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-faint); margin-bottom: 6px; }
+.taf-hd { display: flex; justify-content: flex-end; }
+
 /* NOTAM category filter chips */
 .nfilters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .nfilter { font-family: var(--mono); font-size: 10px; letter-spacing: 0.3px; padding: 3px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; }
@@ -262,6 +274,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .wind-row.hdr .wd { text-align: center; }
 .wind-row.hdr .ws { text-align: right; color: var(--text-faint); }
 
+/* Route lookup result fills the available width (single card, not a grid). */
+.route-detail { margin-top: 12px; }
+.route-detail .card { width: 100%; }
+
 /* ---- MTR detail ---------------------------------------------------------- */
 .bird-badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-bright); white-space: nowrap; }
 .mtr-bird { font-size: 12.5px; margin-bottom: 10px; }
@@ -286,6 +302,22 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .map-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .map-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
 .map-attrib { position: absolute; bottom: 4px; right: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
+
+/* Zoom + recenter cluster */
+.map-nav { position: absolute; right: 10px; bottom: 22px; z-index: 5; display: flex; flex-direction: column; gap: 4px; }
+.map-nav button { width: 30px; height: 30px; font-size: 17px; line-height: 1; color: var(--text); background: rgba(14, 19, 27, 0.9); border: 1px solid var(--border-bright); border-radius: 7px; cursor: pointer; }
+.map-nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Map legend */
+.map-legend { position: absolute; left: 10px; bottom: 22px; z-index: 6; max-width: 70%; padding: 8px 10px; background: rgba(10, 14, 20, 0.92); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 11px; color: var(--text-dim); backdrop-filter: blur(4px); }
+.lg-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-faint); margin-bottom: 5px; }
+.lg-row { display: flex; align-items: center; gap: 5px; margin: 3px 0; }
+.lg-row.lg-note { color: var(--text-faint); font-size: 10px; margin-top: 5px; }
+.lg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.lg-dia { width: 9px; height: 9px; display: inline-block; transform: rotate(45deg); }
+.lg-ring { width: 11px; height: 11px; border-radius: 50%; border: 1.5px dashed var(--accent); display: inline-block; }
+.lg-poly { width: 12px; height: 9px; border: 1.5px dashed; display: inline-block; }
+.lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 
 /* ---- Responsive (tablet / phone) ----------------------------------------- */
 @media (max-width: 1040px) {
@@ -331,6 +363,11 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   .app { max-width: none; padding: 0; }
   .topbar, .controls, .footer, .map-section { display: none !important; }
   .as-row { background: #fff !important; }
+  /* Expand all tab panels for the kneeboard printout. */
+  .card-tabs { display: none !important; }
+  .tabpanels { border: none; padding: 0; }
+  .tabpanel { display: block !important; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 8px; }
+  .raw-taf { display: none !important; }
 
   .print-head { display: block; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; }
   .print-head .ph-title { font-size: 18px; font-weight: 800; letter-spacing: 1px; }

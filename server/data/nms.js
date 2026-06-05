@@ -62,7 +62,10 @@ async function fetchLocation(icao, token, signal) {
   if (!res.ok) throw new Error(`NMS notams ${res.status}`);
   const j = await res.json();
   const feats = j?.data?.geojson ?? [];
-  return feats.map((f) => mapNmsFeature(f, icao)).filter((x) => x.text);
+  // Force icao to the queried location — we requested ?location=ICAO, so all
+  // results belong to it. NMS may tag them with a domestic id (CHS vs KCHS),
+  // which would otherwise be filtered out per-field in the brief.
+  return feats.map((f) => ({ ...mapNmsFeature(f, icao), icao: icao.toUpperCase() })).filter((x) => x.text);
 }
 
 /** Diagnostic probe: do a fresh token request + a NOTAM fetch for one field,

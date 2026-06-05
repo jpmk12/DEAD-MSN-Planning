@@ -149,7 +149,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
         bearing,
         lengthNm: Math.round(segLengthNm(pts)),
         wind,
-        birdRisk: segmentRisk(routeRisk, seg.name),
+        birdRisk: segmentRisk(routeRisk, seg.name) ?? (routeRisk ? routeRisk.level : null),
       };
     }),
   );

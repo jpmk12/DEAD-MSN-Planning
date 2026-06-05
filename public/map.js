@@ -43,20 +43,42 @@ export function initMap(container, data) {
   const controls = document.createElement('div');
   controls.className = 'map-controls';
   controls.innerHTML = `
-    <button data-act="in" title="Zoom in">+</button>
-    <button data-act="out" title="Zoom out">−</button>
     <label class="map-toggle"><input type="checkbox" data-act="radar" checked> Radar</label>
     <label class="map-toggle"><input type="checkbox" data-act="airspace" checked> Airspace</label>
     <label class="map-toggle"><input type="checkbox" data-act="wx" checked> Wx</label>
     <label class="map-toggle"><input type="checkbox" data-act="pireps" checked> PIREP</label>
     <label class="map-toggle"><input type="checkbox" data-act="conv" checked> Conv</label>
     <label class="map-toggle"><input type="checkbox" data-act="mtr" checked> MTR</label>
-    <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">`;
+    <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">
+    <button data-act="legend" title="Toggle legend">?</button>`;
+
+  // Zoom + recenter cluster (separate, bottom-right for thumb reach).
+  const navc = document.createElement('div');
+  navc.className = 'map-nav';
+  navc.innerHTML = `
+    <button data-act="in" title="Zoom in">+</button>
+    <button data-act="out" title="Zoom out">−</button>
+    <button data-act="recenter" title="Recenter">⌂</button>`;
+
+  const legend = document.createElement('div');
+  legend.className = 'map-legend';
+  legend.style.display = 'none';
+  legend.innerHTML = `
+    <div class="lg-title">Legend</div>
+    <div class="lg-row"><span class="lg-dot" style="background:#3fb950"></span><span class="lg-dot" style="background:#d29922"></span><span class="lg-dot" style="background:#f85149"></span> Airfield GO / CAUTION / NO-GO</div>
+    <div class="lg-row"><span class="lg-ring"></span> 10 NM range ring</div>
+    <div class="lg-row"><span class="lg-dia" style="background:#f85149"></span><span class="lg-dia" style="background:#d29922"></span><span class="lg-dia" style="background:#37b6c3"></span> PIREP urgent / turb-ice / routine</div>
+    <div class="lg-row"><span class="lg-poly" style="border-color:#f85149;background:rgba(248,81,73,.12)"></span> Convective SIGMET</div>
+    <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.12)"></span> SIGMET &nbsp; <span class="lg-poly" style="border-color:#8a7bd8;background:rgba(138,123,216,.12)"></span> AIRMET</div>
+    <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.18)"></span> Convective outlook (TSTM→HIGH)</div>
+    <div class="lg-row"><span class="lg-line" style="background:#4aa3df"></span> IR &nbsp; <span class="lg-line" style="background:#c77dff"></span> VR &nbsp; <span class="lg-line" style="background:#46c6a0"></span> AR track</div>
+    <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
+
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
   attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: IEM NEXRAD';
 
-  container.append(viewport, controls, attribution);
+  container.append(viewport, controls, navc, legend, attribution);
 
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
@@ -240,11 +262,15 @@ export function initMap(container, data) {
     render();
   }, { passive: false });
 
-  controls.addEventListener('click', (e) => {
+  const onNav = (e) => {
     const act = e.target.dataset?.act;
     if (act === 'in') { state.zoom = Math.min(12, state.zoom + 1); render(); }
     if (act === 'out') { state.zoom = Math.max(2, state.zoom - 1); render(); }
-  });
+    if (act === 'recenter') { Object.assign(state, fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 })); render(); }
+    if (act === 'legend') { legend.style.display = legend.style.display === 'none' ? 'block' : 'none'; }
+  };
+  controls.addEventListener('click', onNav);
+  navc.addEventListener('click', onNav);
   controls.addEventListener('input', (e) => {
     const act = e.target.dataset?.act;
     if (act === 'radar') { state.radar = e.target.checked; render(); }
