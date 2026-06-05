@@ -74,6 +74,11 @@ const EXPORT_CSS = `
   .print-head { display: block; margin: 0 0 14px; }
   .map-section { display: none !important; }
   .export-note { font-size: 12px; color: var(--text-dim); margin: 0 0 14px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 8px; }
+  .export-section { margin-top: 18px; }
+  .export-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); border-top: 1px solid var(--border); padding-top: 12px; margin: 0 0 10px; }
+  .export-map-wrap { margin: 0; }
+  .export-map { display: block; width: 100%; max-width: 920px; height: auto; border: 1px solid var(--border); border-radius: 10px; background: #0c121a; }
+  .export-cap { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     @page { margin: 12mm; }
@@ -82,7 +87,7 @@ const EXPORT_CSS = `
     .card-tabs { display: none !important; }
     .tabpanel { display: block !important; border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
     .raw-taf { display: none !important; }
-    .card { break-inside: avoid; }
+    .card, .export-map-wrap, .export-section { break-inside: avoid; }
   }
 `;
 
@@ -95,11 +100,24 @@ function exportFilename() {
   return `c17-brief-${ids}-${stamp}.html`;
 }
 
-function buildExportHtml(themeCss, { autoprint } = {}) {
+const section = (title, inner) => (inner ? `<section class="export-section"><h2 class="export-h2">${title}</h2>${inner}</section>` : '');
+
+// Pull a tool's rendered output only if it actually produced result cards.
+function toolHtml(id) {
+  const el = document.getElementById(id);
+  return el && el.querySelector('.card') ? el.innerHTML : '';
+}
+
+function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
   const head = (document.getElementById('print-head') || {}).innerHTML || '';
   const results = (document.getElementById('results') || {}).innerHTML || '';
+  const winds = toolHtml('winds-results');
+  const mtr = toolHtml('mtr-results');
+  const radar = radarPng
+    ? `<figure class="export-map-wrap"><img class="export-map" alt="Radar / map snapshot" src="${radarPng}">${radarCap ? `<figcaption class="export-cap">${radarCap}</figcaption>` : ''}</figure>`
+    : '';
   const auto = autoprint
-    ? "window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 250); });"
+    ? "window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });"
     : '';
   return `<!doctype html>
 <html lang="en">
@@ -116,12 +134,15 @@ function buildExportHtml(themeCss, { autoprint } = {}) {
   <header class="topbar">
     <div>
       <h1>C-17 MISSION BRIEF</h1>
-      <div class="subtitle">Exported brief · theme &amp; collapsible sections preserved</div>
+      <div class="subtitle">Exported brief · theme, collapsible sections &amp; radar snapshot preserved</div>
     </div>
   </header>
   <div class="print-head">${head}</div>
-  <div class="export-note">Interactive snapshot — click the section tabs, category chips, and card headers to expand/collapse. The live map and route tools are not included. Print this page (enable “Background graphics”) to save a themed PDF.</div>
+  <div class="export-note">Interactive snapshot — click the section tabs, category chips, and card headers to expand/collapse. Print this page (enable “Background graphics”) to save a themed PDF.</div>
   <main id="results">${results}</main>
+  ${section('Radar / Map Snapshot', radar)}
+  ${section('Route / Climb Winds', winds)}
+  ${section('Route Lookup — MTR / AR', mtr)}
   <footer class="footer">Planning aid only — verify with official sources.</footer>
 </div>
 <script>
@@ -141,22 +162,49 @@ async function loadThemeCss() {
   return printIdx >= 0 ? css.slice(0, printIdx) : css;
 }
 
-/** Export the current brief. format: 'html' (download) or 'pdf' (print dialog). */
-export async function exportBrief(format) {
+async function safeCapture(map) {
+  try { return map && typeof map.capture === 'function' ? await map.capture() : null; }
+  catch { return null; }
+}
+
+// Caption for the radar snapshot: the map's "weather valid" times + attribution.
+function radarCaption() {
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return '';
+  const times = mapEl.querySelector('.map-times');
+  const t = times ? times.textContent.replace(/\s+/g, ' ').trim() : '';
+  return [t, '© OpenStreetMap, © CARTO · radar: IEM NEXRAD'].filter(Boolean).join('  ·  ');
+}
+
+/**
+ * Export the current brief. format: 'html' (download) or 'pdf' (print dialog).
+ * opts.map is the live map instance, used to rasterize a radar snapshot.
+ */
+export async function exportBrief(format, opts = {}) {
   const results = document.getElementById('results');
   if (!results || !results.querySelector('.card')) {
     alert('Build a brief first, then export.');
     return;
   }
+
+  // For PDF, open the window NOW — inside the click gesture — so the async map
+  // capture below doesn't trip the pop-up blocker.
+  let win = null;
+  if (format === 'pdf') {
+    win = window.open('', '_blank');
+    if (!win) { alert('Pop-up blocked — allow pop-ups to export PDF, or use Export HTML.'); return; }
+    win.document.write('<!doctype html><meta charset="utf-8"><title>Preparing…</title><body style="margin:0;font:14px system-ui;background:#0a0e14;color:#9fb0c0;padding:28px">Preparing themed brief… (rendering radar snapshot)</body>');
+  }
+
+  const radarPng = await safeCapture(opts.map);
+  const radarCap = radarPng ? radarCaption() : '';
   const themeCss = await loadThemeCss();
-  const doc = buildExportHtml(themeCss, { autoprint: format === 'pdf' });
+  const doc = buildExportHtml(themeCss, { autoprint: format === 'pdf', radarPng, radarCap });
 
   if (format === 'pdf') {
-    const w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — allow pop-ups to export PDF, or use Export HTML.'); return; }
-    w.document.open();
-    w.document.write(doc);
-    w.document.close();
+    win.document.open();
+    win.document.write(doc);
+    win.document.close();
     return;
   }
 

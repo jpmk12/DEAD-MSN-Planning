@@ -196,6 +196,7 @@ function runwayRows(a, brief) {
 
 const BIRD_COLOR = { LOW: 'var(--go)', MODERATE: 'var(--caution)', SEVERE: 'var(--nogo)' };
 let cardData = {}; // icao -> { brief, limits } for runway-compare interaction
+let currentMap = null; // latest map instance (for the export's radar snapshot)
 
 // Collapsible card section (native <details>, accessible, prints expanded).
 function sectionEl(titleHtml, inner, open = true) {
@@ -568,7 +569,7 @@ async function getRouteWinds() {
     if (routePts.length) {
       const mapEl = $('map');
       mapEl.style.display = '';
-      initMap(mapEl, { airfields: routePts, tfrs: [], sua: [], sigmets: data.airsigmets || [], pireps: [] });
+      currentMap = initMap(mapEl, { airfields: routePts, tfrs: [], sua: [], sigmets: data.airsigmets || [], pireps: [] });
     }
   } catch (err) {
     $('winds-results').innerHTML = `<div class="errbox">Failed: ${esc(err.message)}</div>`;
@@ -618,7 +619,7 @@ async function lookupMtr() {
     // Plot the route on the map.
     const mapEl = $('map');
     mapEl.style.display = '';
-    initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
+    currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
   } finally {
@@ -667,7 +668,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [], validity: wxValidity(data) });
+  currentMap = initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [], validity: wxValidity(data) });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -842,9 +843,8 @@ window.addEventListener('afterprint', () => {
 });
 
   on('go', 'click', buildBrief);
-  on('print', 'click', () => window.print());
-  on('export-html', 'click', () => exportBrief('html'));
-  on('export-pdf', 'click', () => exportBrief('pdf'));
+  on('export-html', 'click', () => exportBrief('html', { map: currentMap }));
+  on('export-pdf', 'click', () => exportBrief('pdf', { map: currentMap }));
   on('sortie-save', 'click', saveCurrentSortie);
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);

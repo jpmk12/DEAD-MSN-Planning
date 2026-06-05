@@ -318,7 +318,73 @@ export function initMap(container, data) {
     if (act === 'opacity') { state.opacity = e.target.value / 100; render(); }
   });
 
+  const loadImg = (src, cors) => new Promise((res) => {
+    const im = new Image();
+    if (cors) im.crossOrigin = 'anonymous';
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+
+  // Rasterize the current view into a PNG data URL for the brief export. Tiles
+  // are re-fetched with CORS so the canvas stays untainted.
+  async function drawToPng(withRadar) {
+    const W = w(), H = h();
+    if (!W || !H) return null;
+    const z = state.zoom;
+    const c = project(state.lat, state.lon, z);
+    const topLeft = { x: c.x - W / 2, y: c.y - H / 2 };
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#0c121a';
+    ctx.fillRect(0, 0, W, H);
+
+    const drawTiles = async (urlFn, opacity) => {
+      const n = 2 ** z;
+      const x0 = Math.floor(topLeft.x / TILE), y0 = Math.floor(topLeft.y / TILE);
+      const x1 = Math.ceil((topLeft.x + W) / TILE), y1 = Math.ceil((topLeft.y + H) / TILE);
+      const jobs = [];
+      for (let tx = x0; tx < x1; tx++) {
+        for (let ty = y0; ty < y1; ty++) {
+          if (ty < 0 || ty >= n) continue;
+          const wx = ((tx % n) + n) % n;
+          const dx = tx * TILE - topLeft.x, dy = ty * TILE - topLeft.y;
+          jobs.push(loadImg(urlFn(z, wx, ty), true).then((im) => {
+            if (im) { ctx.globalAlpha = opacity; ctx.drawImage(im, dx, dy, TILE, TILE); ctx.globalAlpha = 1; }
+          }));
+        }
+      }
+      await Promise.all(jobs);
+    };
+
+    await drawTiles(BASE_URL, 1);
+    if (withRadar && state.radar) await drawTiles(RADAR_URL, state.opacity);
+
+    // Vector overlay: serialize the live SVG (plain shapes/text — no external
+    // refs, so it won't taint) and draw it on top.
+    try {
+      const svg = overlay.cloneNode(true);
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svg.querySelectorAll('text').forEach((t) => t.setAttribute('font-family', 'monospace'));
+      const xml = new XMLSerializer().serializeToString(svg);
+      const im = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml), false);
+      if (im) ctx.drawImage(im, 0, 0, W, H);
+    } catch { /* overlay optional */ }
+
+    try { return canvas.toDataURL('image/png'); } catch { return null; }
+  }
+
+  // Prefer the full snapshot; if the radar tiles taint the canvas (server
+  // without CORS), retry without radar so a base + overlay snapshot still saves.
+  async function capture() {
+    return (await drawToPng(true)) || (state.radar ? await drawToPng(false) : null);
+  }
+
   // Initial paint (defer one frame so the viewport has a measured size).
   requestAnimationFrame(render);
-  return { render, state };
+  return { render, state, capture };
 }
