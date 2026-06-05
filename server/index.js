@@ -151,10 +151,13 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/mtr') {
-      const id = (url.searchParams.get('id') ?? '').trim();
-      if (!id) { sendJson(res, 400, { error: 'provide ?id=IR-021' }); return; }
+      const ids = [...new Set(
+        (url.searchParams.get('id') ?? '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean),
+      )].slice(0, 8);
+      if (!ids.length) { sendJson(res, 400, { error: 'provide ?id=IR-021 (comma/space separated for multiple)' }); return; }
       const offline = url.searchParams.get('offline') === '1';
-      sendJson(res, 200, await buildMtrDetail(id, offline));
+      const routes = await Promise.all(ids.map((id) => buildMtrDetail(id, offline)));
+      sendJson(res, 200, { routes });
       return;
     }
 

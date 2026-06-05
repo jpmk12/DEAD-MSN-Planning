@@ -604,26 +604,31 @@ function mtrDetailCard(d) {
 }
 
 async function lookupMtr() {
-  const id = $('mtr-id').value.trim();
-  if (!id) return;
-  const params = new URLSearchParams({ id });
+  const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  if (!ids.length) return;
+  const params = new URLSearchParams({ id: ids.join(',') });
   if (checked('offline')) params.set('offline', '1');
   $('mtr-go').disabled = true;
   $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
   try {
     const res = await fetch(`/api/mtr?${params}`);
-    const d = await res.json();
-    if (!d.found) {
-      $('mtr-results').innerHTML = `<div class="missing-card"><span class="icao">${esc(id)}</span> — route not found. Try IR-021 or VR-1355 (demo), or wire a live MTR source.</div>`;
-      return;
+    const data = await res.json();
+    const routes = data.routes || [];
+    const found = routes.filter((d) => d.found);
+    const missing = routes.filter((d) => !d.found);
+    let html = found.map((d) => `<div class="route-detail">${mtrDetailCard(d)}</div>`).join('');
+    if (missing.length) {
+      html += `<div class="missing-card">Not found: ${missing.map((d) => esc(d.id)).join(', ')} — try IR-021, VR-1355, or AR312H (demo), or wire a live MTR source.</div>`;
     }
-    $('mtr-results').innerHTML = `<div class="route-detail">${mtrDetailCard(d)}</div>`;
-    // Plot the route on the map and bring it into view (on mobile the map sits
-    // below the lookup tool, so the freshly plotted route is easy to miss).
-    const mapEl = $('map');
-    mapEl.style.display = '';
-    currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
-    mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('mtr-results').innerHTML = html || `<div class="missing-card">No routes found.</div>`;
+    if (found.length) {
+      // Plot every found route on the map at once (IR/VR/AR drawn in distinct
+      // colors) and bring it into view (on mobile the map sits below the tool).
+      const mapEl = $('map');
+      mapEl.style.display = '';
+      currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: found.map((d) => ({ id: d.id, type: d.type, geometry: d.geometry })) });
+      mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
   } finally {
