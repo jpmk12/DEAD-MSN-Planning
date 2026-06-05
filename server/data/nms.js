@@ -32,26 +32,36 @@ export function mapNmsFeature(feature, fallbackIcao) {
   };
 }
 
-let tokenCache = null; // { token, exp (epoch ms) }
+let tokenCache = null;   // { token, exp (epoch ms) }
+let tokenInflight = null; // single-flight guard so concurrent callers share one refresh
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function getToken(signal, force = false) {
   if (!force && tokenCache && tokenCache.exp > Date.now() + 60000) return tokenCache.token;
+  // Coalesce concurrent refreshes into one auth request (avoids a token storm
+  // — and 429s on the auth endpoint — when several fields 401 at once).
+  if (tokenInflight) return tokenInflight;
   const c = cfg();
-  const auth = Buffer.from(`${c.id}:${c.secret}`).toString('base64');
-  const res = await fetch(`${c.base}/v1/auth/token`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${auth}`, 'User-Agent': 'C17MissionPlanner/1.0' },
-    body: 'grant_type=client_credentials',
-  });
-  if (!res.ok) throw new Error(`NMS auth ${res.status}`);
-  const j = await res.json();
-  if (!j.access_token) throw new Error('NMS auth: no access_token');
-  tokenCache = { token: j.access_token, exp: Date.now() + Number(j.expires_in || 1799) * 1000 };
-  return tokenCache.token;
+  tokenInflight = (async () => {
+    const auth = Buffer.from(`${c.id}:${c.secret}`).toString('base64');
+    const res = await fetch(`${c.base}/v1/auth/token`, {
+      method: 'POST',
+      signal,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${auth}`, 'User-Agent': 'C17MissionPlanner/1.0' },
+      body: 'grant_type=client_credentials',
+    });
+    if (!res.ok) throw new Error(`NMS auth ${res.status}`);
+    const j = await res.json();
+    if (!j.access_token) throw new Error('NMS auth: no access_token');
+    tokenCache = { token: j.access_token, exp: Date.now() + Number(j.expires_in || 1799) * 1000 };
+    return tokenCache.token;
+  })();
+  try { return await tokenInflight; }
+  finally { tokenInflight = null; }
 }
 
-async function fetchLocation(icao, token, signal) {
+async function fetchLocation(icao, token, signal, attempt = 0) {
   const c = cfg();
   const url = `${c.base}/nmsapi/v1/notams?location=${encodeURIComponent(icao)}`;
   const res = await fetch(url, {
@@ -59,6 +69,13 @@ async function fetchLocation(icao, token, signal) {
     headers: { Authorization: `Bearer ${token}`, nmsResponseFormat: 'GEOJSON', Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' },
   });
   if (res.status === 401) { const e = new Error('NMS 401'); e.code = 401; throw e; }
+  // Transient (throttling / upstream hiccup): back off and retry so a momentary
+  // failure on one field in a multi-airfield brief doesn't silently drop that
+  // field's NOTAMs.
+  if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+    await delay(300 * 2 ** attempt);
+    return fetchLocation(icao, token, signal, attempt + 1);
+  }
   if (!res.ok) throw new Error(`NMS notams ${res.status}`);
   const j = await res.json();
   const feats = j?.data?.geojson ?? [];
@@ -109,17 +126,28 @@ export async function nmsProbe(icao = 'KCHS', signal) {
 }
 
 
-/** Fetch raw (uncategorized) NOTAMs for a set of ICAOs from the NMS-API. */
+/** Fetch raw (uncategorized) NOTAMs for a set of ICAOs from the NMS-API.
+ *  Sequential by design: the NMS-API throttles concurrent bursts, which would
+ *  make some fields in a multi-airfield brief come back empty. One field at a
+ *  time (with retry/backoff in fetchLocation) is reliable for a handful of
+ *  fields. A field that still fails after retries is skipped, not allowed to
+ *  drop the others. */
 export async function fetchNmsRaw(icaos, signal) {
   let token = await getToken(signal);
-  const one = async (icao) => {
+  const uniq = [...new Set(icaos.map((i) => i.toUpperCase()))];
+  const out = [];
+  for (const icao of uniq) {
     try {
-      return await fetchLocation(icao, token, signal);
+      out.push(...await fetchLocation(icao, token, signal));
     } catch (e) {
-      if (e.code === 401) { token = await getToken(signal, true); return fetchLocation(icao, token, signal); }
-      throw e;
+      if (e.code === 401) {
+        // Token expired mid-batch: refresh once and retry this field.
+        token = await getToken(signal, true);
+        try { out.push(...await fetchLocation(icao, token, signal)); }
+        catch { /* still failing — skip this field, keep the rest */ }
+      }
+      /* non-401 after retries — skip this field, keep the rest */
     }
-  };
-  const lists = await Promise.all(icaos.map((i) => one(i).catch(() => [])));
-  return lists.flat();
+  }
+  return out;
 }
