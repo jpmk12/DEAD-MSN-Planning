@@ -350,9 +350,12 @@ function card(brief, limits) {
     body = `<div class="readout">No weather observation available for this field.</div>`;
   }
 
+  const ahasChip = brief.birdRisk
+    ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" title="${esc(brief.birdRisk.note || '')}">AHAS ${esc(brief.birdRisk.level)}</span>`
+    : '';
   return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
-      <div class="spacer"></div><div class="status-led ${statusClass}">${esc(brief.status)}</div></div>
+      <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}">${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
     <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
 
@@ -644,7 +647,19 @@ async function deleteSelectedSortie() {
 }
 
 function init() {
+  // Collapse/expand the tool panels (Route Winds, Route Lookup).
+  document.addEventListener('click', (e) => {
+    const head = e.target.closest('[data-collapse]');
+    if (!head) return;
+    const sec = document.getElementById(head.dataset.collapse);
+    if (sec) sec.classList.toggle('collapsed');
+  });
+
 $('results')?.addEventListener('click', (e) => {
+  // Collapse/expand a whole airfield card by clicking its header.
+  const cardHead = e.target.closest('.card > .head');
+  if (cardHead) { cardHead.parentElement.classList.toggle('collapsed'); return; }
+
   // Tab switching within a card.
   const tab = e.target.closest('.card-tabs .tab');
   if (tab) {

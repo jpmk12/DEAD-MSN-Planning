@@ -69,26 +69,32 @@
         </div>
       </section>
 
-      <section class="controls winds-tool">
-        <div class="row">
-          <div class="field grow">
-            <label for="winds-points">Route / climb winds — airfields or navaids (space or comma separated)</label>
-            <input id="winds-points" type="text" value="KCHS KEDW" autocomplete="off" spellcheck="false" />
+      <section class="controls tool winds-tool" id="sec-winds">
+        <div class="tool-head" data-collapse="sec-winds"><span class="tool-title">Route / Climb Winds</span><span class="chev">▾</span></div>
+        <div class="tool-body">
+          <div class="row">
+            <div class="field grow">
+              <label for="winds-points">Airfields or navaids (space or comma separated)</label>
+              <input id="winds-points" type="text" value="KCHS KEDW" autocomplete="off" spellcheck="false" />
+            </div>
+            <button id="winds-go" class="go secondary">Get Winds Aloft</button>
           </div>
-          <button id="winds-go" class="go secondary">Get Winds Aloft</button>
+          <div id="winds-results"></div>
         </div>
-        <div id="winds-results"></div>
       </section>
 
-      <section class="controls mtr-tool">
-        <div class="row">
-          <div class="field grow">
-            <label for="mtr-id">Route lookup — MTR or AR track (e.g. IR-154, VR-106, AR312H, AR197L)</label>
-            <input id="mtr-id" type="text" value="IR-021" autocomplete="off" spellcheck="false" />
+      <section class="controls tool mtr-tool" id="sec-mtr">
+        <div class="tool-head" data-collapse="sec-mtr"><span class="tool-title">Route Lookup — MTR / AR Track</span><span class="chev">▾</span></div>
+        <div class="tool-body">
+          <div class="row">
+            <div class="field grow">
+              <label for="mtr-id">MTR or AR designator (e.g. IR-154, VR-106, AR312H, AR197L)</label>
+              <input id="mtr-id" type="text" value="IR-021" autocomplete="off" spellcheck="false" />
+            </div>
+            <button id="mtr-go" class="go secondary">Look Up Route</button>
           </div>
-          <button id="mtr-go" class="go secondary">Look Up Route</button>
+          <div id="mtr-results"></div>
         </div>
-        <div id="mtr-results"></div>
       </section>
 
       <div id="print-head" class="print-head"></div>
