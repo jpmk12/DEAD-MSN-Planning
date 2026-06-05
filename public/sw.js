@@ -5,7 +5,7 @@
 // caused stale app.js to be served after updates. The cache is only an offline
 // fallback. API calls always go to the network; cross-origin tiles are
 // cache-first (they're immutable and bandwidth-heavy).
-const CACHE = 'msn-planner-v7';
+const CACHE = 'msn-planner-v8';
 const SHELL = ['./', './index.html', './app.js', './theme.css', './map.js', './projection.js', './timefmt.js', './export.js', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

@@ -368,7 +368,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   .topbar .subtitle { font-size: 11px; }
   .controls .row { gap: 10px; }
   .field.grow { min-width: 100%; }
-  .field.num { flex: 1; min-width: 0; }
+  /* Xwind / Tailwind / High DA: equal-width and wrap as a clean group instead
+     of shrinking below their content (which overlapped on narrow screens). */
+  .field.num { flex: 1 1 88px; min-width: 88px; }
+  .field.num label { font-size: 10px; letter-spacing: 0.3px; white-space: nowrap; }
   .field.num input { width: 100%; }
   button.go { flex: 1 1 auto; }
   .sortie-row .field.grow { min-width: 100%; }
