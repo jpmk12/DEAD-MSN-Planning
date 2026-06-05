@@ -96,7 +96,7 @@ export function decodeTaf(raw) {
   if (vm) { validFrom = vm[1]; validTo = vm[2]; i++; }
 
   const periods = [];
-  let current = { label: 'Prevailing', when: validFrom ? `${timeText(validFrom)} – ${timeText(validTo)}` : '', items: [], extra: [] };
+  let current = { label: 'Prevailing', when: validFrom ? `${timeText(validFrom)} – ${timeText(validTo)}` : '', from: validFrom, to: validTo, items: [], extra: [] };
 
   const pushCurrent = () => { if (current.items.length || current.extra.length) periods.push(current); };
 
@@ -105,7 +105,7 @@ export function decodeTaf(raw) {
     let m;
     if ((m = /^FM(\d{6})$/.exec(tok))) {
       pushCurrent();
-      current = { label: 'From', when: timeText(m[1]), items: [], extra: [] };
+      current = { label: 'From', when: timeText(m[1]), from: m[1], to: null, items: [], extra: [] };
       continue;
     }
     if (tok === 'BECMG' || tok === 'TEMPO') {
@@ -115,6 +115,7 @@ export function decodeTaf(raw) {
       current = {
         label: tok === 'BECMG' ? 'Becoming' : 'Temporarily',
         when: rng ? `${timeText(rng[1])} – ${timeText(rng[2])}` : '',
+        from: rng ? rng[1] : null, to: rng ? rng[2] : null,
         items: [], extra: [],
       };
       continue;
@@ -125,7 +126,7 @@ export function decodeTaf(raw) {
       if (tokens[i + 1] === 'TEMPO') { label += ' (temporarily)'; i++; }
       const rng = /^(\d{4})\/(\d{4})$/.exec(tokens[i + 1] || '');
       if (rng) i++;
-      current = { label, when: rng ? `${timeText(rng[1])} – ${timeText(rng[2])}` : '', items: [], extra: [] };
+      current = { label, when: rng ? `${timeText(rng[1])} – ${timeText(rng[2])}` : '', from: rng ? rng[1] : null, to: rng ? rng[2] : null, items: [], extra: [] };
       continue;
     }
     // combined fraction visibility, e.g. "1 1/2SM"
@@ -143,7 +144,10 @@ export function decodeTaf(raw) {
   return {
     station,
     issued: issued ? timeText(issued) : null,
+    issuedRaw: issued,
     valid: validFrom ? `${timeText(validFrom)} – ${timeText(validTo)}` : null,
+    validFrom,
+    validTo,
     periods,
     raw,
   };

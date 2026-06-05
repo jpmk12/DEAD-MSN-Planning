@@ -242,18 +242,52 @@ function hazardWxSection(brief) {
   return `<div class="notams">${wxRows}${convRows}</div>`;
 }
 
+// TAF times are bare "DDHH"/"DDHHMM" Zulu tokens (no month/year). Anchor them to
+// the brief's generation date so we can render local time too. Handles month
+// rollover and the 24:00 = next-day-00:00 convention.
+function tafTokenIso(ddhhmm, anchorIso) {
+  if (!ddhhmm || ddhhmm.length < 4) return null;
+  const dd = +ddhhmm.slice(0, 2);
+  let hh = +ddhhmm.slice(2, 4);
+  const mm = ddhhmm.length >= 6 ? +ddhhmm.slice(4, 6) : 0;
+  if (![dd, hh, mm].every(Number.isFinite)) return null;
+  const anchor = new Date(anchorIso);
+  const base = Number.isNaN(anchor.getTime()) ? new Date() : anchor;
+  let mo = base.getUTCMonth();
+  if (dd < base.getUTCDate() - 10) mo += 1; // token day well before now → next month
+  const rollDay = hh >= 24;
+  if (rollDay) hh -= 24;
+  let d = new Date(Date.UTC(base.getUTCFullYear(), mo, dd, hh, mm));
+  if (rollDay) d = new Date(d.getTime() + 86400000);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// Render a TAF time token (or from–to range) as Zulu · local, falling back to
+// the server's Zulu-only text if the raw token is missing.
+function tafWhen(from, to, anchorIso, fallback = '') {
+  const fIso = tafTokenIso(from, anchorIso);
+  if (!fIso) return fallback;
+  const fz = zuluLocal(fIso, { date: true });
+  const tIso = to ? tafTokenIso(to, anchorIso) : null;
+  return tIso ? `${fz} – ${zuluLocal(tIso, { date: true })}` : fz;
+}
+
 function tafSection(brief) {
   if (!brief.taf) {
     return '<div class="readout" style="font-size:12px">No TAF retrieved for this field (many fields don\'t issue TAFs; live TAFs appear here when available).</div>';
   }
   const d = brief.tafDecoded;
+  const anchor = brief.generatedAt;
   let decoded = '';
   if (d && d.periods && d.periods.length) {
-    const head = d.valid ? `<div class="when" style="margin-bottom:6px">Valid ${esc(d.valid)}${d.issued ? ` · issued ${esc(d.issued)}` : ''}</div>` : '';
+    const validTxt = tafWhen(d.validFrom, d.validTo, anchor, d.valid);
+    const issuedTxt = tafWhen(d.issuedRaw, null, anchor, d.issued);
+    const head = validTxt ? `<div class="when" style="margin-bottom:6px">Valid ${esc(validTxt)}${issuedTxt ? ` · issued ${esc(issuedTxt)}` : ''}</div>` : '';
     const periods = d.periods.map((p) => {
       const items = p.items.map((it) => `<li>${esc(it)}</li>`).join('');
       const extra = p.extra && p.extra.length ? `<li class="extra">${esc(p.extra.join(' '))}</li>` : '';
-      return `<div class="taf-period"><div class="taf-when">${esc(p.label)}${p.when ? ` · ${esc(p.when)}` : ''}</div>
+      const when = tafWhen(p.from, p.to, anchor, p.when);
+      return `<div class="taf-period"><div class="taf-when">${esc(p.label)}${when ? ` · ${esc(when)}` : ''}</div>
         <ul class="taf-items">${items}${extra}</ul></div>`;
     }).join('');
     decoded = `${head}${periods}`;
@@ -748,8 +782,9 @@ $('results')?.addEventListener('click', (e) => {
     return;
   }
 
-  // NOTAM category filter: focus the chosen category — open its group and
-  // collapse the others (ALL restores each group's default open/closed state).
+  // NOTAM category filter: show ONLY the chosen category — hide every other
+  // group and expand the selected one. ALL restores all groups to their default
+  // open/closed state.
   const nf = e.target.closest('.nfilter');
   if (nf) {
     const cat = nf.dataset.cat;
@@ -757,7 +792,9 @@ $('results')?.addEventListener('click', (e) => {
     bar.querySelectorAll('.nfilter').forEach((c) => c.classList.remove('active'));
     nf.classList.add('active');
     bar.parentElement.querySelectorAll('.ngroup').forEach((g) => {
-      g.open = cat === 'ALL' ? NOTAM_OPEN_DEFAULT.has(g.dataset.cat) : g.dataset.cat === cat;
+      const match = cat === 'ALL' || g.dataset.cat === cat;
+      g.hidden = !match;
+      g.open = cat === 'ALL' ? NOTAM_OPEN_DEFAULT.has(g.dataset.cat) : true;
     });
     return;
   }
@@ -791,12 +828,16 @@ $('results')?.addEventListener('click', (e) => {
   t.textContent = showRaw ? 'show decoded' : 'show raw';
 });
 
-// Expand all collapsible sections (incl. NOTAM category groups) for printing.
+// Expand all collapsible sections (incl. NOTAM category groups) for printing,
+// and un-hide any groups a category filter is currently hiding so the printed
+// brief is always complete.
 window.addEventListener('beforeprint', () => {
   document.querySelectorAll('details.sec, details.ngroup').forEach((d) => { d.dataset.wasopen = d.open ? '1' : '0'; d.open = true; });
+  document.querySelectorAll('.ngroup[hidden]').forEach((g) => { g.dataset.washidden = '1'; g.hidden = false; });
 });
 window.addEventListener('afterprint', () => {
   document.querySelectorAll('details.sec, details.ngroup').forEach((d) => { if (d.dataset.wasopen === '0') d.open = false; });
+  document.querySelectorAll('.ngroup[data-washidden="1"]').forEach((g) => { g.hidden = true; delete g.dataset.washidden; });
 });
 
   on('go', 'click', buildBrief);

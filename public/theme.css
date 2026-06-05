@@ -253,6 +253,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 /* NOTAMs grouped into collapsible per-category sections. */
 .ngroups { display: flex; flex-direction: column; gap: 6px; }
 .ngroup { border: 1px solid var(--border); border-radius: 7px; background: rgba(255, 255, 255, 0.015); overflow: hidden; }
+.ngroup[hidden] { display: none; }
 .ngroup-sum { display: flex; align-items: center; gap: 8px; padding: 6px 9px; cursor: pointer; list-style: none; user-select: none; }
 .ngroup-sum::-webkit-details-marker { display: none; }
 .ngroup-sum:hover { background: var(--panel-2); }
