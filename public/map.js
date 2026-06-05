@@ -118,8 +118,10 @@ export function initMap(container, data) {
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
 
-  // Center on airfields if present, otherwise on the route geometry (MTR lookup).
-  const focusPts = airfields.length ? airfields
+  // Center on an explicit focus set if given (airfields + looked-up routes),
+  // else on airfields, else on the route geometry (MTR lookup).
+  const focusPts = (data.focus && data.focus.length) ? data.focus
+    : airfields.length ? airfields
     : mtrs.flatMap((m) => (m.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
   const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65 };
 

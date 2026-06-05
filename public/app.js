@@ -603,6 +603,28 @@ function mtrDetailCard(d) {
     <div class="body">${refuel}${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
 }
 
+const RC_CLASS = { IR: 'rc-ir', VR: 'rc-vr', AR: 'rc-ar' };
+
+// Removable chips for the routes currently overlaid on the map.
+function routeChips() {
+  if (!activeRoutes.length) return '';
+  const chip = (d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}">
+      <span class="rc-dot"></span>${esc(d.id)}
+      <button class="route-chip-x" data-route-id="${esc(d.id)}" title="Remove ${esc(d.id)}" aria-label="Remove ${esc(d.id)}">×</button></span>`;
+  return `<div class="route-chips"><span class="rc-label">On map:</span>${activeRoutes.map(chip).join('')}
+      <button class="route-chip-clear" title="Remove all routes">Clear all</button></div>`;
+}
+
+// Render the chip bar + a detail card for every active route (cards persist
+// across lookups so the chips, cards, and map always agree).
+function renderRouteResults(missing = []) {
+  const details = activeRoutes.map((d) => `<div class="route-detail" data-route-id="${esc(d.id)}">${mtrDetailCard(d)}</div>`).join('');
+  const miss = missing.length
+    ? `<div class="missing-card">Not found: ${missing.map((d) => esc(d.id)).join(', ')} — try IR-021, VR-1355, or AR312H (demo), or wire a live MTR source.</div>`
+    : '';
+  $('mtr-results').innerHTML = (routeChips() + details + miss) || '';
+}
+
 async function lookupMtr() {
   const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
   if (!ids.length) return;
@@ -614,20 +636,19 @@ async function lookupMtr() {
     const res = await fetch(`/api/mtr?${params}`);
     const data = await res.json();
     const routes = data.routes || [];
-    const found = routes.filter((d) => d.found);
     const missing = routes.filter((d) => !d.found);
-    let html = found.map((d) => `<div class="route-detail">${mtrDetailCard(d)}</div>`).join('');
-    if (missing.length) {
-      html += `<div class="missing-card">Not found: ${missing.map((d) => esc(d.id)).join(', ')} — try IR-021, VR-1355, or AR312H (demo), or wire a live MTR source.</div>`;
+    // Accumulate found routes (add new, refresh existing) so a low-level and an
+    // AR track looked up separately can both stay on the map.
+    for (const d of routes.filter((r) => r.found)) {
+      const i = activeRoutes.findIndex((r) => normId(r.id) === normId(d.id));
+      if (i >= 0) activeRoutes[i] = d; else activeRoutes.push(d);
     }
-    $('mtr-results').innerHTML = html || `<div class="missing-card">No routes found.</div>`;
-    if (found.length) {
-      // Plot every found route on the map at once (IR/VR/AR drawn in distinct
-      // colors) and bring it into view (on mobile the map sits below the tool).
-      const mapEl = $('map');
-      mapEl.style.display = '';
-      currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: found.map((d) => ({ id: d.id, type: d.type, geometry: d.geometry })) });
-      mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    renderRouteResults(missing);
+    if (activeRoutes.length) {
+      // Overlay every active route on the brief map (airfields + radar +
+      // weather) and bring it into view (on mobile the map sits below the tool).
+      paintMap();
+      $('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
@@ -666,18 +687,44 @@ function wxValidity(data) {
   return lines;
 }
 
+// The main map is state-driven so looked-up routes can be overlaid on the brief
+// context (airfields, radar, weather). lastBriefData holds the most recent
+// brief; activeRoutes are the routes the user has looked up (full server detail
+// objects), shown as removable chips.
+let lastBriefData = null;
+let activeRoutes = [];
+const normId = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 function renderMap(data) {
+  lastBriefData = data;
+  paintMap();
+}
+
+function paintMap() {
   const mapEl = $('map');
-  const airfields = data.airfields
-    .filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lon))
-    .map((b) => ({ icao: b.icao, lat: b.lat, lon: b.lon, status: b.status }));
-  if (airfields.length === 0) {
-    mapEl.style.display = 'none';
-    return;
-  }
+  if (!mapEl) return;
+  const data = lastBriefData;
+  const airfields = data
+    ? data.airfields.filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lon))
+        .map((b) => ({ icao: b.icao, lat: b.lat, lon: b.lon, status: b.status }))
+    : [];
+  // With routes looked up, show exactly those (chip-controlled) over the brief;
+  // otherwise fall back to the brief's auto nearby routes.
+  const mtrs = activeRoutes.length
+    ? activeRoutes.map((d) => ({ id: d.id, type: d.type, geometry: d.geometry }))
+    : (data?.mtrs || []);
+  if (!airfields.length && !mtrs.length) { mapEl.style.display = 'none'; return; }
   mapEl.style.display = '';
-  const as = data.airspace || { tfrs: [], sua: [] };
-  currentMap = initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [], validity: wxValidity(data) });
+  const as = data?.airspace || { tfrs: [], sua: [] };
+  // Fit to the airfields plus any looked-up route points (auto nearby routes
+  // don't drag the default view out).
+  const routePts = activeRoutes.flatMap((d) => (d.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
+  const focus = activeRoutes.length ? [...airfields, ...routePts] : airfields;
+  currentMap = initMap(mapEl, {
+    airfields, tfrs: as.tfrs, sua: as.sua,
+    sigmets: data?.airsigmets || [], pireps: data?.pireps || [], convective: data?.convective || [],
+    mtrs, validity: data ? wxValidity(data) : [], focus,
+  });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -787,6 +834,23 @@ function init() {
     if (!head) return;
     const sec = document.getElementById(head.dataset.collapse);
     if (sec) sec.classList.toggle('collapsed');
+  });
+
+  // Route chips: remove one route, or clear them all, then repaint the map.
+  $('mtr-results')?.addEventListener('click', (e) => {
+    const x = e.target.closest('.route-chip-x');
+    if (x) {
+      const nid = normId(x.dataset.routeId);
+      activeRoutes = activeRoutes.filter((r) => normId(r.id) !== nid);
+      renderRouteResults();
+      paintMap();
+      return;
+    }
+    if (e.target.closest('.route-chip-clear')) {
+      activeRoutes = [];
+      $('mtr-results').innerHTML = '';
+      paintMap();
+    }
   });
 
 $('results')?.addEventListener('click', (e) => {
