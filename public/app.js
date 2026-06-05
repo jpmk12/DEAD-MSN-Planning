@@ -3,6 +3,7 @@
 
 import { initMap } from './map.js';
 import { zuluLocal, hhZ, hhL, TZ_ABBR } from './timefmt.js';
+import { exportBrief } from './export.js';
 
 const $ = (id) => document.getElementById(id);
 // Null-safe helpers: never let a missing/late element abort init or a handler.
@@ -842,6 +843,8 @@ window.addEventListener('afterprint', () => {
 
   on('go', 'click', buildBrief);
   on('print', 'click', () => window.print());
+  on('export-html', 'click', () => exportBrief('html'));
+  on('export-pdf', 'click', () => exportBrief('pdf'));
   on('sortie-save', 'click', saveCurrentSortie);
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);
