@@ -616,10 +616,12 @@ async function lookupMtr() {
       return;
     }
     $('mtr-results').innerHTML = `<div class="route-detail">${mtrDetailCard(d)}</div>`;
-    // Plot the route on the map.
+    // Plot the route on the map and bring it into view (on mobile the map sits
+    // below the lookup tool, so the freshly plotted route is easy to miss).
     const mapEl = $('map');
     mapEl.style.display = '';
     currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
+    mapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
   } finally {

@@ -386,5 +386,20 @@ export function initMap(container, data) {
 
   // Initial paint (defer one frame so the viewport has a measured size).
   requestAnimationFrame(render);
+
+  // Re-render whenever the viewport's size actually changes — late layout after
+  // the map is un-hidden (common on mobile), orientation changes, and window
+  // resizes. Without this, a first paint at zero/stale size leaves the tiles and
+  // route/airspace overlay misplaced until the user pans. Guarded for non-DOM
+  // environments (tests).
+  if (typeof ResizeObserver !== 'undefined') {
+    let lastW = 0, lastH = 0;
+    const ro = new ResizeObserver(() => {
+      const cw = viewport.clientWidth, ch = viewport.clientHeight;
+      if (cw && ch && (cw !== lastW || ch !== lastH)) { lastW = cw; lastH = ch; render(); }
+    });
+    ro.observe(viewport);
+  }
+
   return { render, state, capture };
 }
