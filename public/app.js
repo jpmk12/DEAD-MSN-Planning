@@ -949,6 +949,16 @@ if (document.readyState === 'loading') {
   init();
 }
 
+// Retire any previously-installed service worker. Earlier builds cached app
+// assets, which caused stale app.js to be served after deploys (version skew).
+// The server now sends no-cache on all app assets, so we load fresh from the
+// origin and no longer use a service worker. Proactively unregister and purge
+// any leftover caches so existing installs self-heal.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  navigator.serviceWorker.getRegistrations?.()
+    .then((regs) => regs.forEach((r) => r.unregister()))
+    .catch(() => {});
+  if (self.caches?.keys) {
+    caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+  }
 }

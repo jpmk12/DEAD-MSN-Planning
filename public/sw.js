@@ -1,52 +1,27 @@
-// App-shell service worker.
+// Self-retiring service worker.
 //
-// IMPORTANT: app assets (HTML/JS/CSS) use a NETWORK-FIRST strategy so a new
-// deploy is always picked up immediately — caching them cache-first previously
-// caused stale app.js to be served after updates. The cache is only an offline
-// fallback. API calls always go to the network; cross-origin tiles are
-// cache-first (they're immutable and bandwidth-heavy).
-const CACHE = 'msn-planner-v10';
-const SHELL = ['./', './index.html', './app.js', './theme.css', './map.js', './projection.js', './timefmt.js', './export.js', './icon.svg', './manifest.webmanifest'];
+// Earlier versions cached the app shell. Because the assets aren't content-
+// hashed, that caused stale app.js to be served against a newer index.html after
+// a deploy (every handler then died / old code ran). The server now sends
+// `Cache-Control: no-cache` on all app assets, so a caching service worker is
+// unnecessary and was the source of version skew.
+//
+// This worker installs, clears every cache, unregisters itself, and reloads open
+// windows so any device with an old (caching) worker self-heals and loads fresh
+// from the origin. It has NO fetch handler, so it never intercepts requests.
+self.addEventListener('install', () => self.skipWaiting());
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
-});
-
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
-});
-
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/')) return; // live data: always network
-
-  // Cross-origin: cache-first only for immutable tile images. Other cross-origin
-  // requests (e.g. the RainViewer radar-time JSON) hit the network so they stay
-  // fresh instead of returning a stale cached copy.
-  if (url.origin !== self.location.origin) {
-    if (!/\.png($|\?)/i.test(url.pathname)) return;
-    e.respondWith(
-      caches.match(e.request).then((hit) =>
-        hit || fetch(e.request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-          return res;
-        }).catch(() => hit),
-      ),
-    );
-    return;
-  }
-
-  // Same-origin app assets: network-first, fall back to cache when offline.
-  e.respondWith(
-    fetch(e.request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-      return res;
-    }).catch(() => caches.match(e.request).then((hit) => hit || caches.match('./index.html'))),
-  );
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      await self.clients.claim();
+      await self.registration.unregister();
+      const clients = await self.clients.matchAll({ type: 'window' });
+      clients.forEach((c) => c.navigate(c.url)); // one reload → fresh, no SW
+    } catch {
+      /* best effort */
+    }
+  })());
 });
