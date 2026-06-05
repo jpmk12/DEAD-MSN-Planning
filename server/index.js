@@ -66,24 +66,40 @@ function parseLimits(url) {
   };
 }
 
-async function serveStatic(res, pathname) {
+async function serveStatic(req, res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   const filePath = normalize(join(WEB_ROOT, rel));
   if (!filePath.startsWith(WEB_ROOT)) {
     res.writeHead(403).end('Forbidden');
     return;
   }
+  // App assets are not content-hashed, so always require revalidation. This
+  // prevents a CDN/browser/service-worker from pinning a stale app.js against a
+  // newer index.html (the cause of "every button is dead" after a deploy). The
+  // service worker still provides offline support. Last-Modified enables cheap
+  // 304s so revalidation isn't a full re-download.
+  const headers = (mtime) => ({
+    'Content-Type': MIME[extname(filePath)] ?? 'application/octet-stream',
+    'Cache-Control': 'no-cache',
+    'Last-Modified': mtime,
+  });
   try {
     const info = await stat(filePath);
     const target = info.isDirectory() ? join(filePath, 'index.html') : filePath;
+    const tinfo = info.isDirectory() ? await stat(target) : info;
+    const lastMod = tinfo.mtime.toUTCString();
+    if (req.headers['if-modified-since'] === lastMod) {
+      res.writeHead(304, { 'Cache-Control': 'no-cache', 'Last-Modified': lastMod }).end();
+      return;
+    }
     const body = await readFile(target);
-    res.writeHead(200, { 'Content-Type': MIME[extname(target)] ?? 'application/octet-stream' });
+    res.writeHead(200, { ...headers(lastMod), 'Content-Type': MIME[extname(target)] ?? 'application/octet-stream' });
     res.end(body);
   } catch {
     // SPA-ish fallback to index.html.
     try {
       const body = await readFile(join(WEB_ROOT, 'index.html'));
-      res.writeHead(200, { 'Content-Type': MIME['.html'] });
+      res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
       res.end(body);
     } catch {
       res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
@@ -200,7 +216,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    await serveStatic(res, url.pathname);
+    await serveStatic(req, res, url.pathname);
   } catch (err) {
     sendJson(res, 500, { error: String(err) });
   }
