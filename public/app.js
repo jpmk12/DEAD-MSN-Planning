@@ -487,8 +487,10 @@ const SOURCE_INFO = {
     demo: 'Showing bundled samples — set FAA credentials (NMS_CLIENT_ID/SECRET, or FAA_NOTAM_CLIENT_ID/SECRET) to go live.' },
   WINDS: { what: 'Winds aloft from Open-Meteo (api.open-meteo.com)',
     demo: 'Showing a bundled sample — goes live automatically once Open-Meteo is reachable.' },
-  AIRSPACE: { what: 'TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert areas)',
-    demo: 'Showing bundled samples — set TFR_GEOJSON_URL and SUA_GEOJSON_URL to live GeoJSON feeds to go live (both required).' },
+  SUA: { what: 'Special Use Airspace (MOAs, Restricted/Warning/Alert areas) from the FAA ArcGIS feed',
+    demo: 'Showing bundled samples — set SUA_GEOJSON_URL (or check outbound network access) to go live.' },
+  TFR: { what: 'Temporary Flight Restrictions',
+    demo: 'Showing bundled samples — set TFR_GEOJSON_URL to a live GeoJSON feed to go live (FAA has no clean GeoJSON TFR source by default).' },
 };
 function sourceTip(label, isLive) {
   const i = SOURCE_INFO[label] || {};
@@ -526,7 +528,8 @@ function updateStatusStrip(live) {
     badge('TAF', live.taf) +
     badge('NOTAM', live.notams) +
     badge('WINDS', live.windsAloft) +
-    badge('AIRSPACE', live.airspace);
+    badge('SUA', live.sua) +
+    badge('TFR', live.tfr);
 }
 
 async function buildBrief() {

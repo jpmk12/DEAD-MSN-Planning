@@ -185,6 +185,8 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       taf: wxRes.tafLive,
       notams: notamResult.live,
       airspace: tfrResult.live && suaResult.live,
+      tfr: tfrResult.live,
+      sua: suaResult.live,
       windsAloft: windsPairs.some(([, r]) => r && r.live),
       birds: birdResult.live,
       hazardWx: sigmetResult.live,

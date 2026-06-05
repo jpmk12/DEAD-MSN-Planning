@@ -88,10 +88,27 @@ export function geojsonToAirspace(geojson, mapper) {
     .filter((x) => x.geometry);
 }
 
+// Built-in live default for SUA: FAA Special Use Airspace ArcGIS service as
+// GeoJSON (its NAME/TYPE_CODE/UPPER_VAL/LOWER_VAL fields match the mapper below).
+// Override with SUA_GEOJSON_URL. No equivalent clean GeoJSON exists for TFRs, so
+// TFR_GEOJSON_URL has no default and TFRs stay on the fixture until one is set.
+const SUA_DEFAULT_URL = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/Special_Use_Airspace/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson';
+
+// These feeds are nationwide and don't change minute-to-minute; cache the parsed
+// GeoJSON briefly so we don't re-download a large file on every brief.
+const GEOJSON_TTL_MS = 10 * 60 * 1000;
+const geojsonCache = new Map(); // url -> { at, data }
+
 async function fetchGeoJson(url, signal) {
-  const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+  const hit = geojsonCache.get(url);
+  if (hit && Date.now() - hit.at < GEOJSON_TTL_MS) return hit.data;
+  // Cap the request so a slow/hung nationwide feed can't stall a brief; on
+  // timeout the caller falls back to the bundled fixture.
+  const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(8000), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`GeoJSON ${res.status} for ${url}`);
-  return res.json();
+  const data = await res.json();
+  geojsonCache.set(url, { at: Date.now(), data });
+  return data;
 }
 
 const firstProp = (props, keys, fallback) => {
@@ -125,7 +142,7 @@ export async function fetchTfrs(offline, signal) {
 
 /** @returns {Promise<{sua:any[], live:boolean}>} */
 export async function fetchSua(offline, signal) {
-  const url = process.env.SUA_GEOJSON_URL;
+  const url = process.env.SUA_GEOJSON_URL || SUA_DEFAULT_URL;
   if (!offline && url) {
     try {
       const gj = await fetchGeoJson(url, signal);
