@@ -456,17 +456,71 @@ function readLimits() {
   };
 }
 
+// Tap/click tooltip for the pills (hover titles don't appear on touch devices).
+let pillTipEl = null;
+function hidePillTip() { if (pillTipEl) { pillTipEl.remove(); pillTipEl = null; } }
+function showPillTip(anchor, text) {
+  hidePillTip();
+  pillTipEl = document.createElement('div');
+  pillTipEl.className = 'pill-tip';
+  pillTipEl.textContent = text;
+  document.body.appendChild(pillTipEl);
+  const r = anchor.getBoundingClientRect();
+  pillTipEl.style.top = `${r.bottom + 6 + window.scrollY}px`;
+  pillTipEl.style.left = `${r.left + window.scrollX}px`;
+  // Clamp to the viewport's right edge after layout.
+  requestAnimationFrame(() => {
+    if (!pillTipEl) return;
+    const t = pillTipEl.getBoundingClientRect();
+    const overflow = t.right - (window.innerWidth - 8);
+    if (overflow > 0) pillTipEl.style.left = `${r.left + window.scrollX - overflow}px`;
+  });
+}
+
+// What each data-source pill means, for the hover title + tap tooltip.
+const SOURCE_INFO = {
+  WX: { what: 'Current surface weather (METARs) from AWC aviationweather.gov',
+    demo: 'Showing bundled sample data — goes live automatically once the server can reach aviationweather.gov.' },
+  TAF: { what: 'Terminal Aerodrome Forecasts from AWC aviationweather.gov',
+    demo: 'Showing a bundled sample — goes live automatically once AWC is reachable.' },
+  NOTAM: { what: 'NOTAMs from the FAA NOTAM API',
+    demo: 'Showing bundled samples — set FAA credentials (NMS_CLIENT_ID/SECRET, or FAA_NOTAM_CLIENT_ID/SECRET) to go live.' },
+  WINDS: { what: 'Winds aloft from Open-Meteo (api.open-meteo.com)',
+    demo: 'Showing a bundled sample — goes live automatically once Open-Meteo is reachable.' },
+  AIRSPACE: { what: 'TFRs and Special Use Airspace (MOAs, Restricted/Warning/Alert areas)',
+    demo: 'Showing bundled samples — set TFR_GEOJSON_URL and SUA_GEOJSON_URL to live GeoJSON feeds to go live (both required).' },
+};
+function sourceTip(label, isLive) {
+  const i = SOURCE_INFO[label] || {};
+  const state = isLive
+    ? 'LIVE — fetched in real time.'
+    : `DEMO — ${i.demo || 'showing bundled sample data.'}`;
+  return `${label}: ${i.what || ''}\n${state}`;
+}
+const tipAttrs = (label, isLive) => {
+  const t = esc(sourceTip(label, isLive));
+  return `title="${t}" data-tip="${t}" role="button" tabindex="0"`;
+};
+
 function setSourcePills(live) {
   const wx = $('wx-source'), nt = $('notam-source');
-  if (wx) { wx.textContent = live.weather ? 'WX: LIVE' : 'WX: DEMO'; wx.className = 'pill ' + (live.weather ? 'live' : 'fixture'); }
-  if (nt) { nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: DEMO'; nt.className = 'pill ' + (live.notams ? 'live' : 'fixture'); }
+  if (wx) {
+    wx.textContent = live.weather ? 'WX: LIVE' : 'WX: DEMO';
+    wx.className = 'pill ' + (live.weather ? 'live' : 'fixture');
+    wx.title = sourceTip('WX', live.weather); wx.dataset.tip = wx.title;
+  }
+  if (nt) {
+    nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: DEMO';
+    nt.className = 'pill ' + (live.notams ? 'live' : 'fixture');
+    nt.title = sourceTip('NOTAM', live.notams); nt.dataset.tip = nt.title;
+  }
 }
 
 // Prominent data-source status strip.
 function updateStatusStrip(live) {
   const el = $('status-strip');
   if (!el) return;
-  const badge = (label, isLive) => `<span class="sbadge ${isLive ? 'live' : 'demo'}">${label} ${isLive ? 'LIVE' : 'DEMO'}</span>`;
+  const badge = (label, isLive) => `<span class="sbadge ${isLive ? 'live' : 'demo'}" ${tipAttrs(label, isLive)}>${label} ${isLive ? 'LIVE' : 'DEMO'}</span>`;
   el.innerHTML =
     badge('WX', live.weather) +
     badge('TAF', live.taf) +
@@ -835,6 +889,23 @@ function init() {
     const sec = document.getElementById(head.dataset.collapse);
     if (sec) sec.classList.toggle('collapsed');
   });
+
+  // Pill tooltips: tap a data-source pill to explain LIVE/DEMO (works on touch);
+  // tap anywhere else to dismiss.
+  document.addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-tip]');
+    if (pill) { showPillTip(pill, pill.dataset.tip); return; }
+    hidePillTip();
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('[data-tip]')) {
+      e.preventDefault();
+      showPillTip(e.target, e.target.dataset.tip);
+    } else if (e.key === 'Escape') {
+      hidePillTip();
+    }
+  });
+  window.addEventListener('resize', hidePillTip);
 
   // Route chips: remove one route, or clear them all, then repaint the map.
   $('mtr-results')?.addEventListener('click', (e) => {
