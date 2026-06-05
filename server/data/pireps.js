@@ -74,5 +74,6 @@ export async function fetchPireps(offline, signal) {
       /* fall through to fixture */
     }
   }
-  return { pireps: mapPireps(await loadFixture()), live: false };
+  if (offline) return { pireps: mapPireps(await loadFixture()), live: false };
+  return { pireps: [], live: false };
 }

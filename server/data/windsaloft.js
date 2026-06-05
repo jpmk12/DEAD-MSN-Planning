@@ -130,7 +130,11 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
       /* fall through to fixture */
     }
   }
-  if (!json) json = await loadFixture();
+  // offline=true → sample (tests); production failure → empty (UNAVAILABLE).
+  if (!json) {
+    if (!offline) return { profile: [], time: null, live: false };
+    json = await loadFixture();
+  }
   const times = json?.hourly?.time ?? [];
   const idx = findHourIndex(times, targetIso ?? new Date().toISOString());
   return { profile: parseProfile(json, idx, elevFt ?? 0), time: times[idx] ? times[idx] + 'Z' : null, live };

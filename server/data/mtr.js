@@ -48,13 +48,13 @@ async function loadJsonArray(url) {
   }
 }
 
-async function loadFixture() {
-  // Real AP/1B routes (IR/VR) + AR refueling tracks first, then demo routes
-  // (kept for fields without ingested routes). All get derived geometry.
-  const [ap1b, ar, demo] = await Promise.all([
-    loadJsonArray(AP1B_URL), loadJsonArray(AR_URL), loadJsonArray(FIXTURE_URL),
-  ]);
-  return [...ap1b, ...ar, ...demo].map(withGeometry);
+// Real, authoritative AP/1B routes (IR/VR) + AR refueling tracks. The demo
+// sample routes are only included for the offline/test path; production never
+// serves them.
+async function loadRoutes(includeDemo) {
+  const urls = includeDemo ? [AP1B_URL, AR_URL, FIXTURE_URL] : [AP1B_URL, AR_URL];
+  const arrs = await Promise.all(urls.map(loadJsonArray));
+  return arrs.flat().map(withGeometry);
 }
 
 // Map a FAA GeoJSON feature into our MTR record (centerline as one segment).
@@ -87,10 +87,12 @@ export async function fetchMtrs(offline, signal) {
         return { mtrs, live: true };
       }
     } catch {
-      /* fall through to fixture */
+      /* fall through to bundled routes */
     }
   }
-  return { mtrs: await loadFixture(), live: false };
+  // Bundled AP/1B + AR routes are real published data; treat as live. The demo
+  // sample routes are added only for the offline/test path.
+  return { mtrs: await loadRoutes(offline), live: !offline };
 }
 
 export async function lookupMtr(id, offline) {

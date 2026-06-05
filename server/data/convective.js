@@ -48,5 +48,7 @@ export async function fetchConvective(offline, signal) {
       /* fall through to fixture */
     }
   }
-  return { convective: geojsonToAirspace(await loadFixture(), mapProps), live: false };
+  // offline=true → sample (tests); production failure → empty (UNAVAILABLE).
+  if (offline) return { convective: geojsonToAirspace(await loadFixture(), mapProps), live: false };
+  return { convective: [], live: false };
 }

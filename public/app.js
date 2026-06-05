@@ -435,7 +435,7 @@ function card(brief, limits) {
       <div class="rwys">${runwayRows(a, brief)}</div>
       ${warns}`;
   } else {
-    body = `<div class="readout">No weather observation available for this field.</div>`;
+    body = `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
   }
 
   const ahasChip = brief.birdRisk
@@ -477,43 +477,46 @@ function showPillTip(anchor, text) {
   });
 }
 
-// What each data-source pill means, for the hover title + tap tooltip.
+// What each data-source pill means, for the hover title + tap tooltip. This app
+// shows only live data; a non-live pill means the source is UNAVAILABLE right
+// now (nothing is fabricated).
 const SOURCE_INFO = {
   WX: { what: 'Current surface weather (METARs) from AWC aviationweather.gov',
-    demo: 'Showing bundled sample data — goes live automatically once the server can reach aviationweather.gov.' },
+    unavail: 'Live source unreachable — no weather shown. Check the server can reach aviationweather.gov.' },
   TAF: { what: 'Terminal Aerodrome Forecasts from AWC aviationweather.gov',
-    demo: 'Showing a bundled sample — goes live automatically once AWC is reachable.' },
+    unavail: 'Live source unreachable, or this field issues no TAF — none shown.' },
   NOTAM: { what: 'NOTAMs from the FAA NOTAM API',
-    demo: 'Showing bundled samples — set FAA credentials (NMS_CLIENT_ID/SECRET, or FAA_NOTAM_CLIENT_ID/SECRET) to go live.' },
+    unavail: 'No live NOTAM source — set FAA credentials (NMS_CLIENT_ID/SECRET, or FAA_NOTAM_CLIENT_ID/SECRET). Nothing is fabricated.' },
   WINDS: { what: 'Winds aloft from Open-Meteo (api.open-meteo.com)',
-    demo: 'Showing a bundled sample — goes live automatically once Open-Meteo is reachable.' },
+    unavail: 'Live source unreachable — no winds shown.' },
   SUA: { what: 'Special Use Airspace (MOAs, Restricted/Warning/Alert areas) from the FAA ArcGIS feed',
-    demo: 'Showing bundled samples — set SUA_GEOJSON_URL (or check outbound network access) to go live.' },
+    unavail: 'Live FAA feed unreachable — no SUA shown. Check outbound network access or set SUA_GEOJSON_URL.' },
   TFR: { what: 'Temporary Flight Restrictions',
-    demo: 'Showing bundled samples — set TFR_GEOJSON_URL to a live GeoJSON feed to go live (FAA has no clean GeoJSON TFR source by default).' },
+    unavail: 'No live TFR source configured — none shown. Set TFR_GEOJSON_URL to a live GeoJSON feed.' },
 };
 function sourceTip(label, isLive) {
   const i = SOURCE_INFO[label] || {};
   const state = isLive
     ? 'LIVE — fetched in real time.'
-    : `DEMO — ${i.demo || 'showing bundled sample data.'}`;
+    : `UNAVAILABLE — ${i.unavail || 'live source unreachable; nothing shown.'}`;
   return `${label}: ${i.what || ''}\n${state}`;
 }
 const tipAttrs = (label, isLive) => {
   const t = esc(sourceTip(label, isLive));
   return `title="${t}" data-tip="${t}" role="button" tabindex="0"`;
 };
+const pillState = (isLive) => (isLive ? 'live' : 'unavail');
 
 function setSourcePills(live) {
   const wx = $('wx-source'), nt = $('notam-source');
   if (wx) {
-    wx.textContent = live.weather ? 'WX: LIVE' : 'WX: DEMO';
-    wx.className = 'pill ' + (live.weather ? 'live' : 'fixture');
+    wx.textContent = live.weather ? 'WX: LIVE' : 'WX: N/A';
+    wx.className = 'pill ' + pillState(live.weather);
     wx.title = sourceTip('WX', live.weather); wx.dataset.tip = wx.title;
   }
   if (nt) {
-    nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: DEMO';
-    nt.className = 'pill ' + (live.notams ? 'live' : 'fixture');
+    nt.textContent = live.notams ? 'NOTAM: LIVE' : 'NOTAM: N/A';
+    nt.className = 'pill ' + pillState(live.notams);
     nt.title = sourceTip('NOTAM', live.notams); nt.dataset.tip = nt.title;
   }
 }
@@ -522,7 +525,7 @@ function setSourcePills(live) {
 function updateStatusStrip(live) {
   const el = $('status-strip');
   if (!el) return;
-  const badge = (label, isLive) => `<span class="sbadge ${isLive ? 'live' : 'demo'}" ${tipAttrs(label, isLive)}>${label} ${isLive ? 'LIVE' : 'DEMO'}</span>`;
+  const badge = (label, isLive) => `<span class="sbadge ${pillState(isLive)}" ${tipAttrs(label, isLive)}>${label} ${isLive ? 'LIVE' : 'UNAVAIL'}</span>`;
   el.innerHTML =
     badge('WX', live.weather) +
     badge('TAF', live.taf) +
@@ -541,7 +544,6 @@ async function buildBrief() {
   });
   const agls = val('agls').replace(/\s+/g, '');
   if (agls) params.set('agls', agls);
-  if (checked('offline')) params.set('offline', '1');
 
   $('go').disabled = true;
   $('results').innerHTML = `<div class="loading"><div class="spinner"></div>Pulling weather &amp; NOTAMs…</div>`;
@@ -615,7 +617,6 @@ async function getRouteWinds() {
   const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!pts.length) return;
   const params = new URLSearchParams({ points: pts.join(',') });
-  if (checked('offline')) params.set('offline', '1');
   $('winds-go').disabled = true;
   $('winds-results').innerHTML = `<div class="loading"><div class="spinner"></div>Fetching winds aloft…</div>`;
   try {
@@ -677,7 +678,7 @@ function routeChips() {
 function renderRouteResults(missing = []) {
   const details = activeRoutes.map((d) => `<div class="route-detail" data-route-id="${esc(d.id)}">${mtrDetailCard(d)}</div>`).join('');
   const miss = missing.length
-    ? `<div class="missing-card">Not found: ${missing.map((d) => esc(d.id)).join(', ')} — try IR-021, VR-1355, or AR312H (demo), or wire a live MTR source.</div>`
+    ? `<div class="missing-card">Not found: ${missing.map((d) => esc(d.id)).join(', ')} — try a published AP/1B route (e.g. IR-154, IR-193, VR-106, AR197H, AR312H), or set MTR_GEOJSON_URL for a live route source.</div>`
     : '';
   $('mtr-results').innerHTML = (routeChips() + details + miss) || '';
 }
@@ -686,7 +687,6 @@ async function lookupMtr() {
   const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
   if (!ids.length) return;
   const params = new URLSearchParams({ id: ids.join(',') });
-  if (checked('offline')) params.set('offline', '1');
   $('mtr-go').disabled = true;
   $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
   try {
@@ -785,7 +785,7 @@ function paintMap() {
 }
 
 function updatePrintHead(data, ids, limits) {
-  const src = `WX ${data.live.weather ? 'LIVE' : 'DEMO'} · NOTAM ${data.live.notams ? 'LIVE' : 'DEMO'}`;
+  const src = `WX ${data.live.weather ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.live.notams ? 'LIVE' : 'UNAVAIL'}`;
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
@@ -893,7 +893,7 @@ function init() {
     if (sec) sec.classList.toggle('collapsed');
   });
 
-  // Pill tooltips: tap a data-source pill to explain LIVE/DEMO (works on touch);
+  // Pill tooltips: tap a data-source pill to explain LIVE/UNAVAILABLE (works on touch);
   // tap anywhere else to dismiss.
   document.addEventListener('click', (e) => {
     const pill = e.target.closest('[data-tip]');

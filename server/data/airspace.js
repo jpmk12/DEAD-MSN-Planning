@@ -134,10 +134,14 @@ export async function fetchTfrs(offline, signal) {
       }));
       return { tfrs, live: true };
     } catch {
-      /* fall through to fixture */
+      /* unavailable — fall through */
     }
   }
-  return { tfrs: await loadJson(TFR_FIXTURE), live: false };
+  // offline=true → bundled sample (tests). Production with no/failed TFR source
+  // returns empty (UNAVAILABLE) — never fabricated TFRs. Set TFR_GEOJSON_URL to
+  // a live GeoJSON feed to populate it.
+  if (offline) return { tfrs: await loadJson(TFR_FIXTURE), live: false };
+  return { tfrs: [], live: false };
 }
 
 /** @returns {Promise<{sua:any[], live:boolean}>} */
@@ -159,8 +163,11 @@ export async function fetchSua(offline, signal) {
       }));
       return { sua, live: true };
     } catch {
-      /* fall through to fixture */
+      /* unavailable — fall through */
     }
   }
-  return { sua: await loadJson(SUA_FIXTURE), live: false };
+  // offline=true → bundled sample (tests). Production live fetch failure returns
+  // empty (UNAVAILABLE) rather than fabricated SUA.
+  if (offline) return { sua: await loadJson(SUA_FIXTURE), live: false };
+  return { sua: [], live: false };
 }

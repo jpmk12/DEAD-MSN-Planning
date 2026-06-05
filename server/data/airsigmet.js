@@ -74,5 +74,6 @@ export async function fetchAirSigmets(offline, signal) {
       /* fall through to fixture */
     }
   }
-  return { airsigmets: mapAirSigmets(await loadFixture()), live: false };
+  if (offline) return { airsigmets: mapAirSigmets(await loadFixture()), live: false };
+  return { airsigmets: [], live: false };
 }

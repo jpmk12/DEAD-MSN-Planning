@@ -28,9 +28,16 @@ The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
 
 **Upload the whole repository folder.** `node_modules` and `.env` are gitignored
 and not needed. Static assets are in `public/`, server code in `server/`, data
-in `data/`. Optional env vars (set in the Node.js Hosting UI after upload):
-`FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`, `TFR_GEOJSON_URL`,
-`SUA_GEOJSON_URL` — all optional; without them the app uses bundled demo data.
+in `data/`. The app is **live-only**: most sources are live with no config
+(METAR/TAF via AWC, winds via Open-Meteo, convective via SPC, PIREP/SIGMET via
+AWC, SUA via FAA ArcGIS, radar via IEM). When a live source is unreachable the
+UI shows it as **UNAVAILABLE** — it never fabricates data. Optional env vars
+(set in the Node.js Hosting UI) enable the credential-gated sources:
+`NMS_CLIENT_ID`/`NMS_CLIENT_SECRET` or `FAA_NOTAM_CLIENT_ID`/`FAA_NOTAM_CLIENT_SECRET`
+(NOTAMs), `TFR_GEOJSON_URL` (TFRs), and optional overrides `SUA_GEOJSON_URL`,
+`MTR_GEOJSON_URL`, `CONVECTIVE_GEOJSON_URL`. The bundled `data/fixtures/*` are
+used only by the unit tests (via an internal `offline` flag), never in
+production.
 
 Validate locally before upload:
 

@@ -16,27 +16,31 @@ async function loadFixtureObs(icaos) {
 
 /** @returns {Promise<{obs:any[], tafs:Map<string,string>, live:boolean, tafLive:boolean}>} */
 export async function loadWeather(icaos, offline) {
-  if (!offline) {
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 8000);
-      const [obs, tafList] = await Promise.all([
-        fetchMetars(icaos, ctrl.signal),
-        fetchTafs(icaos, ctrl.signal).catch(() => []),
-      ]);
-      clearTimeout(t);
-      if (obs.length > 0) {
-        // Build the TAF map defensively — a single malformed entry must not
-        // wipe out the (working) live METARs.
-        const tafs = new Map();
-        for (const tf of tafList) {
-          if (tf && tf.icao) tafs.set(String(tf.icao).toUpperCase(), tf.rawTaf || '');
-        }
-        return { obs, tafs, live: true, tafLive: tafs.size > 0 };
-      }
-    } catch {
-      // fall through to fixture
-    }
+  // offline=true serves the bundled sample (used only by tests). In production
+  // (offline=false) we return live data, or an empty/unavailable result on
+  // failure — never fabricated weather.
+  if (offline) {
+    return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false, tafLive: false };
   }
-  return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false, tafLive: false };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const [obs, tafList] = await Promise.all([
+      fetchMetars(icaos, ctrl.signal),
+      fetchTafs(icaos, ctrl.signal).catch(() => []),
+    ]);
+    clearTimeout(t);
+    if (obs.length > 0) {
+      // Build the TAF map defensively — a single malformed entry must not
+      // wipe out the (working) live METARs.
+      const tafs = new Map();
+      for (const tf of tafList) {
+        if (tf && tf.icao) tafs.set(String(tf.icao).toUpperCase(), tf.rawTaf || '');
+      }
+      return { obs, tafs, live: true, tafLive: tafs.size > 0 };
+    }
+  } catch {
+    // unavailable — fall through
+  }
+  return { obs: [], tafs: new Map(), live: false, tafLive: false };
 }

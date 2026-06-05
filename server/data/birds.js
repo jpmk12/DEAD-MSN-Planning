@@ -35,8 +35,10 @@ async function loadFixture() {
 
 /** @returns {Promise<{risk:Map<string,{level,note,source}>, live:boolean}>} */
 export async function fetchBirdRisk(icaos, offline) {
-  // Live AHAS query would go here when offline === false and reachable.
-  void offline;
+  // No public AHAS API yet, so production returns an empty (UNAVAILABLE) map
+  // rather than fabricated risk levels. The bundled sample is used only by the
+  // offline/test path. (Live AHAS adapter plugs in here once an endpoint exists.)
+  if (!offline) return { risk: new Map(), live: false };
   const fixture = await loadFixture();
   const risk = new Map();
   for (const icao of icaos) {

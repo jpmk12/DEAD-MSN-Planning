@@ -22,8 +22,11 @@ async function loadFixture() {
  *          keyed by normalized route id.
  */
 export async function fetchRouteRisk(ids, offline, signal) {
-  // A live AHAS query would go here when !offline && process.env.AHAS_API_URL.
+  // No public AHAS API yet → production returns empty (UNAVAILABLE) instead of
+  // fabricated per-route risk. Bundled sample is used only by the offline/test
+  // path. (Live AHAS adapter plugs in here once an endpoint exists.)
   void signal;
+  if (!offline) return { risk: new Map(), live: false };
   const fixture = await loadFixture();
   const risk = new Map();
   for (const id of ids) {

@@ -127,5 +127,8 @@ export async function fetchNotams(icaos, offline, signal) {
     }
     if (any) return { notams: rankNotams(all), live: true };
   }
-  return { notams: await loadFixture(icaos), live: false };
+  // offline=true → bundled sample (tests only). Production with no/failed live
+  // source returns empty (UNAVAILABLE) rather than fabricated NOTAMs.
+  if (offline) return { notams: await loadFixture(icaos), live: false };
+  return { notams: [], live: false };
 }
