@@ -6,6 +6,22 @@
 // still renders against the dark backdrop so relative geometry stays useful.
 
 import { project, tileXToLon, tileYToLat, fitView, TILE } from './projection.js';
+import { zuluLocal } from './timefmt.js';
+
+// RainViewer publishes the timestamp of each radar frame. We keep IEM NEXRAD
+// for the imagery (best US resolution) but read RainViewer's latest frame time
+// to label the radar with an actual valid time (the two sources are within a
+// few minutes of each other). Returns an ISO string, or null if unavailable.
+async function fetchRadarFrameIso(signal) {
+  try {
+    const r = await fetch('https://api.rainviewer.com/public/weather-maps.json', { signal, cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const past = j?.radar?.past;
+    const last = Array.isArray(past) && past.length ? past[past.length - 1] : null;
+    return last && last.time ? new Date(last.time * 1000).toISOString() : null;
+  } catch { return null; }
+}
 
 const BASE_URL = (z, x, y) => `https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
 const RADAR_URL = (z, x, y) => `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
@@ -80,15 +96,22 @@ export function initMap(container, data) {
   times.className = 'map-times';
   if (validity.length) {
     times.innerHTML = `<div class="lg-title">Weather valid</div>${validity
-      .map((t) => `<div class="mt-row"><span class="mt-k">${t.k}</span><span class="mt-v">${t.v}</span></div>`)
+      .map((t) => `<div class="mt-row"${t.id ? ` data-mt="${t.id}"` : ''}><span class="mt-k">${t.k}</span><span class="mt-v">${t.v}</span></div>`)
       .join('')}<div class="mt-note">times shown Zulu · local · radar approx</div>`;
+    // Refine the radar line to RainViewer's actual latest frame time.
+    if (validity.some((t) => t.id === 'radar')) {
+      fetchRadarFrameIso().then((iso) => {
+        const cell = iso && times.querySelector('[data-mt="radar"] .mt-v');
+        if (cell) cell.textContent = `NEXRAD · ${zuluLocal(iso)}`;
+      });
+    }
   } else {
     times.style.display = 'none';
   }
 
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
-  attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: IEM NEXRAD';
+  attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: IEM NEXRAD · time: RainViewer';
 
   container.append(viewport, controls, navc, times, legend, attribution);
 

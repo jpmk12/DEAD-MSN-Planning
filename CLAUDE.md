@@ -21,7 +21,7 @@ The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
 | Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
 | No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
-| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, map tiles |
+| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, map tiles, RainViewer (radar time) |
 | **Managed MySQL** | ✅ used for cross-device **saved sorties** (`DB_*` env vars; falls back to browser-local when unset) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
 | Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |

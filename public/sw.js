@@ -5,8 +5,8 @@
 // caused stale app.js to be served after updates. The cache is only an offline
 // fallback. API calls always go to the network; cross-origin tiles are
 // cache-first (they're immutable and bandwidth-heavy).
-const CACHE = 'msn-planner-v3';
-const SHELL = ['./', './index.html', './app.js', './theme.css', './map.js', './projection.js', './icon.svg', './manifest.webmanifest'];
+const CACHE = 'msn-planner-v4';
+const SHELL = ['./', './index.html', './app.js', './theme.css', './map.js', './projection.js', './timefmt.js', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -24,8 +24,11 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api/')) return; // live data: always network
 
-  // Cross-origin (map tiles): cache-first.
+  // Cross-origin: cache-first only for immutable tile images. Other cross-origin
+  // requests (e.g. the RainViewer radar-time JSON) hit the network so they stay
+  // fresh instead of returning a stale cached copy.
   if (url.origin !== self.location.origin) {
+    if (!/\.png($|\?)/i.test(url.pathname)) return;
     e.respondWith(
       caches.match(e.request).then((hit) =>
         hit || fetch(e.request).then((res) => {

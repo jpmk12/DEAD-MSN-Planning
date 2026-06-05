@@ -2,6 +2,7 @@
 // Talks to the zero-dependency Node API and renders the EFB-style brief.
 
 import { initMap } from './map.js';
+import { zuluLocal, hhZ, hhL, TZ_ABBR } from './timefmt.js';
 
 const $ = (id) => document.getElementById(id);
 // Null-safe helpers: never let a missing/late element abort init or a handler.
@@ -11,38 +12,6 @@ const checked = (id) => { const el = $(id); return el ? el.checked : false; };
 const fmt = (n, d = 0) => Number(n).toFixed(d);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-// ---- Time: render both Zulu (UTC) and browser-local ------------------------
-const pad2 = (n) => String(n).padStart(2, '0');
-// Local timezone abbreviation (e.g. CDT) so local times are unambiguous.
-const TZ_ABBR = (() => {
-  try {
-    const p = new Intl.DateTimeFormat([], { timeZoneName: 'short' })
-      .formatToParts(new Date()).find((x) => x.type === 'timeZoneName');
-    return (p && p.value) || 'LCL';
-  } catch { return 'LCL'; }
-})();
-// Parse a server time as UTC. The API emits UTC wall-clock; if a string has no
-// zone marker, treat it as Zulu (append Z) so the Date math is correct.
-function toUtcDate(iso) {
-  if (!iso) return null;
-  let s = String(iso).trim();
-  if (!/(z|[+-]\d\d:?\d\d)$/i.test(s)) s += 'Z';
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-const hhZ = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) : ''; };
-const hhL = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getHours()) + pad2(d.getMinutes()) : ''; };
-// "1430Z · 0930 CDT". With {date:true}, prefix the day-of-month on each side
-// (the local calendar day can differ from the UTC day): "05 1430Z · 04 2330 CST".
-function zuluLocal(iso, { date = false } = {}) {
-  if (!iso) return '';
-  const d = toUtcDate(iso);
-  if (!d) return String(iso);
-  const zd = date ? pad2(d.getUTCDate()) + ' ' : '';
-  const ld = date ? pad2(d.getDate()) + ' ' : '';
-  return `${zd}${hhZ(iso)}Z · ${ld}${hhL(iso)} ${TZ_ABBR}`;
-}
 
 // ---- Wind compass (SVG) ----------------------------------------------------
 const SIZE = 130, CX = SIZE / 2, R = 56;
@@ -624,7 +593,8 @@ async function lookupMtr() {
 
 // Build the map's "valid times" caption from the brief data. Radar is a live
 // NEXRAD mosaic (no exact scan time exposed), so it's stamped with the brief
-// time rounded to the ~5-min update cadence and flagged approximate. The
+// time rounded to the ~5-min update cadence as a fallback; the map refines this
+// to the actual latest radar frame time via RainViewer's API (id 'radar'). The
 // advisory layers carry real valid times from the server.
 function wxValidity(data) {
   const lines = [];
@@ -633,7 +603,7 @@ function wxValidity(data) {
     if (!Number.isNaN(d.getTime())) {
       d.setUTCSeconds(0, 0);
       d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 5) * 5);
-      lines.push({ k: 'Radar', v: `NEXRAD · ~${zuluLocal(d.toISOString())} (latest)` });
+      lines.push({ id: 'radar', k: 'Radar', v: `NEXRAD · ~${zuluLocal(d.toISOString())} (latest)` });
     }
   }
   const sig = data.airsigmets || [];
