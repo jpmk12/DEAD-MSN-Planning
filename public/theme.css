@@ -76,7 +76,8 @@ body {
 
 /* Card detail tabs — pills */
 .card-tabs { display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 2px; }
-.tab { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.3px; padding: 5px 12px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border-bright); color: var(--text-dim); cursor: pointer; transition: background 0.12s, color 0.12s; }
+.tab { display: inline-flex; align-items: center; gap: 5px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.3px; padding: 5px 11px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border-bright); color: var(--text-dim); cursor: pointer; transition: background 0.12s, color 0.12s; }
+.tab-ico { width: 13px; height: 13px; flex: none; }
 .tab:hover { color: var(--text); border-color: var(--accent-dim); }
 .tab.active { color: #04141a; background: var(--accent); border-color: var(--accent); }
 .tab .count { font-family: var(--mono); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; font-size: 9.5px; color: var(--text-dim); }

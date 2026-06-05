@@ -289,6 +289,16 @@ function airspaceSection(brief) {
 }
 
 // Detail sections as a tab bar + panels (keeps cards compact; NOTAMs default).
+const svgIcon = (inner) => `<svg class="tab-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const TAB_ICONS = {
+  notams: svgIcon('<path d="M3 6v4h2l5 3V3L5 6H3z"/><path d="M12 6.3a2.4 2.4 0 0 1 0 3.4"/>'),            // megaphone / notice
+  hazards: svgIcon('<path d="M8 2.5l5.6 10.5H2.4z"/><path d="M8 6.4v3.2"/><circle cx="8" cy="11.3" r="0.6" fill="currentColor" stroke="none"/>'), // warning triangle
+  taf: svgIcon('<path d="M5 11.6a3 3 0 0 1 .3-6 4 4 0 0 1 7.4 1.3A2.6 2.6 0 0 1 12 11.6z"/>'),           // cloud
+  airspace: svgIcon('<path d="M8 2.4l5.2 2.9L8 8.1 2.8 5.3z"/><path d="M2.8 8.2L8 11l5.2-2.8"/>'),       // stacked airspace strata
+  lowlevel: svgIcon('<path d="M2.8 11.2l4-3 3 2 3.5-4.9"/><circle cx="2.8" cy="11.2" r="1"/><circle cx="13.3" cy="5.3" r="1"/>'), // route + waypoints
+  winds: svgIcon('<path d="M2.5 6h7.6a2 2 0 1 0-2-2"/><path d="M2.5 9.6h5.6a1.8 1.8 0 1 1-1.8 1.8"/>'),   // wind flow
+};
+
 function tabbedDetails(brief) {
   const panels = [];
   const push = (key, label, count, html) => { if (html && html.trim()) panels.push({ key, label, count, html }); };
@@ -307,7 +317,7 @@ function tabbedDetails(brief) {
 
   if (!panels.length) return '';
   const tabs = panels.map((p, i) =>
-    `<button class="tab${i === 0 ? ' active' : ''}" data-tab="${p.key}">${esc(p.label)}${p.count ? ` <span class="count">${p.count}</span>` : ''}</button>`).join('');
+    `<button class="tab${i === 0 ? ' active' : ''}" data-tab="${p.key}">${TAB_ICONS[p.key] || ''}<span>${esc(p.label)}</span>${p.count ? `<span class="count">${p.count}</span>` : ''}</button>`).join('');
   const bodies = panels.map((p, i) =>
     `<div class="tabpanel${i === 0 ? ' active' : ''}" data-panel="${p.key}">${p.html}</div>`).join('');
   return `<div class="card-tabs">${tabs}</div><div class="tabpanels">${bodies}</div>`;
