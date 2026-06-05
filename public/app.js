@@ -163,6 +163,33 @@ function notamRow(n) {
     <div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
 }
 
+// Category display order (operational significance) and which groups open by
+// default — the long tail (taxiway/navaid/services/other) starts collapsed so
+// the card stays short.
+const NOTAM_CAT_ORDER = ['RUNWAY', 'APPROACH', 'GPS_RAIM', 'LIGHTING', 'OBSTACLE', 'AIRSPACE', 'BIRD', 'TAXIWAY', 'NAVAID', 'SERVICES', 'OTHER'];
+const NOTAM_OPEN_DEFAULT = new Set(['RUNWAY', 'APPROACH', 'GPS_RAIM']);
+
+// Group NOTAMs into collapsible per-category sections so a long list doesn't
+// force endless scrolling. Significant groups (runway/approach/RAIM) open.
+function notamGroups(notams) {
+  const byCat = new Map();
+  for (const n of notams) {
+    if (!byCat.has(n.category)) byCat.set(n.category, []);
+    byCat.get(n.category).push(n);
+  }
+  const cats = [...byCat.keys()].sort(
+    (a, b) => (NOTAM_CAT_ORDER.indexOf(a) + 1 || 99) - (NOTAM_CAT_ORDER.indexOf(b) + 1 || 99),
+  );
+  return cats.map((cat) => {
+    const items = byCat.get(cat);
+    const open = NOTAM_OPEN_DEFAULT.has(cat);
+    return `<details class="ngroup" data-cat="${esc(cat)}"${open ? ' open' : ''}>
+      <summary class="ngroup-sum"><span class="cat cat-${esc(cat)}">${esc(cat)}</span>
+        <span class="ngroup-n">${items.length}</span><span class="ngroup-chev">▾</span></summary>
+      <div class="notams">${items.map(notamRow).join('')}</div></details>`;
+  }).join('');
+}
+
 // Category filter chips for a card's NOTAMs (click to filter the list below).
 function notamFilterBar(notams) {
   if (notams.length <= 1) return '';
@@ -343,8 +370,13 @@ function tabbedDetails(brief) {
   const push = (key, label, count, html) => { if (html && html.trim()) panels.push({ key, label, count, html }); };
 
   const nCount = brief.notams.length;
-  push('notams', 'NOTAMs', nCount,
-    `${notamFilterBar(brief.notams)}<div class="notams">${nCount ? brief.notams.map(notamRow).join('') : '<div class="readout" style="font-size:12px">None retrieved.</div>'}</div>`);
+  // Short lists render flat (no extra clicks); long lists collapse by category.
+  const notamHtml = nCount === 0
+    ? '<div class="readout" style="font-size:12px">None retrieved.</div>'
+    : nCount <= 5
+      ? `<div class="notams">${brief.notams.map(notamRow).join('')}</div>`
+      : `${notamFilterBar(brief.notams)}<div class="ngroups">${notamGroups(brief.notams)}</div>`;
+  push('notams', 'NOTAMs', nCount, notamHtml);
 
   const hazards = (hazardWxSection(brief) || '') + (pirepSection(brief) || '');
   push('hazards', 'Hazards', (brief.hazardWx?.length || 0) + (brief.convective?.length || 0) + (brief.pireps?.length || 0) || null, hazards);
@@ -590,6 +622,35 @@ async function lookupMtr() {
   }
 }
 
+// Build the map's "valid times" caption from the brief data. Radar is a live
+// NEXRAD mosaic (no exact scan time exposed), so it's stamped with the brief
+// time rounded to the ~5-min update cadence and flagged approximate. The
+// advisory layers carry real valid times from the server.
+function wxValidity(data) {
+  const lines = [];
+  if (data.generatedAt) {
+    const d = new Date(data.generatedAt);
+    if (!Number.isNaN(d.getTime())) {
+      d.setUTCSeconds(0, 0);
+      d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 5) * 5);
+      lines.push({ k: 'Radar', v: `NEXRAD · ~${zuluLocal(d.toISOString())} (latest)` });
+    }
+  }
+  const sig = data.airsigmets || [];
+  if (sig.length) {
+    const until = sig.map((s) => s.validTo).filter(Boolean).sort().pop();
+    lines.push({ k: 'SIG/AIRMET', v: `${sig.length} active${until ? ` · thru ${zuluLocal(until, { date: true })}` : ''}` });
+  }
+  const pr = data.pireps || [];
+  if (pr.length) {
+    const newest = pr.map((p) => p.obsTime).filter(Boolean).sort().pop();
+    lines.push({ k: 'PIREPs', v: `${pr.length}${newest ? ` · newest ${zuluLocal(newest)}` : ''}` });
+  }
+  const cv = data.convective || [];
+  if (cv.length) lines.push({ k: 'Convective', v: `SPC outlook · ${cv.length} area${cv.length > 1 ? 's' : ''}` });
+  return lines;
+}
+
 function renderMap(data) {
   const mapEl = $('map');
   const airfields = data.airfields
@@ -601,7 +662,7 @@ function renderMap(data) {
   }
   mapEl.style.display = '';
   const as = data.airspace || { tfrs: [], sua: [] };
-  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [] });
+  initMap(mapEl, { airfields, tfrs: as.tfrs, sua: as.sua, sigmets: data.airsigmets || [], pireps: data.pireps || [], convective: data.convective || [], mtrs: data.mtrs || [], validity: wxValidity(data) });
 }
 
 function updatePrintHead(data, ids, limits) {
@@ -717,15 +778,16 @@ $('results')?.addEventListener('click', (e) => {
     return;
   }
 
-  // NOTAM category filter: show only the chosen category within this card.
+  // NOTAM category filter: focus the chosen category — open its group and
+  // collapse the others (ALL restores each group's default open/closed state).
   const nf = e.target.closest('.nfilter');
   if (nf) {
     const cat = nf.dataset.cat;
     const bar = nf.parentElement;
     bar.querySelectorAll('.nfilter').forEach((c) => c.classList.remove('active'));
     nf.classList.add('active');
-    bar.parentElement.querySelectorAll('.notam').forEach((r) => {
-      r.style.display = cat === 'ALL' || r.dataset.cat === cat ? '' : 'none';
+    bar.parentElement.querySelectorAll('.ngroup').forEach((g) => {
+      g.open = cat === 'ALL' ? NOTAM_OPEN_DEFAULT.has(g.dataset.cat) : g.dataset.cat === cat;
     });
     return;
   }
@@ -759,12 +821,12 @@ $('results')?.addEventListener('click', (e) => {
   t.textContent = showRaw ? 'show decoded' : 'show raw';
 });
 
-// Expand all collapsible sections for printing, then restore.
+// Expand all collapsible sections (incl. NOTAM category groups) for printing.
 window.addEventListener('beforeprint', () => {
-  document.querySelectorAll('details.sec').forEach((d) => { d.dataset.wasopen = d.open ? '1' : '0'; d.open = true; });
+  document.querySelectorAll('details.sec, details.ngroup').forEach((d) => { d.dataset.wasopen = d.open ? '1' : '0'; d.open = true; });
 });
 window.addEventListener('afterprint', () => {
-  document.querySelectorAll('details.sec').forEach((d) => { if (d.dataset.wasopen === '0') d.open = false; });
+  document.querySelectorAll('details.sec, details.ngroup').forEach((d) => { if (d.dataset.wasopen === '0') d.open = false; });
 });
 
   on('go', 'click', buildBrief);

@@ -250,6 +250,18 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .notam .txt { font-family: var(--mono); line-height: 1.45; color: var(--text); }
 .notam .when { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
 
+/* NOTAMs grouped into collapsible per-category sections. */
+.ngroups { display: flex; flex-direction: column; gap: 6px; }
+.ngroup { border: 1px solid var(--border); border-radius: 7px; background: rgba(255, 255, 255, 0.015); overflow: hidden; }
+.ngroup-sum { display: flex; align-items: center; gap: 8px; padding: 6px 9px; cursor: pointer; list-style: none; user-select: none; }
+.ngroup-sum::-webkit-details-marker { display: none; }
+.ngroup-sum:hover { background: var(--panel-2); }
+.ngroup-sum .cat { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.4px; padding: 3px 6px; border-radius: 5px; border: 1px solid var(--border-bright); color: var(--text-dim); }
+.ngroup-n { font-family: var(--mono); font-size: 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--text-dim); }
+.ngroup-chev { margin-left: auto; color: var(--text-faint); font-size: 11px; transition: transform 0.15s ease; }
+.ngroup[open] .ngroup-chev { transform: rotate(180deg); }
+.ngroup > .notams { padding: 0 8px 8px; }
+
 .taf { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; line-height: 1.5; word-break: break-word; }
 .taf-toggle { margin-left: auto; font-family: var(--sans); font-size: 10px; letter-spacing: 0.4px; color: var(--accent); cursor: pointer; text-transform: none; }
 .taf-toggle:hover { text-decoration: underline; }
@@ -324,6 +336,14 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .map-nav { position: absolute; right: 10px; bottom: 22px; z-index: 5; display: flex; flex-direction: column; gap: 4px; }
 .map-nav button { width: 30px; height: 30px; font-size: 17px; line-height: 1; color: var(--text); background: rgba(14, 19, 27, 0.9); border: 1px solid var(--border-bright); border-radius: 7px; cursor: pointer; }
 .map-nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Map weather valid-times caption (top-left) */
+.map-times { position: absolute; left: 10px; top: 10px; z-index: 6; max-width: 75%; padding: 7px 10px; background: rgba(10, 14, 20, 0.92); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 11px; color: var(--text-dim); backdrop-filter: blur(4px); }
+.map-times .lg-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-faint); margin-bottom: 4px; }
+.mt-row { display: flex; align-items: baseline; gap: 8px; margin: 2px 0; white-space: nowrap; }
+.mt-k { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); min-width: 74px; }
+.mt-v { font-family: var(--mono); font-size: 10.5px; color: var(--text); }
+.mt-note { color: var(--text-faint); font-size: 9px; margin-top: 4px; }
 
 /* Map legend */
 .map-legend { position: absolute; left: 10px; bottom: 22px; z-index: 6; max-width: 70%; padding: 8px 10px; background: rgba(10, 14, 20, 0.92); border: 1px solid var(--border-bright); border-radius: 8px; font-size: 11px; color: var(--text-dim); backdrop-filter: blur(4px); }

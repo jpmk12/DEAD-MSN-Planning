@@ -24,6 +24,7 @@ export function initMap(container, data) {
   const pireps = data.pireps || [];
   const convective = data.convective || [];
   const mtrs = data.mtrs || [];
+  const validity = data.validity || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
   const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff', AR: '#46c6a0' };
 
@@ -50,6 +51,7 @@ export function initMap(container, data) {
     <label class="map-toggle"><input type="checkbox" data-act="conv" checked> Conv</label>
     <label class="map-toggle"><input type="checkbox" data-act="mtr" checked> MTR</label>
     <input type="range" data-act="opacity" min="0" max="100" value="65" title="Radar opacity">
+    ${validity.length ? '<button data-act="times" title="Weather valid times">🕑</button>' : ''}
     <button data-act="legend" title="Toggle legend">?</button>`;
 
   // Zoom + recenter cluster (separate, bottom-right for thumb reach).
@@ -74,11 +76,21 @@ export function initMap(container, data) {
     <div class="lg-row"><span class="lg-line" style="background:#4aa3df"></span> IR &nbsp; <span class="lg-line" style="background:#c77dff"></span> VR &nbsp; <span class="lg-line" style="background:#46c6a0"></span> AR track</div>
     <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
 
+  const times = document.createElement('div');
+  times.className = 'map-times';
+  if (validity.length) {
+    times.innerHTML = `<div class="lg-title">Weather valid</div>${validity
+      .map((t) => `<div class="mt-row"><span class="mt-k">${t.k}</span><span class="mt-v">${t.v}</span></div>`)
+      .join('')}<div class="mt-note">times shown Zulu · local · radar approx</div>`;
+  } else {
+    times.style.display = 'none';
+  }
+
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
   attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: IEM NEXRAD';
 
-  container.append(viewport, controls, navc, legend, attribution);
+  container.append(viewport, controls, navc, times, legend, attribution);
 
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
@@ -268,6 +280,7 @@ export function initMap(container, data) {
     if (act === 'out') { state.zoom = Math.max(2, state.zoom - 1); render(); }
     if (act === 'recenter') { Object.assign(state, fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 })); render(); }
     if (act === 'legend') { legend.style.display = legend.style.display === 'none' ? 'block' : 'none'; }
+    if (act === 'times') { times.style.display = times.style.display === 'none' ? 'block' : 'none'; }
   };
   controls.addEventListener('click', onNav);
   navc.addEventListener('click', onNav);
