@@ -12,6 +12,38 @@ const fmt = (n, d = 0) => Number(n).toFixed(d);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// ---- Time: render both Zulu (UTC) and browser-local ------------------------
+const pad2 = (n) => String(n).padStart(2, '0');
+// Local timezone abbreviation (e.g. CDT) so local times are unambiguous.
+const TZ_ABBR = (() => {
+  try {
+    const p = new Intl.DateTimeFormat([], { timeZoneName: 'short' })
+      .formatToParts(new Date()).find((x) => x.type === 'timeZoneName');
+    return (p && p.value) || 'LCL';
+  } catch { return 'LCL'; }
+})();
+// Parse a server time as UTC. The API emits UTC wall-clock; if a string has no
+// zone marker, treat it as Zulu (append Z) so the Date math is correct.
+function toUtcDate(iso) {
+  if (!iso) return null;
+  let s = String(iso).trim();
+  if (!/(z|[+-]\d\d:?\d\d)$/i.test(s)) s += 'Z';
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+const hhZ = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) : ''; };
+const hhL = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getHours()) + pad2(d.getMinutes()) : ''; };
+// "1430Z · 0930 CDT". With {date:true}, prefix the day-of-month on each side
+// (the local calendar day can differ from the UTC day): "05 1430Z · 04 2330 CST".
+function zuluLocal(iso, { date = false } = {}) {
+  if (!iso) return '';
+  const d = toUtcDate(iso);
+  if (!d) return String(iso);
+  const zd = date ? pad2(d.getUTCDate()) + ' ' : '';
+  const ld = date ? pad2(d.getDate()) + ' ' : '';
+  return `${zd}${hhZ(iso)}Z · ${ld}${hhL(iso)} ${TZ_ABBR}`;
+}
+
 // ---- Wind compass (SVG) ----------------------------------------------------
 const SIZE = 130, CX = SIZE / 2, R = 56;
 function pt(bearingDeg, radius) {
@@ -126,7 +158,7 @@ function formatWind(wind) {
 }
 
 function notamRow(n) {
-  const end = n.effectiveEnd ? `<div class="when">until ${esc(n.effectiveEnd.slice(0, 16).replace('T', ' '))}Z</div>` : '';
+  const end = n.effectiveEnd ? `<div class="when">until ${esc(zuluLocal(n.effectiveEnd, { date: true }))}</div>` : '';
   return `<div class="notam" data-cat="${esc(n.category)}"><span class="cat cat-${esc(n.category)}">${esc(n.category)}</span>
     <div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
 }
@@ -188,7 +220,7 @@ function windsAloftSection(brief) {
         <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt</div></div></div>`;
     })
     .join('');
-  const t = wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(wa.time.slice(11, 16))}Z · pattern/departure band</div>` : '';
+  const t = wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(zuluLocal(wa.time))} · pattern/departure band</div>` : '';
   return `${t}<div class="notams">${rows}</div>`;
 }
 
@@ -202,7 +234,7 @@ function hazardWxSection(brief) {
     const cls = h.hazard === 'CONVECTIVE' ? 'cat-RUNWAY' : h.type === 'SIGMET' ? 'cat-APPROACH' : 'cat-LIGHTING';
     const dist = h.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(h.distanceNm) + ' NM';
     const alt = h.lowFt != null ? ` · ${esc(h.lowFt.toLocaleString())}–${esc((h.hiFt ?? 0).toLocaleString())} ft` : '';
-    const end = h.validTo ? ` · until ${esc(h.validTo.slice(0, 16).replace('T', ' '))}Z` : '';
+    const end = h.validTo ? ` · until ${esc(zuluLocal(h.validTo, { date: true }))}` : '';
     return `<div class="as-row"><span class="cat ${cls}">${esc(h.type)}</span>
       <div><div class="txt">${esc(h.label)} · ${dist}</div><div class="when">${alt}${end}</div></div></div>`;
   }).join('');
@@ -272,7 +304,7 @@ function airspaceSection(brief) {
     const inside = t.distanceNm === 0;
     return `<div class="as-row"><span class="cat cat-RUNWAY">TFR</span>
       <div><div class="txt">${esc(t.type)} · ${esc(t.name)} ${inside ? '<b style="color:var(--nogo)">INSIDE</b>' : esc(t.distanceNm) + ' NM'}</div>
-      <div class="when">SFC–${t.upperFt != null ? esc(t.upperFt.toLocaleString()) + ' ft' : '—'}${t.effectiveEnd ? ' · until ' + esc(t.effectiveEnd.slice(0, 16).replace('T', ' ')) + 'Z' : ''}</div></div></div>`;
+      <div class="when">SFC–${t.upperFt != null ? esc(t.upperFt.toLocaleString()) + ' ft' : '—'}${t.effectiveEnd ? ' · until ' + esc(zuluLocal(t.effectiveEnd, { date: true })) : ''}</div></div></div>`;
   }).join('');
   const suaRows = as.sua.map((s) => {
     const sc = s.status === 'active' ? 'cat-RUNWAY' : s.status === 'scheduled' ? 'cat-APPROACH' : 'cat-LIGHTING';
@@ -282,7 +314,7 @@ function airspaceSection(brief) {
   }).join('');
   const raimWin = as.raim.windows.map((w) => {
     const inl = (w.inlineRanges || []).map((r) => `${r.start}–${r.end}`).join(', ');
-    const abs = w.start ? `${w.start.slice(11, 16)}Z–${(w.end || '').slice(11, 16)}Z` : '';
+    const abs = w.start ? `${hhZ(w.start)}–${hhZ(w.end)}Z · ${hhL(w.start)}–${hhL(w.end)} ${TZ_ABBR}` : '';
     return `<div class="when" style="margin-left:2px">• ${esc(inl || abs || w.raw)}</div>`;
   }).join('');
 
@@ -467,7 +499,7 @@ function windsProfileCard(pt) {
         <span class="ws">${l.speedKt} kt</span></div>`;
     })
     .join('');
-  const t = pt.time ? `<span class="count">${esc(pt.time.slice(11, 16))}Z fcst</span>` : '';
+  const t = pt.time ? `<span class="count">${esc(zuluLocal(pt.time))} fcst</span>` : '';
   const hz = (pt.hazards || []);
   let banner = '';
   if (hz.length) {
@@ -573,13 +605,11 @@ function renderMap(data) {
 }
 
 function updatePrintHead(data, ids, limits) {
-  const gen = new Date(data.generatedAt);
-  const z = gen.toISOString().slice(0, 16).replace('T', ' ');
   const src = `WX ${data.live.weather ? 'LIVE' : 'DEMO'} · NOTAM ${data.live.notams ? 'LIVE' : 'DEMO'}`;
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
-     <div class="ph-meta">Generated ${esc(z)}Z · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
+     <div class="ph-meta">Generated ${esc(zuluLocal(data.generatedAt, { date: true }))} · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 
