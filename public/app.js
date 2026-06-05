@@ -145,12 +145,19 @@ function notamFilterBar(notams) {
 function runwayRows(a, brief) {
   const closed = new Set(brief.closedRunways.map((r) => r.toUpperCase()));
   const selIdent = brief.recommendedRunway || (a.active && a.active.ident);
+  const dims = {};
+  (brief.airport?.runways || []).forEach((r) => { dims[r.ident] = { len: r.lengthFt, wid: r.widthFt }; });
+  const dimText = (ident) => {
+    const d = dims[ident];
+    if (!d || !d.len) return '';
+    return `<small class="rwy-dim">${d.len.toLocaleString()}${d.wid ? '×' + d.wid : ''} ft</small>`;
+  };
   return a.runways.map((r) => {
     const isClosed = closed.has(r.ident.toUpperCase());
     const isSel = r.ident === selIdent;
     const xw = `XW ${fmt(r.crosswindKt)}${r.crosswindSide !== 'none' ? ' ' + r.crosswindSide[0].toUpperCase() : ''}`;
     return `<div class="rwy-row selectable ${isSel ? 'selected' : ''} ${isClosed ? 'closed' : ''}" data-rwy="${esc(r.ident)}" title="Click to compare RWY ${esc(r.ident)}">
-      <span class="id">${esc(r.ident)}</span>
+      <span class="id">${esc(r.ident)} ${dimText(r.ident)}</span>
       <span class="${r.isTailwind ? 'tw' : ''}">${r.isTailwind ? 'TW' : 'HW'} ${fmt(Math.abs(r.headwindKt))}</span>
       <span>${xw}</span>
       <span class="star">${brief.recommendedRunway === r.ident ? '★' : ''}</span>

@@ -210,7 +210,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .rwys-cap { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; margin: 2px 0 4px; }
 .rwys-cap b { color: var(--accent); font-weight: 600; }
 .rwys { display: flex; flex-direction: column; gap: 3px; }
-.rwy-row { display: grid; grid-template-columns: 56px 1fr 1fr 18px; align-items: center; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 6px; }
+.rwy-row { display: grid; grid-template-columns: minmax(120px, 1.6fr) 0.9fr 1fr 16px; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 6px; }
 .rwy-row.active { background: rgba(55,182,195,0.1); }
 .rwy-row.selectable { cursor: pointer; }
 .rwy-row.selectable:hover { background: rgba(55,182,195,0.08); }
@@ -221,6 +221,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .cmp-tag { color: var(--accent); background: rgba(55,182,195,0.12); border: 1px solid var(--accent-dim); }
 .rwy-len { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-left: 4px; }
 .rwy-row .id { font-weight: 700; }
+.rwy-row .rwy-dim { font-weight: 400; font-size: 9.5px; color: var(--text-faint); }
 .rwy-row .tw { color: var(--caution); }
 .rwy-row .star { color: var(--accent); }
 
