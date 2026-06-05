@@ -384,14 +384,17 @@ export function initMap(container, data) {
     return (await drawToPng(true)) || (state.radar ? await drawToPng(false) : null);
   }
 
-  // Initial paint (defer one frame so the viewport has a measured size).
+  // Paint now (reading clientWidth forces layout, so the size is correct even
+  // right after the container is un-hidden), then again next frame once styles
+  // settle. The synchronous paint avoids a blank map when requestAnimationFrame
+  // is throttled for off-screen content — common on mobile, where the map sits
+  // below the fold during a route lookup.
+  render();
   requestAnimationFrame(render);
 
-  // Re-render whenever the viewport's size actually changes — late layout after
-  // the map is un-hidden (common on mobile), orientation changes, and window
-  // resizes. Without this, a first paint at zero/stale size leaves the tiles and
-  // route/airspace overlay misplaced until the user pans. Guarded for non-DOM
-  // environments (tests).
+  // Re-render when the viewport is resized (late layout, orientation change,
+  // window resize) or scrolls into view, so the tiles and the route/airspace
+  // overlay always fit. Guarded for non-DOM environments (tests).
   if (typeof ResizeObserver !== 'undefined') {
     let lastW = 0, lastH = 0;
     const ro = new ResizeObserver(() => {
@@ -399,6 +402,12 @@ export function initMap(container, data) {
       if (cw && ch && (cw !== lastW || ch !== lastH)) { lastW = cw; lastH = ch; render(); }
     });
     ro.observe(viewport);
+  }
+  if (typeof IntersectionObserver !== 'undefined') {
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) render();
+    });
+    io.observe(viewport);
   }
 
   return { render, state, capture };

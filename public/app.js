@@ -621,7 +621,7 @@ async function lookupMtr() {
     const mapEl = $('map');
     mapEl.style.display = '';
     currentMap = initMap(mapEl, { airfields: [], tfrs: [], sua: [], sigmets: [], pireps: [], convective: [], mtrs: [{ id: d.id, type: d.type, geometry: d.geometry }] });
-    mapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
   } finally {
