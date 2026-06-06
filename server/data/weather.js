@@ -23,21 +23,31 @@ export async function loadWeather(icaos, offline) {
     return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false, tafLive: false };
   }
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
+    // METAR and TAF run concurrently but with INDEPENDENT timeouts. AWC's TAF
+    // endpoint is slower than METAR (especially on a cold container), so a
+    // shared timeout could abort a still-pending TAF the moment METAR's window
+    // closed — surfacing TAF as "unreachable" while METAR worked. Give TAF its
+    // own, longer window and one retry.
+    const metarP = (async () => {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 8000);
+      try { return await fetchMetars(icaos, c.signal); } finally { clearTimeout(t); }
+    })();
     // Track TAF source reachability separately from how many TAFs came back: a
     // successful fetch that returns no TAF for a field (e.g. many military
     // fields like KLTS issue none via AWC) is still LIVE — it's "no TAF for this
     // field", not "source unreachable". Only a thrown fetch = unreachable.
-    const tafResult = fetchTafs(icaos, ctrl.signal).then(
-      (list) => ({ ok: true, list }),
-      () => ({ ok: false, list: [] }),
-    );
-    const [obs, taf] = await Promise.all([
-      fetchMetars(icaos, ctrl.signal),
-      tafResult,
-    ]);
-    clearTimeout(t);
+    const tafP = (async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort(), 12000);
+        try { return { ok: true, list: await fetchTafs(icaos, c.signal) }; }
+        catch { /* retry once */ }
+        finally { clearTimeout(t); }
+      }
+      return { ok: false, list: [] };
+    })();
+    const [obs, taf] = await Promise.all([metarP, tafP]);
     if (obs.length > 0) {
       // Build the TAF map defensively — a single malformed entry must not
       // wipe out the (working) live METARs.
