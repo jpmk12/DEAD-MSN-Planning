@@ -94,28 +94,21 @@ export function ahasRouteType(id) {
   return null;
 }
 
-// ICAO -> AHAS MILAIR base name. Only ALTUS AFB is confirmed; the rest are
-// best-guess and yield UNAVAILABLE (not fake) if the name doesn't match. Extend
-// as names are verified. Override/add via AHAS_AREA_MAP (JSON: {"KXXX":"NAME"}).
-const ICAO_TO_AHAS = {
-  KLTS: 'ALTUS AFB',
-  KCHS: 'CHARLESTON AFB',
-  KSUU: 'TRAVIS AFB',
-  KWRI: 'MCGUIRE AFB',
-  KEDW: 'EDWARDS AFB',
-  KDOV: 'DOVER AFB',
-  KADW: 'ANDREWS AFB',
-  KFFO: 'WRIGHT PATTERSON AFB',
-  KLFI: 'LANGLEY AFB',
-  KSKA: 'FAIRCHILD AFB',
-  KTCM: 'MCCHORD AFB',
-  KHOP: 'CAMPBELL AAF',
-  KFTK: 'GODMAN AAF',
-};
+// ICAO/LID -> AHAS MILAIR base name, from the bundled AHAS airfield list
+// (extracted from the usahas.com airfield dropdown). Override/add via
+// AHAS_AREA_MAP env (JSON: {"KXXX":"NAME"}). Unmapped fields yield UNAVAILABLE
+// (never fabricated).
 let envMap = null;
 function areaMap() {
   if (envMap) return envMap;
-  envMap = { ...ICAO_TO_AHAS };
+  envMap = {};
+  try {
+    const raw = JSON.parse(readFileSync(fileURLToPath(new URL('../../data/ahas-airfields.json', import.meta.url)), 'utf8'));
+    for (const [id, name] of Object.entries(raw)) {
+      if (id.startsWith('_') || typeof name !== 'string') continue;
+      if (!envMap[id.toUpperCase()]) envMap[id.toUpperCase()] = name; // first wins
+    }
+  } catch { /* no list bundled */ }
   try { Object.assign(envMap, JSON.parse(process.env.AHAS_AREA_MAP || '{}')); } catch { /* ignore */ }
   return envMap;
 }

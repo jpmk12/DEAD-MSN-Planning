@@ -28,9 +28,13 @@ test('ahasUrl single-quotes and encodes Area', () => {
   assert.ok(a.includes("Area=%27ALTUS%20AFB%27"));
 });
 
-test('ahasAreaForIcao maps known bases, null otherwise', () => {
+test('ahasAreaForIcao maps bases from the bundled AHAS airfield list', () => {
   assert.equal(ahasAreaForIcao('KLTS'), 'ALTUS AFB');
   assert.equal(ahasAreaForIcao('klts'), 'ALTUS AFB');
+  // Exact AHAS spellings (hand-guesses had these wrong):
+  assert.equal(ahasAreaForIcao('KCHS'), 'CHARLESTON AFB INTL');
+  assert.equal(ahasAreaForIcao('KWRI'), 'MC GUIRE AFB');
+  assert.equal(ahasAreaForIcao('KTCM'), 'MC CHORD AFB');
   assert.equal(ahasAreaForIcao('ZZZZ'), null);
 });
 
