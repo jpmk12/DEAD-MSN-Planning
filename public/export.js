@@ -92,8 +92,12 @@ const EXPORT_CSS = `
 `;
 
 function exportFilename() {
-  const ids = (document.getElementById('icaos')?.value || 'brief')
-    .trim().split(/[\s,]+/).filter(Boolean).join('-').replace(/[^A-Za-z0-9-]/g, '').slice(0, 40) || 'brief';
+  // Name the file after the sortie's airfields (departure / recovery / alternates).
+  const fields = ['sp-dep', 'sp-rec', 'sp-alt']
+    .map((id) => document.getElementById(id)?.value || '')
+    .join(' ');
+  const ids = (fields.trim() || 'brief')
+    .split(/[\s,]+/).filter(Boolean).join('-').replace(/[^A-Za-z0-9-]/g, '').slice(0, 40) || 'brief';
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   const stamp = `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z`;
@@ -141,8 +145,8 @@ function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
   <div class="export-note">Interactive snapshot — click the section tabs, category chips, and card headers to expand/collapse. Print this page (enable “Background graphics”) to save a themed PDF.</div>
   <main id="results">${results}</main>
   ${section('Radar / Map Snapshot', radar)}
+  ${section('Low-Level Routes — MTR / AR', mtr)}
   ${section('Route / Climb Winds', winds)}
-  ${section('Route Lookup — MTR / AR', mtr)}
   <footer class="footer">Planning aid only — verify with official sources.</footer>
 </div>
 <script>

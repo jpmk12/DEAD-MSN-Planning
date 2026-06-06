@@ -352,6 +352,9 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .sp-note { font-size: 11px; color: var(--text-faint); }
 @media (max-width: 640px) { .sortie-grid { grid-template-columns: 1fr; } }
 
+/* Relocated low-level route detail (chips + per-leg cards), shown under the map */
+.route-results:not(:empty) { margin: 4px 0 18px; }
+
 /* Phase grouping in the brief output */
 .phase-group { margin-bottom: 18px; }
 .phase-group-h { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); padding: 0 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }

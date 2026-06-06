@@ -606,8 +606,8 @@ const PHASE_GROUP = { DEPARTURE: '① Departure', RECOVERY: '③ Recovery', ALTE
 
 // Render the airfield cards. In sortie mode (data.sortie) cards are grouped by
 // phase, in stop order, so the brief reads takeoff → recovery → alternates; the
-// low-level phase is a slim banner pointing at the Route Lookup + map. Otherwise
-// it's the flat grid the quick brief has always used.
+// low-level phase is a slim banner pointing at the route detail + map. A plain
+// departure-only brief falls back to a flat grid.
 function renderAirfields(data, limits) {
   if (!data.sortie) return `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
   const groups = [];
@@ -624,7 +624,7 @@ function renderAirfields(data, limits) {
   if (activeRoutes.length) {
     const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-level</div>
       <div class="ll-banner">${activeRoutes.map((d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}"><span class="rc-dot"></span>${esc(d.id)}${d.birdRisk ? ` · <b style="color:${BIRD_COLOR[d.birdRisk.level]}">AHAS ${esc(d.birdRisk.level)}</b>` : ''}</span>`).join('')}
-        <span class="ll-hint">See Route Lookup &amp; map below for per-leg winds, altitudes and entry-time AHAS.</span></div></div>`;
+        <span class="ll-hint">Per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span></div></div>`;
     const depIdx = groups.findIndex((g) => g.role === 'RECOVERY');
     if (depIdx >= 0) html.splice(depIdx, 0, ll); else html.push(ll);
   }
@@ -665,23 +665,16 @@ async function runBrief({ ids, limits, extra = {}, button }) {
   }
 }
 
-async function buildBrief() {
-  const ids = val('icaos').split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (!ids.length) return;
-  // Per-phase takeoff time lives in the Sortie Plan; the quick brief is "now".
-  await runBrief({ ids, limits: readLimits(), button: 'go' });
-}
-
 // Current local wall time as a datetime-local input value (YYYY-MM-DDTHH:mm).
 function nowLocalDt() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-// Default every empty datetime-local input to "now" so phases/lookups start
-// from the current date+time without the user having to type it.
+// Default every empty datetime-local input to "now" so phases start from the
+// current date+time without the user having to type it.
 function prefillDatetimes() {
-  ['sp-dep-t', 'sp-ll-t', 'sp-rec-t', 'mtr-time'].forEach((id) => {
+  ['sp-dep-t', 'sp-ll-t', 'sp-rec-t'].forEach((id) => {
     const el = $(id);
     if (el && !el.value) el.value = nowLocalDt();
   });
@@ -696,9 +689,11 @@ function localToIso(id) {
 }
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 
-// Build a phase-by-phase sortie brief: each field is evaluated at its own time,
-// and any low-level routes are looked up at the entry time and overlaid.
-async function buildSortieBrief() {
+// Build the brief from the single sortie panel: each phase (departure /
+// low-level / recovery / alternates) is evaluated at its own time, and any
+// low-level routes are looked up at the entry time and overlaid. Departure-only
+// (no times) collapses to the simple "one field, now" brief.
+async function buildBrief() {
   const depIcao = splitIds(val('sp-dep'))[0];
   const recIcao = splitIds(val('sp-rec'))[0];
   const alts = splitIds(val('sp-alt'));
@@ -714,7 +709,7 @@ async function buildSortieBrief() {
   if (recIcao) stops.push({ icao: recIcao, when: recT, role: 'RECOVERY', label: 'Recovery' });
   for (const a of alts) stops.push({ icao: a, when: recT, role: 'ALTERNATE', label: 'Alternate' });
   if (!stops.length) {
-    $('results').innerHTML = `<div class="errbox">Enter at least a departure or recovery field.</div>`;
+    $('results').innerHTML = `<div class="errbox">Enter a departure field (and optionally a recovery field, alternates, and a low-level route).</div>`;
     return;
   }
   const ids = [...new Set(stops.map((s) => s.icao))];
@@ -724,13 +719,19 @@ async function buildSortieBrief() {
   // banner can show their entry-time AHAS risk, and the map overlays them. The
   // sortie's low-level field is the source of truth, so start from a clean set.
   activeRoutes = [];
-  if (routes.length) {
-    await lookupRoutes(routes, llT, { scroll: false });
-  } else {
-    activeRoutes = [];
-    renderRouteResults();
-  }
-  await runBrief({ ids, limits: readLimits(), extra: { stops: stopsParam }, button: 'sp-go' });
+  if (routes.length) await lookupRoutes(routes, llT, { scroll: false });
+  else renderRouteResults();
+  await runBrief({ ids, limits: readLimits(), extra: { stops: stopsParam }, button: 'go' });
+}
+
+// The phase field a quick-chip drops into: whichever airfield field was focused
+// last (Departure / Recovery / Alternates), defaulting to Departure.
+let chipTarget = 'sp-dep';
+function trackChipTarget() {
+  ['sp-dep', 'sp-rec', 'sp-alt'].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener('focus', () => { chipTarget = id; });
+  });
 }
 
 async function loadQuickChips() {
@@ -740,9 +741,15 @@ async function loadQuickChips() {
     $('quick').innerHTML = airfields.map((a) => `<span class="chip" data-icao="${a}">+ ${a}</span>`).join('');
     $('quick').querySelectorAll('.chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        const cur = $('icaos').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+        // Departure/Recovery take a single field; Alternates can take several.
+        const target = $(chipTarget) || $('sp-dep');
         const icao = chip.dataset.icao;
-        if (!cur.includes(icao)) $('icaos').value = [...cur, icao].join(' ');
+        if (target.id === 'sp-alt') {
+          const cur = splitIds(target.value);
+          if (!cur.includes(icao)) target.value = [...cur, icao].join(' ');
+        } else {
+          target.value = icao;
+        }
       });
     });
   } catch { /* server may be down; chips are optional */ }
@@ -882,18 +889,6 @@ async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
   }
 }
 
-async function lookupMtr() {
-  const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-  if (!ids.length) return;
-  $('mtr-go').disabled = true;
-  $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
-  try {
-    await lookupRoutes(ids, localToIso('mtr-time'));
-  } finally {
-    $('mtr-go').disabled = false;
-  }
-}
-
 // Build the map's "valid times" caption from the brief data. Radar is a live
 // NEXRAD mosaic (no exact scan time exposed), so it's stamped with the brief
 // time rounded to the ~5-min update cadence as a fallback; the map refines this
@@ -992,15 +987,13 @@ let sortieMode = 'local';   // 'remote' when the platform DB is available
 let sortieCache = {};       // name -> { <input id>: value, ... }
 
 // Every input that makes up a saved sortie. Keyed by element id so a saved
-// record round-trips through save/load directly (and old 5-field saves still
-// load — absent keys are left untouched). Covers the main brief, limits, the
-// planned takeoff, the Route/Climb Winds tool, the Route Lookup tool, and the
-// phase-by-phase Sortie Plan.
+// record round-trips through save/load directly (and older saves still load —
+// absent keys are left untouched). Covers the sortie phases, limits, pattern
+// AGL, and the Route/Climb Winds tool.
 const SORTIE_FIELDS = [
-  'icaos', 'xwind', 'tailwind', 'highda', 'agls',
-  'winds-points',
-  'mtr-id', 'mtr-time',
   'sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt',
+  'xwind', 'tailwind', 'highda', 'agls',
+  'winds-points',
 ];
 
 function loadLocal() {
@@ -1062,24 +1055,16 @@ async function loadSelectedSortie() {
   const s = sortieCache[$('sortie-list').value];
   if (!s) return;
   // Restore each saved field by id. Keys present in the record (even empty)
-  // overwrite, so a saved blank clears the field; keys absent (legacy 5-field
-  // saves) are left as-is.
+  // overwrite, so a saved blank clears the field; absent keys are left as-is.
   for (const id of SORTIE_FIELDS) { const el = $(id); if (el && id in s) el.value = s[id]; }
   // Reset any routes currently on the map so the load reflects exactly the
-  // saved sortie (route lookups below repopulate them).
+  // saved sortie (buildBrief re-looks-up the low-level route(s) below).
   activeRoutes = [];
-
-  const hasSortiePlan = ['sp-dep', 'sp-rec', 'sp-ll', 'sp-alt'].some((id) => (s[id] || '').trim());
-  if (hasSortiePlan) {
-    // Full phase plan → build the sortie brief (it also looks up the low-level
-    // route(s) at the entry time and overlays them).
-    await buildSortieBrief();
-  } else {
-    await buildBrief(); // sets the brief map first, so the route overlay composes on it
-    const routes = splitIds(s['mtr-id']);
-    if (routes.length) await lookupRoutes(routes, localToIso('mtr-time'), { scroll: false });
-    else renderRouteResults();
+  // Some legacy saves stored the airfield list under `icaos`; map it to Departure.
+  if (!(s['sp-dep'] || '').trim() && (s.icaos || '').trim()) {
+    const dep = $('sp-dep'); if (dep) dep.value = splitIds(s.icaos)[0] || '';
   }
+  await buildBrief(); // evaluates each phase + overlays the low-level route(s)
   // The Route/Climb Winds input is restored; re-run it if it was populated so
   // its profiles come back too, but leave the brief's map in place.
   if ((s['winds-points'] || '').trim()) getRouteWinds({ paintMap: false });
@@ -1227,23 +1212,22 @@ window.addEventListener('afterprint', () => {
 });
 
   prefillDatetimes();
+  trackChipTarget();
   on('go', 'click', buildBrief);
-  on('sp-go', 'click', buildSortieBrief);
   on('sp-clear', 'click', () => {
     ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
     prefillDatetimes(); // restore the time fields to "now"
   });
+  // Enter in any phase field builds the brief.
+  ['sp-dep', 'sp-ll', 'sp-rec', 'sp-alt'].forEach((id) => on(id, 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); }));
   on('export-html', 'click', () => runExport('html'));
   on('export-pdf', 'click', () => runExport('pdf'));
   on('sortie-save', 'click', saveCurrentSortie);
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);
   initSorties();
-  on('icaos', 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); });
   on('winds-go', 'click', getRouteWinds);
   on('winds-points', 'keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
-  on('mtr-go', 'click', lookupMtr);
-  on('mtr-id', 'keydown', (e) => { if (e.key === 'Enter') lookupMtr(); });
   loadQuickChips();
   buildBrief();
 }
