@@ -7,10 +7,10 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "server/index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node server/index.js",
+    "start": "node server.js",
+    "dev": "node server.js",
     "build": "echo build",
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
