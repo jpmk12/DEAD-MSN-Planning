@@ -132,6 +132,27 @@ const SAMPLE_AIXM_CIRCLE = `
   </Abd>
 </Not></XNOTAM-Update>`;
 
+// Regression: an <Avx> vertex that also carries arc metadata (<geoLatArc>) must
+// still read the real <geoLat> (the tag regex must not match <geoLatArc>).
+const SAMPLE_AIXM_ARCVERTEX = `
+<XNOTAM-Update><Not><NotUid><txtLocalName>7/7</txtLocalName></NotUid>
+  <aseTFRArea><AseUid><codeId>1</codeId></AseUid><valDistVerUpper>050</valDistVerUpper><uomDistVerUpper>FL</uomDistVerUpper></aseTFRArea>
+  <Abd><AbdUid><AseUid><codeId>1</codeId></AseUid></AbdUid>
+    <Avx><codeType>CCA</codeType><geoLatArc>390000.00N</geoLatArc><geoLongArc>0900000.00W</geoLongArc><geoLat>385230.00N</geoLat><geoLong>0771500.00W</geoLong></Avx>
+    <Avx><geoLat>385230.00N</geoLat><geoLong>0770500.00W</geoLong></Avx>
+    <Avx><geoLat>384230.00N</geoLat><geoLong>0770500.00W</geoLong></Avx>
+  </Abd>
+</Not></XNOTAM-Update>`;
+
+test('tfrRecordsFromXml reads geoLat, not geoLatArc, on an arc-edged vertex', () => {
+  const recs = tfrRecordsFromXml(SAMPLE_AIXM_ARCVERTEX);
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].geometry.kind, 'polygon');
+  assert.equal(recs[0].geometry.points.length, 3);
+  assert.ok(Math.abs(recs[0].geometry.points[0][0] - 38.875) < 1e-6, 'first vertex lat is from <geoLat>, not <geoLatArc>');
+  assert.ok(Math.abs(recs[0].geometry.points[0][1] - -77.25) < 1e-6);
+});
+
 test('tfrRecordsFromXml parses an AIXM arc/circle boundary', () => {
   const recs = tfrRecordsFromXml(SAMPLE_AIXM_CIRCLE);
   assert.equal(recs.length, 1);

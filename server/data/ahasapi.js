@@ -12,6 +12,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const cache = new Map(); // key -> { at, text }
 const TTL_MS = 30 * 60 * 1000; // AHAS updates ~hourly
+const MAX_STALE_MS = 3 * 60 * 60 * 1000; // serve stale on failure up to 3h, then give up
 
 function dateParts(when) {
   const d = when ? new Date(when) : new Date();
@@ -41,7 +42,8 @@ export async function ahasRaw(method, type, area, when, signal) {
     cache.set(key, { at: Date.now(), text });
     return text;
   } catch (e) {
-    if (hit) return hit.text; // transient failure → serve the last good answer
+    // Transient failure → serve the last good answer, but not indefinitely.
+    if (hit && Date.now() - hit.at < MAX_STALE_MS) return hit.text;
     throw e;
   }
 }

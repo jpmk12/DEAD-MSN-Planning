@@ -148,7 +148,7 @@ export async function fetchTfrs(offline, signal) {
   // Default live source: the FAA TFR list/detail feed (no env var needed).
   if (!offline) {
     try {
-      return { tfrs: await fetchLiveTfrs(signal), live: true };
+      return { tfrs: await fetchLiveTfrs(), live: true };
     } catch {
       /* unavailable — fall through */
     }

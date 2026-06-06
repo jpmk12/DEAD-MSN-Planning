@@ -63,12 +63,15 @@ export function altFt(value, uom) {
   return n; // already feet
 }
 
+// Exact element match: the char after the name must be '>' or whitespace, so
+// `tag(x,'geoLat')` does NOT match a sibling <geoLatArc> (the prefix collision
+// that was silently dropping arc-edged TFR vertices).
 const tag = (xml, name) => {
-  const m = new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i').exec(xml);
+  const m = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'i').exec(xml);
   return m ? m[1].trim() : null;
 };
 const allBlocks = (xml, name) => {
-  const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'ig');
+  const re = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'ig');
   const out = [];
   let m;
   while ((m = re.exec(xml)) !== null) out.push(m[1]);
@@ -204,14 +207,15 @@ function inlineGeometry(item) {
  * the list is reachable but yields no usable TFRs.
  * @returns {Promise<any[]>}
  */
-export async function fetchLiveTfrs(signal) {
+export async function fetchLiveTfrs() {
   const fresh = cache.tfrs && Date.now() - cache.at < TTL_MS;
   if (fresh) return cache.tfrs;
-  // Stale-while-revalidate: the list+detail fetch is heavy (up to 60 XMLs), so
-  // when the cache is stale, return it immediately and refresh in the background.
-  // Only the very first (cold) call awaits the load.
+  // Stale-while-revalidate: the list+detail fetch is heavy (many XMLs), so when
+  // the cache is stale return it immediately and refresh in the background. The
+  // refresh uses its own internal timeout (never a caller's request signal, so
+  // an unrelated request can't abort a shared refresh). Only a cold call awaits.
   if (!refreshing) {
-    refreshing = loadTfrs(signal)
+    refreshing = loadTfrs()
       .then((tfrs) => { cache = { at: Date.now(), tfrs }; return tfrs; })
       .finally(() => { refreshing = null; });
   }
@@ -219,8 +223,18 @@ export async function fetchLiveTfrs(signal) {
   return refreshing;
 }
 
-async function loadTfrs(signal) {
-  const sig = signal ?? AbortSignal.timeout(9000);
+// Bounded-concurrency map so we don't open ~200 sockets to tfr.faa.gov at once.
+async function mapLimit(items, limit, fn) {
+  const out = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    out.push(...await Promise.all(batch.map((x) => fn(x).catch(() => []))));
+  }
+  return out;
+}
+
+async function loadTfrs() {
+  const sig = AbortSignal.timeout(20000);
   const listUrl = process.env.TFR_JSON_URL || LIST_JSON_URL;
   const res = await fetch(listUrl, { signal: sig, headers: { Accept: 'application/json', 'User-Agent': UA } });
   if (!res.ok) throw new Error(`TFR list ${res.status}`);
@@ -239,16 +253,16 @@ async function loadTfrs(signal) {
     }
   }
 
+  // Fetch geometry for ALL active TFRs (proximity is applied later, by the
+  // brief — so we must not pre-truncate by list order), with bounded concurrency.
   let xmlRecs = [];
   if (ids.length) {
-    const settled = await Promise.allSettled(
-      ids.slice(0, 80).map(async (notamId) => {
-        const r = await fetch(DETAIL_URL(detailIdFromNotam(notamId)), { signal: sig, headers: { Accept: 'application/xml', 'User-Agent': UA } });
-        if (!r.ok) return [];
-        return tfrRecordsFromXml(await r.text(), notamId);
-      }),
-    );
-    xmlRecs = settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
+    const batches = await mapLimit(ids, 16, async (notamId) => {
+      const r = await fetch(DETAIL_URL(detailIdFromNotam(notamId)), { signal: sig, headers: { Accept: 'application/xml', 'User-Agent': UA } });
+      if (!r.ok) return [];
+      return tfrRecordsFromXml(await r.text(), notamId);
+    });
+    xmlRecs = batches.flat();
   }
 
   return [...direct, ...xmlRecs];
