@@ -9,6 +9,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { geojsonToAirspace } from './airspace.js';
+import { USER_AGENT } from './awc.js';
 
 const DEFAULT_URL = 'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson';
 const FIXTURE_URL = new URL('../../data/fixtures/convective-sample.json', import.meta.url);
@@ -42,7 +43,7 @@ export async function fetchConvective(offline, signal) {
   const url = process.env.CONVECTIVE_GEOJSON_URL || DEFAULT_URL;
   if (!offline) {
     try {
-      const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+      const res = await fetch(url, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
       if (res.ok) return { convective: geojsonToAirspace(await res.json(), mapProps), live: true };
     } catch {
       /* fall through to fixture */

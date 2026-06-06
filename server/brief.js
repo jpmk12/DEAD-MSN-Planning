@@ -7,7 +7,7 @@ import { analyzeAirfield } from './core/analyze.js';
 import { getAirport, knownAirports } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
-import { fetchTfrs, fetchSua, nearby } from './data/airspace.js';
+import { fetchTfrs, fetchSua, nearby, distanceToGeometry } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
 import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
 import { fetchMtrs, normalizeId } from './data/mtr.js';
@@ -178,6 +178,19 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     });
   }
 
+  // The map only needs geometry around the briefed fields. Live nationwide feeds
+  // (e.g. ~1500 SUA areas) would otherwise bloat the response and the overlay,
+  // so trim every map layer to within MAP_AIRSPACE_NM of any briefed field. The
+  // per-field tab data (computed above) keeps its tighter proximity threshold.
+  const MAP_AIRSPACE_NM = 300;
+  const fieldPts = fields
+    .map((i) => airportMap.get(i))
+    .filter((a) => a && Number.isFinite(a.lat) && Number.isFinite(a.lon))
+    .map((a) => ({ lat: a.lat, lon: a.lon }));
+  const nearAnyField = (items) => (fieldPts.length
+    ? items.filter((it) => fieldPts.some((p) => distanceToGeometry(p.lat, p.lon, it.geometry) <= MAP_AIRSPACE_NM))
+    : items);
+
   return {
     generatedAt: new Date().toISOString(),
     live: {
@@ -198,12 +211,12 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     limits,
     notamSource: notamResult.source ?? null,
     knownAirfields: await knownAirports(),
-    // Full geometry sets for the map layer.
-    airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },
-    airsigmets: sigmetResult.airsigmets,
-    pireps: pirepResult.pireps,
-    convective: convResult.convective,
-    mtrs: mtrResult.mtrs.map((m) => ({ ...m, birdRisk: mtrLevel(m.id) })),
+    // Map geometry, trimmed to the briefed area (see nearAnyField above).
+    airspace: { tfrs: nearAnyField(tfrResult.tfrs), sua: nearAnyField(suaResult.sua) },
+    airsigmets: nearAnyField(sigmetResult.airsigmets),
+    pireps: nearAnyField(pirepResult.pireps),
+    convective: nearAnyField(convResult.convective),
+    mtrs: nearAnyField(mtrResult.mtrs).map((m) => ({ ...m, birdRisk: mtrLevel(m.id) })),
     airfields,
   };
 }

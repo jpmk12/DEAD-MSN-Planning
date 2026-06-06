@@ -8,6 +8,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { USER_AGENT } from './awc.js';
 
 const URL_AIRSIGMET = 'https://aviationweather.gov/api/data/airsigmet?format=json';
 const FIXTURE_URL = new URL('../../data/fixtures/airsigmet-sample.json', import.meta.url);
@@ -68,7 +69,7 @@ async function loadFixture() {
 export async function fetchAirSigmets(offline, signal) {
   if (!offline) {
     try {
-      const res = await fetch(URL_AIRSIGMET, { signal, headers: { Accept: 'application/json' } });
+      const res = await fetch(URL_AIRSIGMET, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
       if (res.ok) return { airsigmets: mapAirSigmets(await res.json()), live: true };
     } catch {
       /* fall through to fixture */

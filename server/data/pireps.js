@@ -8,6 +8,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { USER_AGENT } from './awc.js';
 
 const URL_PIREP = 'https://aviationweather.gov/api/data/pirep?format=json&age=2';
 const FIXTURE_URL = new URL('../../data/fixtures/pireps-sample.json', import.meta.url);
@@ -68,7 +69,7 @@ async function loadFixture() {
 export async function fetchPireps(offline, signal) {
   if (!offline) {
     try {
-      const res = await fetch(URL_PIREP, { signal, headers: { Accept: 'application/json' } });
+      const res = await fetch(URL_PIREP, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
       if (res.ok) return { pireps: mapPireps(await res.json()), live: true };
     } catch {
       /* fall through to fixture */
