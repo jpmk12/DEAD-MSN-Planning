@@ -196,6 +196,8 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .metric .v { font-family: var(--mono); font-size: 16px; margin-top: 2px; }
 .metric .v small { font-size: 11px; color: var(--text-dim); }
 .metric.warn .v { color: var(--caution); }
+.metric[data-tip] { cursor: help; }
+.ahas-when { display: block; font-size: 9px; color: var(--text-faint); margin-top: 2px; letter-spacing: 0.2px; }
 
 .wind-block { display: flex; gap: 14px; align-items: center; }
 .wind-block .compass { flex: none; }

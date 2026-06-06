@@ -47,13 +47,16 @@ export async function fetchBirdRisk(icaos, offline, signal) {
     return { risk, live: false };
   }
   // Live AHAS (usahas.com) per field; fields without a known base name, or any
-  // failed lookup, are simply omitted (UNAVAILABLE — never fabricated).
+  // failed lookup, are simply omitted (UNAVAILABLE — never fabricated). GetAHASRisk12
+  // is a 12-hour outlook from the current Zulu hour; record that window.
+  const now = new Date();
+  const runAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
   const risk = new Map();
   await Promise.allSettled(icaos.map(async (icao) => {
     const area = ahasAreaForIcao(icao);
     if (!area) return;
     const level = parseAhasLevel(await ahasRaw('GetAHASRisk12', 'MILAIR', area, undefined, signal));
-    if (level) risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS (usahas.com)' });
+    if (level) risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', runAt, windowHours: 12 });
   }));
   return { risk, live: risk.size > 0 };
 }

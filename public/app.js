@@ -428,7 +428,7 @@ function card(brief, limits) {
         <div class="metric"><div class="k">Temp</div><div class="v">${a.observation.tempC ?? '--'}<small>°C</small></div></div>
         <div class="metric"><div class="k">Altimeter</div><div class="v">${a.observation.altimHpa ?? '--'}<small> hPa</small></div></div>
         <div class="metric ${highDA ? 'warn' : ''}"><div class="k">Density Alt</div><div class="v">${a.densityAltitudeFt != null ? a.densityAltitudeFt.toLocaleString() : '--'}<small> ft</small></div></div>
-        ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}" title="${esc(brief.birdRisk.note || '')}"><div class="k">AHAS Birds</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div></div>` : ''}
+        ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}" ${tipOf(birdRiskTip(brief.birdRisk))}><div class="k">AHAS Birds</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div>${birdRiskWhen(brief.birdRisk) ? `<small class="ahas-when">${esc(birdRiskWhen(brief.birdRisk))}</small>` : ''}</div>` : ''}
       </div>
       ${windBlock(brief, selRwy, limits)}
       ${a.active ? '<div class="rwys-cap">All runways — <b>tap any runway to compare its crosswind ↑</b></div>' : ''}
@@ -439,7 +439,7 @@ function card(brief, limits) {
   }
 
   const ahasChip = brief.birdRisk
-    ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(`AHAS bird-strike risk: ${brief.birdRisk.level}.\n${brief.birdRisk.note || ''}\nSource: USAF Avian Hazard Advisory System (live).`)}>AHAS ${esc(brief.birdRisk.level)}</span>`
+    ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(birdRiskTip(brief.birdRisk))}>AHAS ${esc(brief.birdRisk.level)}</span>`
     : '';
   return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
@@ -491,8 +491,8 @@ const SOURCE_INFO = {
     unavail: 'Live source unreachable — no winds shown.' },
   SUA: { what: 'Special Use Airspace (MOAs, Restricted/Warning/Alert areas) from the FAA ArcGIS feed',
     unavail: 'Live FAA feed unreachable — no SUA shown. Check outbound network access or set SUA_GEOJSON_URL.' },
-  TFR: { what: 'Temporary Flight Restrictions',
-    unavail: 'No live TFR source configured — none shown. Set TFR_GEOJSON_URL to a live GeoJSON feed.' },
+  TFR: { what: 'Temporary Flight Restrictions from the FAA tfr.faa.gov feed (tfr3 list + AIXM detail)',
+    unavail: 'FAA TFR feed unreachable — none shown (TFR_GEOJSON_URL overrides the source).' },
 };
 let notamSource = null; // provenance for the NOTAM pill tooltip (e.g. 'DAIP')
 let notamSourceNote = null; // e.g. staging-fallback warning
@@ -510,6 +510,19 @@ const tipAttrs = (label, isLive) => {
   const t = esc(sourceTip(label, isLive));
   return `title="${t}" data-tip="${t}" role="button" tabindex="0"`;
 };
+
+// Short "valid period" label for an AHAS bird-risk record (the window it was run
+// for), e.g. "12-hr outlook from 1300Z · 0800 CDT".
+function birdRiskWhen(b) {
+  if (!b || !b.runAt) return '';
+  const lead = b.windowHours ? `${b.windowHours}-hr outlook from ` : 'valid ';
+  return `${lead}${zuluLocal(b.runAt)}`;
+}
+function birdRiskTip(b) {
+  if (!b) return '';
+  const when = birdRiskWhen(b);
+  return `AHAS bird-strike risk: ${b.level}.\n${b.note || ''}${when ? `\n${when}` : ''}\nSource: USAF AHAS (usahas.com), live.`;
+}
 // Generic hover-title + tap-tooltip attributes for any pill/badge.
 const tipOf = (text) => { const t = esc(text); return `title="${t}" data-tip="${t}" role="button" tabindex="0"`; };
 
