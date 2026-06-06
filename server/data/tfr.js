@@ -120,9 +120,13 @@ export function tfrRecordsFromXml(xml, fallbackId = 'TFR') {
     if (rec.codeId) areaByCode.set(rec.codeId, rec);
   }
 
-  // Geometry from <Abd> boundaries (preferred), else from the areas themselves.
+  // Geometry from per-area <Abd> boundaries; some TFRs only carry an
+  // <abdMergedArea> (union) instead. Fall back to that, then to the areas.
   const boundaries = allBlocks(xml, 'Abd');
-  const sources = boundaries.length ? boundaries : allBlocks(xml, 'aseTFRArea');
+  const merged = boundaries.length ? [] : allBlocks(xml, 'abdMergedArea');
+  const sources = boundaries.length ? boundaries
+    : merged.length ? merged
+    : allBlocks(xml, 'aseTFRArea');
 
   const records = [];
   sources.forEach((blk, i) => {

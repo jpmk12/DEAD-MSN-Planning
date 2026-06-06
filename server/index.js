@@ -266,9 +266,15 @@ const server = createServer(async (req, res) => {
                 const dr = await fetch(`https://tfr.faa.gov/download/detail_${detailId}.xml`, { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000) });
                 const dt = await dr.text();
                 const recs = tfrRecordsFromXml(dt, id0);
+                const containers = {
+                  aseTFRArea: (dt.match(/<aseTFRArea[\s>]/gi) || []).length,
+                  Abd: (dt.match(/<Abd[\s>]/gi) || []).length,
+                  abdMergedArea: (dt.match(/<abdMergedArea[\s>]/gi) || []).length,
+                  Avx: (dt.match(/<Avx[\s>]/gi) || []).length,
+                };
                 // Snippet centered on the geometry tags so the parser can be tuned.
                 const gi = Math.max(dt.search(/geoLat|<Avx[ >]|<Abd[ >]/i), 0);
-                out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(gi, gi + 600) };
+                out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, containers, snippet: dt.slice(gi, gi + 600) };
               } catch (e) { out.tfrProbe.detail = { error: String(e).slice(0, 150) }; }
               // Probe candidate tfr3 geometry endpoints for this notam id.
               const enc = encodeURIComponent(id0);

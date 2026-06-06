@@ -144,6 +144,27 @@ const SAMPLE_AIXM_ARCVERTEX = `
   </Abd>
 </Not></XNOTAM-Update>`;
 
+// Some TFRs carry geometry only in <abdMergedArea> (no per-area <Abd>).
+const SAMPLE_AIXM_MERGED = `
+<XNOTAM-Update><Not><NotUid><txtLocalName>6/5940</txtLocalName></NotUid>
+  <aseTFRArea><AseUid><codeId>1</codeId></AseUid><valDistVerUpper>050</valDistVerUpper><uomDistVerUpper>FL</uomDistVerUpper></aseTFRArea>
+  <abdMergedArea>
+    <Avx><codeType>GRC</codeType><geoLat>61.98034894N</geoLat><geoLong>150.0975W</geoLong></Avx>
+    <Avx><codeType>GRC</codeType><geoLat>61.97781066N</geoLat><geoLong>150.03616926W</geoLong></Avx>
+    <Avx><codeType>GRC</codeType><geoLat>61.97027421N</geoLat><geoLong>150.05000000W</geoLong></Avx>
+  </abdMergedArea>
+</Not></XNOTAM-Update>`;
+
+test('tfrRecordsFromXml parses an abdMergedArea-only TFR', () => {
+  const recs = tfrRecordsFromXml(SAMPLE_AIXM_MERGED, '6/5940');
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].geometry.kind, 'polygon');
+  assert.equal(recs[0].geometry.points.length, 3);
+  assert.ok(Math.abs(recs[0].geometry.points[0][0] - 61.98034894) < 1e-6);
+  assert.ok(Math.abs(recs[0].geometry.points[0][1] - -150.0975) < 1e-6);
+  assert.equal(recs[0].upperFt, 5000);
+});
+
 test('tfrRecordsFromXml reads geoLat, not geoLatArc, on an arc-edged vertex', () => {
   const recs = tfrRecordsFromXml(SAMPLE_AIXM_ARCVERTEX);
   assert.equal(recs.length, 1);
