@@ -515,7 +515,7 @@ const SOURCE_INFO = {
   WX: { what: 'Current surface weather (METARs) from AWC aviationweather.gov',
     unavail: 'Live source unreachable — no weather shown. Check the server can reach aviationweather.gov.' },
   TAF: { what: 'Terminal Aerodrome Forecasts from AWC aviationweather.gov',
-    unavail: 'Live source unreachable, or this field issues no TAF — none shown.' },
+    unavail: 'Live AWC TAF source unreachable — none shown. (A field with no TAF, e.g. many military fields, still shows LIVE; its card just notes no TAF.)' },
   NOTAM: { what: 'NOTAMs from the FAA NOTAM API',
     unavail: 'No live NOTAM source — set FAA credentials (NMS_CLIENT_ID/SECRET, or FAA_NOTAM_CLIENT_ID/SECRET). Nothing is fabricated.' },
   WINDS: { what: 'Winds aloft from Open-Meteo (api.open-meteo.com)',

@@ -25,19 +25,27 @@ export async function loadWeather(icaos, offline) {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
-    const [obs, tafList] = await Promise.all([
+    // Track TAF source reachability separately from how many TAFs came back: a
+    // successful fetch that returns no TAF for a field (e.g. many military
+    // fields like KLTS issue none via AWC) is still LIVE — it's "no TAF for this
+    // field", not "source unreachable". Only a thrown fetch = unreachable.
+    const tafResult = fetchTafs(icaos, ctrl.signal).then(
+      (list) => ({ ok: true, list }),
+      () => ({ ok: false, list: [] }),
+    );
+    const [obs, taf] = await Promise.all([
       fetchMetars(icaos, ctrl.signal),
-      fetchTafs(icaos, ctrl.signal).catch(() => []),
+      tafResult,
     ]);
     clearTimeout(t);
     if (obs.length > 0) {
       // Build the TAF map defensively — a single malformed entry must not
       // wipe out the (working) live METARs.
       const tafs = new Map();
-      for (const tf of tafList) {
+      for (const tf of taf.list) {
         if (tf && tf.icao) tafs.set(String(tf.icao).toUpperCase(), tf.rawTaf || '');
       }
-      return { obs, tafs, live: true, tafLive: tafs.size > 0 };
+      return { obs, tafs, live: true, tafLive: taf.ok };
     }
   } catch {
     // unavailable — fall through
