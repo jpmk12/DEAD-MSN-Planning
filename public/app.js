@@ -709,7 +709,9 @@ async function buildSortieBrief() {
   const stopsParam = stops.map((s) => `${s.icao}@${s.when || ''}@${s.role}@${s.label}`).join('|');
 
   // Look up the low-level routes (at entry time) first so the brief's low-level
-  // banner can show their entry-time AHAS risk, and the map overlays them.
+  // banner can show their entry-time AHAS risk, and the map overlays them. The
+  // sortie's low-level field is the source of truth, so start from a clean set.
+  activeRoutes = [];
   if (routes.length) {
     await lookupRoutes(routes, llT, { scroll: false });
   } else {
@@ -766,7 +768,7 @@ function windsProfileCard(pt) {
       ${rows}</div></div></div>`;
 }
 
-async function getRouteWinds() {
+async function getRouteWinds({ paintMap = true } = {}) {
   const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!pts.length) return;
   const params = new URLSearchParams({ points: pts.join(',') });
@@ -778,8 +780,10 @@ async function getRouteWinds() {
     const data = await res.json();
     $('winds-results').innerHTML = `<div class="grid">${data.points.map(windsProfileCard).join('')}</div>`;
     // Radar-along-route: drop the route points + hazardous wx onto the map.
+    // Skipped when loading a saved sortie that also shows a brief (the brief map
+    // owns the view there; this tool's focused overlay would clobber it).
     const routePts = data.points.filter((p) => p.found).map((p) => ({ icao: p.id, lat: p.lat, lon: p.lon, status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO' }));
-    if (routePts.length) {
+    if (paintMap && routePts.length) {
       const mapEl = $('map');
       mapEl.style.display = '';
       currentMap = initMap(mapEl, { airfields: routePts, tfrs: [], sua: [], sigmets: data.airsigmets || [], pireps: [] });
@@ -973,7 +977,19 @@ function updatePrintHead(data, ids, limits) {
 // ---- Saved sorties (server-backed when a DB is configured, else browser-local)
 const SORTIE_KEY = 'c17-sorties';
 let sortieMode = 'local';   // 'remote' when the platform DB is available
-let sortieCache = {};       // name -> { icaos, xwind, tailwind, highda }
+let sortieCache = {};       // name -> { <input id>: value, ... }
+
+// Every input that makes up a saved sortie. Keyed by element id so a saved
+// record round-trips through save/load directly (and old 5-field saves still
+// load — absent keys are left untouched). Covers the main brief, limits, the
+// planned takeoff, the Route/Climb Winds tool, the Route Lookup tool, and the
+// phase-by-phase Sortie Plan.
+const SORTIE_FIELDS = [
+  'icaos', 'xwind', 'tailwind', 'highda', 'agls', 'takeoff',
+  'winds-points',
+  'mtr-id', 'mtr-time',
+  'sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt',
+];
 
 function loadLocal() {
   try { return JSON.parse(localStorage.getItem(SORTIE_KEY)) || {}; } catch { return {}; }
@@ -1013,7 +1029,10 @@ async function refreshRemote() {
 async function saveCurrentSortie() {
   const name = $('sortie-name').value.trim();
   if (!name) { $('sortie-name').focus(); return; }
-  const data = { icaos: $('icaos').value.trim(), xwind: $('xwind').value, tailwind: $('tailwind').value, highda: $('highda').value, agls: $('agls').value.trim() };
+  // Capture every sortie input by id (empty values included, so loading
+  // restores the exact setup — including a cleared route or takeoff time).
+  const data = {};
+  for (const id of SORTIE_FIELDS) { const el = $(id); if (el) data[id] = (el.value || '').trim(); }
   if (sortieMode === 'remote') {
     try {
       await fetch('/api/sorties', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, data }) });
@@ -1027,15 +1046,31 @@ async function saveCurrentSortie() {
   refreshSortieList(name);
 }
 
-function loadSelectedSortie() {
+async function loadSelectedSortie() {
   const s = sortieCache[$('sortie-list').value];
   if (!s) return;
-  $('icaos').value = s.icaos;
-  if (s.xwind) $('xwind').value = s.xwind;
-  if (s.tailwind) $('tailwind').value = s.tailwind;
-  if (s.highda) $('highda').value = s.highda;
-  if (s.agls) $('agls').value = s.agls;
-  buildBrief();
+  // Restore each saved field by id. Keys present in the record (even empty)
+  // overwrite, so a saved blank clears the field; keys absent (legacy 5-field
+  // saves) are left as-is.
+  for (const id of SORTIE_FIELDS) { const el = $(id); if (el && id in s) el.value = s[id]; }
+  // Reset any routes currently on the map so the load reflects exactly the
+  // saved sortie (route lookups below repopulate them).
+  activeRoutes = [];
+
+  const hasSortiePlan = ['sp-dep', 'sp-rec', 'sp-ll', 'sp-alt'].some((id) => (s[id] || '').trim());
+  if (hasSortiePlan) {
+    // Full phase plan → build the sortie brief (it also looks up the low-level
+    // route(s) at the entry time and overlays them).
+    await buildSortieBrief();
+  } else {
+    await buildBrief(); // sets the brief map first, so the route overlay composes on it
+    const routes = splitIds(s['mtr-id']);
+    if (routes.length) await lookupRoutes(routes, localToIso('mtr-time'), { scroll: false });
+    else renderRouteResults();
+  }
+  // The Route/Climb Winds input is restored; re-run it if it was populated so
+  // its profiles come back too, but leave the brief's map in place.
+  if ((s['winds-points'] || '').trim()) getRouteWinds({ paintMap: false });
 }
 
 async function deleteSelectedSortie() {
