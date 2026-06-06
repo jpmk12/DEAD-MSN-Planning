@@ -494,11 +494,13 @@ const SOURCE_INFO = {
   TFR: { what: 'Temporary Flight Restrictions',
     unavail: 'No live TFR source configured — none shown. Set TFR_GEOJSON_URL to a live GeoJSON feed.' },
 };
+let notamSource = null; // provenance for the NOTAM pill tooltip (e.g. 'NMS-API')
 function sourceTip(label, isLive) {
   const i = SOURCE_INFO[label] || {};
-  const state = isLive
+  let state = isLive
     ? 'LIVE — fetched in real time.'
     : `UNAVAILABLE — ${i.unavail || 'live source unreachable; nothing shown.'}`;
+  if (label === 'NOTAM' && isLive && notamSource) state = `LIVE — fetched in real time via ${notamSource}.`;
   return `${label}: ${i.what || ''}\n${state}`;
 }
 const tipAttrs = (label, isLive) => {
@@ -551,6 +553,7 @@ async function buildBrief() {
     const res = await fetch(`/api/brief?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    notamSource = data.notamSource || null;
     setSourcePills(data.live);
     updateStatusStrip(data.live);
     cardData = {};

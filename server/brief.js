@@ -196,6 +196,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       ahas: ahasRes.live,
     },
     limits,
+    notamSource: notamResult.source ?? null,
     knownAirfields: await knownAirports(),
     // Full geometry sets for the map layer.
     airspace: { tfrs: tfrResult.tfrs, sua: suaResult.sua },

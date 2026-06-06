@@ -102,13 +102,13 @@ async function fetchFaa(icao, signal, attempt = 0) {
   );
 }
 
-/** @returns {Promise<{notams:any[], live:boolean}>} */
+/** @returns {Promise<{notams:any[], live:boolean, source:string}>} */
 export async function fetchNotams(icaos, offline, signal) {
   // Preferred: FAA NMS-API (bearer token). Then legacy FAA NOTAM API. Then fixture.
   if (!offline && nmsConfigured()) {
     try {
       const raw = await fetchNmsRaw(icaos, signal);
-      return { notams: rankNotams(raw.map(classify)), live: true };
+      return { notams: rankNotams(raw.map(classify)), live: true, source: 'NMS-API' };
     } catch {
       // fall through
     }
@@ -125,10 +125,10 @@ export async function fetchNotams(icaos, offline, signal) {
       try { all.push(...await fetchFaa(i, signal)); any = true; }
       catch { /* skip this field, keep the rest */ }
     }
-    if (any) return { notams: rankNotams(all), live: true };
+    if (any) return { notams: rankNotams(all), live: true, source: 'FAA legacy' };
   }
   // offline=true → bundled sample (tests only). Production with no/failed live
   // source returns empty (UNAVAILABLE) rather than fabricated NOTAMs.
-  if (offline) return { notams: await loadFixture(icaos), live: false };
-  return { notams: [], live: false };
+  if (offline) return { notams: await loadFixture(icaos), live: false, source: 'sample' };
+  return { notams: [], live: false, source: 'unavailable' };
 }

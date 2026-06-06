@@ -18,6 +18,7 @@ import { knownAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
+import { fetchNotams } from './data/notams.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -209,6 +210,11 @@ const server = createServer(async (req, res) => {
       catch (e) { out.metar = { live: false, error: String(e).slice(0, 200) }; }
       try { const t = await fetchTafs([field]); out.taf = { live: true, count: t.length, sample: (t[0]?.rawTaf || '').slice(0, 90) }; }
       catch (e) { out.taf = { live: false, error: String(e).slice(0, 200) }; }
+      // Exact pipeline the brief uses — the definitive 'is it live?' check.
+      try {
+        const n = await fetchNotams([field], false);
+        out.notamPipeline = { live: n.live, source: n.source, count: n.notams.length, sample: (n.notams[0]?.text || '').slice(0, 120) };
+      } catch (e) { out.notamPipeline = { live: false, error: String(e).slice(0, 200) }; }
       if (nmsConfigured()) out.nms = await nmsProbe(field);
       sendJson(res, 200, out);
       return;
