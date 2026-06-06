@@ -925,9 +925,10 @@ function init() {
     hidePillTip();
   });
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('[data-tip]')) {
+    const pill = e.key === 'Enter' || e.key === ' ' ? e.target.closest?.('[data-tip]') : null;
+    if (pill) {
       e.preventDefault();
-      showPillTip(e.target, e.target.dataset.tip);
+      showPillTip(pill, pill.dataset.tip);
     } else if (e.key === 'Escape') {
       hidePillTip();
     }

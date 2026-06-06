@@ -112,8 +112,10 @@ export async function fetchNotams(icaos, offline, signal) {
     try {
       const daip = await fetchDaipNotams(icaos);
       if (daip.length) return { notams: rankNotams(daip.map(classify)), live: true, source: 'DAIP' };
-    } catch {
-      // fall through to FAA
+    } catch (e) {
+      // DAIP is the primary (authoritative) source — log when it fails so a
+      // silent degradation to FAA/UNAVAILABLE is visible operationally.
+      console.warn(`[NOTAM] DAIP unavailable, falling back: ${e && e.message ? e.message : e}`);
     }
   }
   // Then FAA NMS-API (bearer token), then legacy FAA NOTAM API.

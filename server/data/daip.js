@@ -60,21 +60,25 @@ export function daipQueryRaw(payload, timeoutMs = 12000) {
       },
     };
     if (ca) opts.ca = [ca, ...rootCertificates]; // DoD CAs + public roots
+    let settled = false;
+    const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
     const req = httpsRequest(ENDPOINT, opts, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });
-      res.on('end', () => resolve({ status: res.statusCode, contentType: res.headers['content-type'] || '', body: data }));
+      res.on('end', () => done(resolve, { status: res.statusCode, contentType: res.headers['content-type'] || '', body: data }));
+      res.on('error', (e) => done(reject, e)); // mid-stream reset must reject, not throw
     });
     req.setTimeout(timeoutMs, () => req.destroy(new Error('DAIP timeout')));
-    req.on('error', reject);
+    req.on('error', (e) => done(reject, e));
     req.write(body);
     req.end();
   });
 }
 
-/** NOTAM end time from the rawtext C) field (YYMMDDHHMM Zulu), if present. */
+/** NOTAM end time from the rawtext C) field (YYMMDDHHMM Zulu, optional EST/EXT
+ *  estimate suffix). PERM/other non-numeric ends yield null. */
 function notamEndIso(rawtext) {
-  const m = /\bC\)\s*(\d{10})\b/.exec(String(rawtext || ''));
+  const m = /\bC\)\s*(\d{10})/.exec(String(rawtext || ''));
   if (!m) return null;
   const s = m[1];
   const d = new Date(`20${s.slice(0, 2)}-${s.slice(2, 4)}-${s.slice(4, 6)}T${s.slice(6, 8)}:${s.slice(8, 10)}:00Z`);
@@ -112,9 +116,12 @@ export function parseDaipNotams(body) {
  * @returns {Promise<any[]>}
  */
 export async function fetchDaipNotams(icaos) {
+  // No DoD CA → DAIP's TLS can't validate; skip fast instead of burning the
+  // per-field timeout on a guaranteed failure.
+  if (!dodCaLoaded()) throw new Error('DAIP unavailable: no DoD CA loaded');
   let anyOk = false;
   const settled = await Promise.allSettled((icaos.length ? icaos : ['']).map(async (icao) => {
-    const r = await daipQueryRaw(daipPayload(icao));
+    const r = await daipQueryRaw(daipPayload(icao), 8000);
     if (r.status !== 200) throw new Error(`DAIP ${r.status}`);
     anyOk = true;
     return parseDaipNotams(r.body);
