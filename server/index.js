@@ -19,6 +19,7 @@ import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.j
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
+import { tfrListItems, tfrIdOf } from './data/tfr.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -232,6 +233,24 @@ const server = createServer(async (req, res) => {
       // Only probe NMS auth detail when NOTAMs aren't coming through — a second
       // call while it's already working just trips the API rate limit (429).
       if (nmsConfigured() && !(out.live && out.live.notams)) out.nms = await nmsProbe(field);
+      // TFR schema probe — reveals the tfr3 JSON shape so the parser can be tuned.
+      try {
+        const tr = await fetch(process.env.TFR_JSON_URL || 'https://tfr.faa.gov/tfr3/export/json', {
+          headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' }, signal: AbortSignal.timeout(8000),
+        });
+        const tj = await tr.json();
+        const items = tfrListItems(tj);
+        const first = items[0] ? (items[0].properties ?? items[0]) : null;
+        out.tfrProbe = {
+          status: tr.status,
+          listType: Array.isArray(tj) ? 'array' : tj?.features ? 'featurecollection' : typeof tj,
+          itemCount: items.length,
+          firstItemKeys: first ? Object.keys(first).slice(0, 50) : [],
+          hasInlineGeometry: !!(items[0]?.geometry),
+          idSamples: items.slice(0, 3).map(tfrIdOf),
+          firstItem: first,
+        };
+      } catch (e) { out.tfrProbe = { error: String(e).slice(0, 200) }; }
       sendJson(res, 200, out);
       return;
     }

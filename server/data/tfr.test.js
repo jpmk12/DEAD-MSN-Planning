@@ -1,6 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDms, altFt, tfrRecordsFromXml, tfrIdsFromList } from './tfr.js';
+import { parseDms, altFt, tfrRecordsFromXml, tfrIdsFromList, tfrListItems, tfrIdOf } from './tfr.js';
+
+test('tfrListItems normalizes array / featurecollection / wrapped shapes', () => {
+  assert.equal(tfrListItems([{ a: 1 }, { a: 2 }]).length, 2);
+  assert.equal(tfrListItems({ features: [{ x: 1 }] }).length, 1);
+  assert.equal(tfrListItems({ tfrList: [{ x: 1 }, { y: 2 }] }).length, 2);
+  assert.deepEqual(tfrListItems(null), []);
+});
+
+test('tfrIdOf reads varied id field names (incl. GeoJSON properties)', () => {
+  assert.equal(tfrIdOf({ notam_id: '4/3344' }), '4/3344');
+  assert.equal(tfrIdOf({ NOTAM_ID: '0/1234' }), '0/1234');
+  assert.equal(tfrIdOf({ properties: { notamId: '9/9999' } }), '9/9999');
+  assert.equal(tfrIdOf({ nope: 1 }), null);
+});
 
 test('parseDms handles DDMMSS, DDMM, and decimal', () => {
   assert.ok(Math.abs(parseDms('385230.00N') - 38.875) < 1e-6);

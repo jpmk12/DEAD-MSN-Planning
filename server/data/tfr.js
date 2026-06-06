@@ -122,7 +122,7 @@ export function tfrRecordsFromXml(xml, fallbackId = 'TFR') {
 let cache = { at: 0, tfrs: null };
 const TTL_MS = 10 * 60 * 1000;
 
-/** Extract detail ids (e.g. "4_3344") from the TFR list HTML. */
+/** Extract detail ids (e.g. "4_3344") from the legacy TFR list HTML. */
 export function tfrIdsFromList(html) {
   const ids = new Set();
   const re = /detail_([0-9]+_[0-9]+)\.xml/ig;
@@ -131,25 +131,88 @@ export function tfrIdsFromList(html) {
   return [...ids];
 }
 
+// ---- tfr3 JSON list (preferred) -------------------------------------------
+const UA = 'C17MissionPlanner/1.0 (mission planning; contact: ops)';
+const LIST_JSON_URL = 'https://tfr.faa.gov/tfr3/export/json';
+
+/** Normalize a tfr3 list response to an array of items. */
+export function tfrListItems(json) {
+  if (!json) return [];
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json.features)) return json.features; // GeoJSON
+  for (const k of ['tfrList', 'tfrs', 'TFRList', 'data', 'items', 'NOTAMS', 'notams']) {
+    if (Array.isArray(json[k])) return json[k];
+  }
+  return [];
+}
+
+const props = (item) => (item && item.properties ? item.properties : item) || {};
+
+/** NOTAM id from a tfr3 item (field name varies). */
+export function tfrIdOf(item) {
+  const p = props(item);
+  const raw = p.notam_id ?? p.NOTAM_ID ?? p.notamId ?? p.notam ?? p.Notam ?? p.id ?? null;
+  return raw == null || raw === '' ? null : String(raw).trim();
+}
+const tfrNameOf = (item) => {
+  const p = props(item);
+  return String(p.description ?? p.txtDescr ?? p.NAME ?? p.facility ?? p.state ?? 'TFR');
+};
+/** "4/3344" -> "4_3344" (the detail XML id form). */
+const detailIdFromNotam = (notamId) => String(notamId).replace(/\//g, '_').replace(/[^0-9_]/g, '');
+
+/** GeoJSON-style geometry embedded directly in a list item, if present. */
+function inlineGeometry(item) {
+  const g = item?.geometry ?? item?.geom ?? null;
+  if (!g || !g.type) return null;
+  const ring = (coords) => coords.map(([lon, lat]) => [lat, lon]);
+  if (g.type === 'Polygon' && g.coordinates?.[0]) return { kind: 'polygon', points: ring(g.coordinates[0]) };
+  if (g.type === 'MultiPolygon' && g.coordinates?.[0]?.[0]) return { kind: 'polygon', points: ring(g.coordinates[0][0]) };
+  if (g.type === 'Point' && g.coordinates) return { kind: 'circle', lat: g.coordinates[1], lon: g.coordinates[0], radiusNm: 5 };
+  return null;
+}
+
 /**
- * Fetch + parse active FAA TFRs. Throws on a network/HTTP failure (so the caller
- * shows UNAVAILABLE); returns [] when the list is reachable but has no TFRs.
+ * Fetch + parse active FAA TFRs from the tfr3 JSON list. Prefers geometry
+ * embedded in the list; otherwise pulls each TFR's detail XML for geometry.
+ * Throws on a network/HTTP failure (caller shows UNAVAILABLE); returns [] when
+ * the list is reachable but yields no usable TFRs.
  * @returns {Promise<any[]>}
  */
 export async function fetchLiveTfrs(signal) {
   if (cache.tfrs && Date.now() - cache.at < TTL_MS) return cache.tfrs;
   const sig = signal ?? AbortSignal.timeout(9000);
-  const listRes = await fetch(LIST_URL, { signal: sig, headers: { Accept: 'text/html' } });
-  if (!listRes.ok) throw new Error(`TFR list ${listRes.status}`);
-  const ids = tfrIdsFromList(await listRes.text()).slice(0, 60);
-  const settled = await Promise.allSettled(
-    ids.map(async (id) => {
-      const r = await fetch(DETAIL_URL(id), { signal: sig, headers: { Accept: 'application/xml' } });
-      if (!r.ok) return [];
-      return tfrRecordsFromXml(await r.text(), id);
-    }),
-  );
-  const tfrs = settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
+  const listUrl = process.env.TFR_JSON_URL || LIST_JSON_URL;
+  const res = await fetch(listUrl, { signal: sig, headers: { Accept: 'application/json', 'User-Agent': UA } });
+  if (!res.ok) throw new Error(`TFR list ${res.status}`);
+  const items = tfrListItems(await res.json());
+
+  // Use embedded geometry where present; collect ids for the rest.
+  const direct = [];
+  const ids = [];
+  for (const item of items) {
+    const geometry = inlineGeometry(item);
+    const id = tfrIdOf(item);
+    if (geometry) {
+      direct.push({ id: id || `TFR-${direct.length}`, type: 'HAZARD', name: tfrNameOf(item), lowerFt: 0, upperFt: null, effectiveStart: null, effectiveEnd: null, url: 'https://tfr.faa.gov', geometry });
+    } else if (id) {
+      ids.push(id);
+    }
+  }
+
+  let xmlRecs = [];
+  if (ids.length) {
+    const settled = await Promise.allSettled(
+      ids.slice(0, 60).map(async (notamId) => {
+        const r = await fetch(DETAIL_URL(detailIdFromNotam(notamId)), { signal: sig, headers: { Accept: 'application/xml', 'User-Agent': UA } });
+        if (!r.ok) return [];
+        return tfrRecordsFromXml(await r.text(), notamId);
+      }),
+    );
+    xmlRecs = settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
+  }
+
+  const tfrs = [...direct, ...xmlRecs];
   cache = { at: Date.now(), tfrs };
   return tfrs;
 }
