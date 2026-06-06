@@ -75,47 +75,69 @@ const allBlocks = (xml, name) => {
   return out;
 };
 
-/** Geometry from one airspace area block: a circle if it has a center+radius,
- *  else a polygon from its <Avx> vertices. Returns null if neither is present. */
-function geometryFromArea(area) {
-  const latCen = parseDms(tag(area, 'geoLatCen') ?? tag(area, 'geoLatCenter'));
-  const lonCen = parseDms(tag(area, 'geoLongCen') ?? tag(area, 'geoLongCenter'));
-  const radius = Number(tag(area, 'valRadiusArc') ?? tag(area, 'valRadius'));
+/** Geometry from one boundary block (FAA AIXM <Abd>, or an area that embeds its
+ *  own vertices): a circle if it carries a center+radius (often inside an arc
+ *  <Avx>), else a polygon from its <Avx> <geoLat>/<geoLong> vertices. */
+function geometryFromBoundary(blk) {
+  const radius = Number(tag(blk, 'valRadiusArc') ?? tag(blk, 'valRadius'));
+  const latCen = parseDms(tag(blk, 'geoLatArc') ?? tag(blk, 'geoLatCen') ?? tag(blk, 'geoLatCenter'));
+  const lonCen = parseDms(tag(blk, 'geoLongArc') ?? tag(blk, 'geoLongCen') ?? tag(blk, 'geoLongCenter'));
   if (latCen != null && lonCen != null && Number.isFinite(radius) && radius > 0) {
-    const uom = (tag(area, 'uomRadiusArc') ?? 'NM').toUpperCase();
+    const uom = (tag(blk, 'uomRadiusArc') ?? 'NM').toUpperCase();
     const radiusNm = uom.startsWith('KM') ? radius / 1.852 : uom === 'M' ? radius / 1852 : radius;
     return { kind: 'circle', lat: latCen, lon: lonCen, radiusNm };
   }
-  const points = allBlocks(area, 'Avx')
+  const points = allBlocks(blk, 'Avx')
     .map((avx) => [parseDms(tag(avx, 'geoLat')), parseDms(tag(avx, 'geoLong'))])
     .filter(([la, lo]) => la != null && lo != null);
   return points.length >= 3 ? { kind: 'polygon', points } : null;
 }
 
-/** Parse one TFR detail XML into airspace records (one per area). */
+/** Parse one TFR detail XML (FAA AIXM) into airspace records. Areas (<aseTFRArea>)
+ *  hold the altitudes/name; geometry is in sibling <Abd> boundary blocks linked
+ *  by codeId. Falls back to geometry embedded in the area if there are no <Abd>. */
 export function tfrRecordsFromXml(xml, fallbackId = 'TFR') {
   if (!xml || typeof xml !== 'string') return [];
   const id = tag(xml, 'txtLocalName') || tag(xml, 'codeId') || fallbackId;
-  const name = tag(xml, 'txtNameCity') || tag(xml, 'txtNameUSState') || tag(xml, 'txtLocalName') || 'TFR';
+  const name = tag(xml, 'txtNameCity') || tag(xml, 'txtNameUSState') || tag(xml, 'txtName') || tag(xml, 'txtLocalName') || 'TFR';
   const effectiveStart = tag(xml, 'dateEffective');
   const effectiveEnd = tag(xml, 'dateExpire');
-  const areas = allBlocks(xml, 'aseTFRArea').length ? allBlocks(xml, 'aseTFRArea') : allBlocks(xml, 'Ase');
+
+  // Area attributes keyed by codeId (altitudes + per-area name).
+  const areaByCode = new Map();
+  const areaList = [];
+  for (const a of allBlocks(xml, 'aseTFRArea')) {
+    const rec = {
+      codeId: tag(a, 'codeId'),
+      name: tag(a, 'txtName') || name,
+      lowerFt: altFt(tag(a, 'valDistVerLower'), tag(a, 'uomDistVerLower')) ?? 0,
+      upperFt: altFt(tag(a, 'valDistVerUpper'), tag(a, 'uomDistVerUpper')),
+    };
+    areaList.push(rec);
+    if (rec.codeId) areaByCode.set(rec.codeId, rec);
+  }
+
+  // Geometry from <Abd> boundaries (preferred), else from the areas themselves.
+  const boundaries = allBlocks(xml, 'Abd');
+  const sources = boundaries.length ? boundaries : allBlocks(xml, 'aseTFRArea');
+
   const records = [];
-  for (const area of areas) {
-    const geometry = geometryFromArea(area);
-    if (!geometry) continue;
+  sources.forEach((blk, i) => {
+    const geometry = geometryFromBoundary(blk);
+    if (!geometry) return;
+    const area = areaByCode.get(tag(blk, 'codeId')) || areaList[i] || areaList[0] || {};
     records.push({
       id: String(id),
       type: 'HAZARD',
-      name: String(name),
-      lowerFt: altFt(tag(area, 'valDistVerLower'), tag(area, 'uomDistVerLower')) ?? 0,
-      upperFt: altFt(tag(area, 'valDistVerUpper'), tag(area, 'uomDistVerUpper')),
+      name: String(area.name || name),
+      lowerFt: area.lowerFt ?? 0,
+      upperFt: area.upperFt ?? null,
       effectiveStart,
       effectiveEnd,
       url: 'https://tfr.faa.gov',
       geometry,
     });
-  }
+  });
   return records;
 }
 

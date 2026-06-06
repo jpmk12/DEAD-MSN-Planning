@@ -85,3 +85,58 @@ test('tfrRecordsFromXml parses a circular TFR area', () => {
   assert.equal(recs[0].geometry.radiusNm, 5);
   assert.equal(recs[0].upperFt, 10000);
 });
+
+// Real FAA AIXM shape: attributes in <aseTFRArea>, geometry in a sibling <Abd>
+// linked by codeId.
+const SAMPLE_AIXM = `
+<XNOTAM-Update><Group><Add><Not>
+  <NotUid><txtLocalName>6/5928</txtLocalName></NotUid>
+  <dateEffective>2026-06-10T00:00:00</dateEffective>
+  <dateExpire>2026-06-16T00:00:00</dateExpire>
+  <TfrNot><TFRAreaGroup>
+    <aseTFRArea>
+      <AseUid><codeType>RAS</codeType><codeId>8989</codeId></AseUid>
+      <txtName>Area A</txtName>
+      <valDistVerUpper>17999</valDistVerUpper><uomDistVerUpper>FT</uomDistVerUpper>
+      <valDistVerLower>0</valDistVerLower><uomDistVerLower>FT</uomDistVerLower>
+    </aseTFRArea>
+    <Abd>
+      <AbdUid><AseUid><codeType>RAS</codeType><codeId>8989</codeId></AseUid></AbdUid>
+      <Avx><geoLat>385230.00N</geoLat><geoLong>0771500.00W</geoLong></Avx>
+      <Avx><geoLat>385230.00N</geoLat><geoLong>0770500.00W</geoLong></Avx>
+      <Avx><geoLat>384230.00N</geoLat><geoLong>0770500.00W</geoLong></Avx>
+    </Abd>
+  </TFRAreaGroup></TfrNot>
+</Not></Add></Group></XNOTAM-Update>`;
+
+test('tfrRecordsFromXml parses AIXM area + Abd boundary', () => {
+  const recs = tfrRecordsFromXml(SAMPLE_AIXM, '6/5928');
+  assert.equal(recs.length, 1);
+  const r = recs[0];
+  assert.equal(r.id, '6/5928');
+  assert.equal(r.name, 'Area A');
+  assert.equal(r.upperFt, 17999);
+  assert.equal(r.lowerFt, 0);
+  assert.equal(r.geometry.kind, 'polygon');
+  assert.equal(r.geometry.points.length, 3);
+  assert.ok(Math.abs(r.geometry.points[0][0] - 38.875) < 1e-6);
+});
+
+const SAMPLE_AIXM_CIRCLE = `
+<XNOTAM-Update><Not><NotUid><txtLocalName>9/9</txtLocalName></NotUid>
+  <aseTFRArea><AseUid><codeId>1</codeId></AseUid><valDistVerUpper>180</valDistVerUpper><uomDistVerUpper>FL</uomDistVerUpper></aseTFRArea>
+  <Abd><AbdUid><AseUid><codeId>1</codeId></AseUid></AbdUid>
+    <Avx><codeType>CWA</codeType><geoLat>390500.00N</geoLat><geoLong>0900500.00W</geoLong>
+      <geoLatArc>390000.00N</geoLatArc><geoLongArc>0900000.00W</geoLongArc>
+      <valRadiusArc>5</valRadiusArc><uomRadiusArc>NM</uomRadiusArc></Avx>
+  </Abd>
+</Not></XNOTAM-Update>`;
+
+test('tfrRecordsFromXml parses an AIXM arc/circle boundary', () => {
+  const recs = tfrRecordsFromXml(SAMPLE_AIXM_CIRCLE);
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].geometry.kind, 'circle');
+  assert.ok(Math.abs(recs[0].geometry.lat - 39) < 1e-6);
+  assert.equal(recs[0].geometry.radiusNm, 5);
+  assert.equal(recs[0].upperFt, 18000);
+});

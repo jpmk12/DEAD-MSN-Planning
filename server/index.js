@@ -265,7 +265,7 @@ const server = createServer(async (req, res) => {
                 const dt = await dr.text();
                 const recs = tfrRecordsFromXml(dt, id0);
                 // Snippet centered on the geometry tags so the parser can be tuned.
-                const gi = Math.max(dt.search(/geoLat|Avx|TFRArea|aseArea|abdMergedArea/i), 0);
+                const gi = Math.max(dt.search(/geoLat|<Avx[ >]|<Abd[ >]/i), 0);
                 out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(gi, gi + 600) };
               } catch (e) { out.tfrProbe.detail = { error: String(e).slice(0, 150) }; }
               // Probe candidate tfr3 geometry endpoints for this notam id.
@@ -312,6 +312,25 @@ const server = createServer(async (req, res) => {
           snippet: ptext.slice(0, 200),
         };
       } catch (e) { out.pirepProbe = { error: String(e).slice(0, 200) }; }
+      // DAIP (DoD Aeronautical Information) probe — checks reachability/auth and
+      // shows the response shape so a NOTAM adapter can be built.
+      try {
+        const payload = {
+          locs: field.toLowerCase(), poa: '', pod: '', alternates: '', route: '', radius: '10',
+          runwayLength: '', runwayWidth: '', airportType: '', type: 'LOCATION', notamId: '', acode: '',
+          artcc: '', tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
+          includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
+          sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
+        };
+        const dr = await fetch('https://www.daip.jcs.mil/daip/mobile/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json,*/*', 'User-Agent': browserUA },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(12000),
+        });
+        const dt = await dr.text();
+        out.daipProbe = { status: dr.status, contentType: dr.headers.get('content-type') || '', bytes: dt.length, snippet: dt.slice(0, 600) };
+      } catch (e) { out.daipProbe = { error: String(e).slice(0, 200) }; }
       sendJson(res, 200, out);
       return;
     }
