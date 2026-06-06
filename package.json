@@ -1,17 +1,13 @@
 {
   "name": "c17-mission-planner",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
   "type": "module",
   "description": "One-stop C-17 training sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
-  "engines": {
-    "node": ">=20"
-  },
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
     "build": "echo build",
+    "dev": "node server.js",
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
     "test": "node --test"
