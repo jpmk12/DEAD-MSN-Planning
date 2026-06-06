@@ -1,0 +1,29 @@
+# Render blueprint — deploy this app as a long-running Node web service.
+# In Render: New ► Blueprint, connect this repo; Render reads this file.
+# (Render runs npm install, then the build/start commands below, and probes
+# /healthz to mark the service healthy.)
+services:
+  - type: web
+    name: c17-mission-planner
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Optional — set these in the Render dashboard (Environment) if you use them.
+      # Saved sorties fall back to browser storage when no DB is set, so a
+      # database is NOT required to run.
+      # - key: DIAG_KEY          # gate /api/diag (recommended)
+      #   sync: false
+      # - key: NMS_API_BASE
+      #   value: https://api-nms.aim.faa.gov
+      # - key: NMS_CLIENT_ID
+      #   sync: false
+      # - key: NMS_CLIENT_SECRET
+      #   sync: false
+      # - key: TFR_GEOJSON_URL
+      #   sync: false
