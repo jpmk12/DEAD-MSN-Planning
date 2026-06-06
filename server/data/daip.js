@@ -17,15 +17,20 @@ const ENDPOINT = 'https://www.daip.jcs.mil/daip/mobile/query';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 let caCache; // undefined=unloaded, null=absent, string=pem bundle
+let caPath = null;
+let caError = null;
 function dodCa() {
   if (caCache !== undefined) return caCache;
-  const path = process.env.DOD_CA_PEM || fileURLToPath(new URL('../../data/dod-ca.pem', import.meta.url));
-  try { caCache = readFileSync(path, 'utf8'); } catch { caCache = null; }
+  caPath = process.env.DOD_CA_PEM || fileURLToPath(new URL('../../data/dod-ca.pem', import.meta.url));
+  try { caCache = readFileSync(caPath, 'utf8'); caError = null; }
+  catch (e) { caCache = null; caError = String(e && e.code ? e.code : e); }
   return caCache;
 }
 
 /** True when a DoD CA bundle is available to trust DAIP's certificate. */
 export function dodCaLoaded() { return !!dodCa(); }
+/** Diagnostics: where the CA bundle is expected and why it didn't load. */
+export function dodCaInfo() { dodCa(); return { loaded: !!caCache, path: caPath, error: caError, certs: caCache ? (caCache.match(/BEGIN CERTIFICATE/g) || []).length : 0 }; }
 
 /** The DAIP mobile-query payload for a single location (NOTAMs within radius). */
 export function daipPayload(loc, radius = '10') {

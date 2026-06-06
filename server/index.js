@@ -20,7 +20,7 @@ import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml } from './data/tfr.js';
-import { daipQueryRaw, daipPayload, dodCaLoaded } from './data/daip.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo } from './data/daip.js';
 import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
@@ -317,10 +317,10 @@ const server = createServer(async (req, res) => {
       // present (data/dod-ca.pem); reports reachability/auth + response shape.
       try {
         const r = await daipQueryRaw(daipPayload(field));
-        out.daipProbe = { dodCaLoaded: dodCaLoaded(), status: r.status, contentType: r.contentType, bytes: r.body.length, snippet: r.body.slice(0, 600) };
+        out.daipProbe = { ca: dodCaInfo(), status: r.status, contentType: r.contentType, bytes: r.body.length, snippet: r.body.slice(0, 600) };
       } catch (e) {
         out.daipProbe = {
-          dodCaLoaded: dodCaLoaded(),
+          ca: dodCaInfo(),
           error: String(e && e.message ? e.message : e).slice(0, 120),
           cause: e?.cause ? String(e.cause.code || e.cause.message || e.cause).slice(0, 180) : (e?.code || null),
         };
