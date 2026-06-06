@@ -8,6 +8,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { nmsConfigured, fetchNmsRaw } from './nms.js';
+import { fetchDaipNotams } from './daip.js';
 
 const CATEGORY_PRIORITY = {
   RUNWAY: 100,
@@ -104,7 +105,18 @@ async function fetchFaa(icao, signal, attempt = 0) {
 
 /** @returns {Promise<{notams:any[], live:boolean, source:string}>} */
 export async function fetchNotams(icaos, offline, signal) {
-  // Preferred: FAA NMS-API (bearer token). Then legacy FAA NOTAM API. Then fixture.
+  if (offline) return { notams: await loadFixture(icaos), live: false, source: 'sample' };
+  // Primary: DAIP (DoD Aeronautical Info) — authoritative military + FAA NOTAMs,
+  // no credentials. Falls back to the FAA NMS/legacy APIs if DAIP is unreachable.
+  if (process.env.DAIP_DISABLED !== '1') {
+    try {
+      const daip = await fetchDaipNotams(icaos);
+      if (daip.length) return { notams: rankNotams(daip.map(classify)), live: true, source: 'DAIP' };
+    } catch {
+      // fall through to FAA
+    }
+  }
+  // Then FAA NMS-API (bearer token), then legacy FAA NOTAM API.
   if (!offline && nmsConfigured()) {
     try {
       const raw = await fetchNmsRaw(icaos, signal);
@@ -127,8 +139,6 @@ export async function fetchNotams(icaos, offline, signal) {
     }
     if (any) return { notams: rankNotams(all), live: true, source: 'FAA legacy' };
   }
-  // offline=true → bundled sample (tests only). Production with no/failed live
-  // source returns empty (UNAVAILABLE) rather than fabricated NOTAMs.
-  if (offline) return { notams: await loadFixture(icaos), live: false, source: 'sample' };
+  // No live source reachable → empty (UNAVAILABLE), never fabricated.
   return { notams: [], live: false, source: 'unavailable' };
 }

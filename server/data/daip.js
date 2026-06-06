@@ -71,3 +71,57 @@ export function daipQueryRaw(payload, timeoutMs = 12000) {
     req.end();
   });
 }
+
+/** NOTAM end time from the rawtext C) field (YYMMDDHHMM Zulu), if present. */
+function notamEndIso(rawtext) {
+  const m = /\bC\)\s*(\d{10})\b/.exec(String(rawtext || ''));
+  if (!m) return null;
+  const s = m[1];
+  const d = new Date(`20${s.slice(0, 2)}-${s.slice(2, 4)}-${s.slice(4, 6)}T${s.slice(6, 8)}:${s.slice(8, 10)}:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Flatten a DAIP query body (group → notams → list) into NOTAM records. */
+export function parseDaipNotams(body) {
+  let json;
+  try { json = typeof body === 'string' ? JSON.parse(body) : body; } catch { return []; }
+  const out = [];
+  for (const g of json?.group ?? []) {
+    for (const n of g?.notams ?? []) {
+      const icao = String(n.code || g.name || '').toUpperCase();
+      for (const item of n?.list ?? []) {
+        const text = String(item.text || item.rawtext || '').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        out.push({
+          icao,
+          id: String(item.idshow || item.id || ''),
+          text,
+          rawText: String(item.rawtext || ''),
+          effectiveEnd: notamEndIso(item.rawtext),
+          source: 'DAIP',
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Fetch NOTAMs for the given ICAOs from DAIP (per-field, in parallel). Throws if
+ * every field failed (so the caller can fall back); returns partial otherwise.
+ * @returns {Promise<any[]>}
+ */
+export async function fetchDaipNotams(icaos) {
+  let anyOk = false;
+  const settled = await Promise.allSettled((icaos.length ? icaos : ['']).map(async (icao) => {
+    const r = await daipQueryRaw(daipPayload(icao));
+    if (r.status !== 200) throw new Error(`DAIP ${r.status}`);
+    anyOk = true;
+    return parseDaipNotams(r.body);
+  }));
+  if (!anyOk) {
+    const rej = settled.find((s) => s.status === 'rejected');
+    throw rej ? rej.reason : new Error('DAIP returned no usable data');
+  }
+  return settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
+}
