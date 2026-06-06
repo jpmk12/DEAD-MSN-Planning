@@ -199,23 +199,39 @@ const server = createServer(async (req, res) => {
         return;
       }
       const field = (url.searchParams.get('ids') || 'KCHS').split(',')[0].trim().toUpperCase();
+      const nmsBase = (process.env.NMS_API_BASE || 'https://api-nms.aim.faa.gov').replace(/\/+$/, '');
       const out = {
         time: new Date().toISOString(),
         node: process.version,
-        notamSource: nmsConfigured() ? 'NMS-API' : process.env.FAA_NOTAM_CLIENT_ID ? 'FAA legacy' : 'fixture (no NOTAM credentials set)',
-        env: { NMS_CLIENT_ID: !!process.env.NMS_CLIENT_ID, FAA_NOTAM_CLIENT_ID: !!process.env.FAA_NOTAM_CLIENT_ID, DB: dbConfigured() },
         testField: field,
+        nmsBase,
+        nmsStaging: /staging|test/i.test(nmsBase),
+        env: { NMS_CLIENT_ID: !!process.env.NMS_CLIENT_ID, FAA_NOTAM_CLIENT_ID: !!process.env.FAA_NOTAM_CLIENT_ID, DB: dbConfigured() },
       };
-      try { const m = await fetchMetars([field]); out.metar = { live: true, count: m.length, sample: (m[0]?.rawText || '').slice(0, 70) }; }
-      catch (e) { out.metar = { live: false, error: String(e).slice(0, 200) }; }
-      try { const t = await fetchTafs([field]); out.taf = { live: true, count: t.length, sample: (t[0]?.rawTaf || '').slice(0, 90) }; }
-      catch (e) { out.taf = { live: false, error: String(e).slice(0, 200) }; }
-      // Exact pipeline the brief uses — the definitive 'is it live?' check.
+      // Run the real brief pipeline once and report every source's live state —
+      // a one-call check for the whole live-data picture.
       try {
-        const n = await fetchNotams([field], false);
-        out.notamPipeline = { live: n.live, source: n.source, count: n.notams.length, sample: (n.notams[0]?.text || '').slice(0, 120) };
-      } catch (e) { out.notamPipeline = { live: false, error: String(e).slice(0, 200) }; }
-      if (nmsConfigured()) out.nms = await nmsProbe(field);
+        const b = await buildBrief([field], false, parseLimits(url));
+        const af = b.airfields?.[0] || {};
+        out.notamSource = b.notamSource;
+        out.live = b.live;
+        out.sources = {
+          metar: { live: b.live.weather, sample: (af.analysis?.observation?.rawText || '').slice(0, 90) },
+          taf: { live: b.live.taf, sample: (af.taf || '').slice(0, 90) },
+          notams: { live: b.live.notams, source: b.notamSource, count: af.notams?.length ?? 0, sample: (af.notams?.[0]?.text || '').slice(0, 120) },
+          sua: { live: b.live.sua, count: b.airspace?.sua?.length ?? 0 },
+          tfr: { live: b.live.tfr, count: b.airspace?.tfrs?.length ?? 0 },
+          winds: { live: b.live.windsAloft, levels: af.windsAloft?.profile?.length ?? 0 },
+          sigmet: { live: b.live.hazardWx, count: b.airsigmets?.length ?? 0 },
+          pireps: { live: b.live.pireps, count: b.pireps?.length ?? 0 },
+          convective: { live: b.live.convective, count: b.convective?.length ?? 0 },
+        };
+      } catch (e) {
+        out.error = String(e).slice(0, 300);
+      }
+      // Only probe NMS auth detail when NOTAMs aren't coming through — a second
+      // call while it's already working just trips the API rate limit (429).
+      if (nmsConfigured() && !(out.live && out.live.notams)) out.nms = await nmsProbe(field);
       sendJson(res, 200, out);
       return;
     }
