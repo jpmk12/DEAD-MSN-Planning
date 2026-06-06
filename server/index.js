@@ -385,7 +385,12 @@ const server = createServer(async (req, res) => {
   }
 });
 
-const HOST = process.env.HOST ?? '0.0.0.0';
+// Always bind all interfaces. The platform's health probe / router reaches the
+// container on its pod IP, so binding only to loopback (e.g. an injected
+// HOST=127.0.0.1, as seen in deploy logs) makes the app unreachable and the
+// build is marked "unhealthy". 0.0.0.0 also covers loopback, so a same-host
+// proxy still works. (GoDaddy guidance: bind 0.0.0.0, not localhost.)
+const HOST = '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
   if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
