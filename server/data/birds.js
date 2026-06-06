@@ -8,6 +8,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './ahasapi.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/birds-sample.json', import.meta.url);
 
@@ -34,16 +35,25 @@ async function loadFixture() {
 }
 
 /** @returns {Promise<{risk:Map<string,{level,note,source}>, live:boolean}>} */
-export async function fetchBirdRisk(icaos, offline) {
-  // No public AHAS API yet, so production returns an empty (UNAVAILABLE) map
-  // rather than fabricated risk levels. The bundled sample is used only by the
-  // offline/test path. (Live AHAS adapter plugs in here once an endpoint exists.)
-  if (!offline) return { risk: new Map(), live: false };
-  const fixture = await loadFixture();
-  const risk = new Map();
-  for (const icao of icaos) {
-    const level = normalizeRisk(fixture[icao.toUpperCase()] ?? 'LOW');
-    risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS/BAM (fixture)' });
+export async function fetchBirdRisk(icaos, offline, signal) {
+  // offline=true → bundled sample (tests only).
+  if (offline) {
+    const fixture = await loadFixture();
+    const risk = new Map();
+    for (const icao of icaos) {
+      const level = normalizeRisk(fixture[icao.toUpperCase()] ?? 'LOW');
+      risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS/BAM (fixture)' });
+    }
+    return { risk, live: false };
   }
-  return { risk, live: false };
+  // Live AHAS (usahas.com) per field; fields without a known base name, or any
+  // failed lookup, are simply omitted (UNAVAILABLE — never fabricated).
+  const risk = new Map();
+  await Promise.allSettled(icaos.map(async (icao) => {
+    const area = ahasAreaForIcao(icao);
+    if (!area) return;
+    const level = parseAhasLevel(await ahasRaw('GetAHASRisk12', 'MILAIR', area, undefined, signal));
+    if (level) risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS (usahas.com)' });
+  }));
+  return { risk, live: risk.size > 0 };
 }

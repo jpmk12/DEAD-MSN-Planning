@@ -20,6 +20,7 @@ import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf } from './data/tfr.js';
+import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -233,24 +234,53 @@ const server = createServer(async (req, res) => {
       // Only probe NMS auth detail when NOTAMs aren't coming through — a second
       // call while it's already working just trips the API rate limit (429).
       if (nmsConfigured() && !(out.live && out.live.notams)) out.nms = await nmsProbe(field);
-      // TFR schema probe — reveals the tfr3 JSON shape so the parser can be tuned.
+      // TFR schema probe — reveals the tfr3 response so the parser can be tuned.
       try {
+        const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
         const tr = await fetch(process.env.TFR_JSON_URL || 'https://tfr.faa.gov/tfr3/export/json', {
-          headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' }, signal: AbortSignal.timeout(8000),
+          headers: { Accept: 'application/json,text/plain,*/*', 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000),
         });
-        const tj = await tr.json();
-        const items = tfrListItems(tj);
-        const first = items[0] ? (items[0].properties ?? items[0]) : null;
-        out.tfrProbe = {
-          status: tr.status,
-          listType: Array.isArray(tj) ? 'array' : tj?.features ? 'featurecollection' : typeof tj,
-          itemCount: items.length,
-          firstItemKeys: first ? Object.keys(first).slice(0, 50) : [],
-          hasInlineGeometry: !!(items[0]?.geometry),
-          idSamples: items.slice(0, 3).map(tfrIdOf),
-          firstItem: first,
-        };
+        const ct = tr.headers.get('content-type') || '';
+        const text = await tr.text();
+        out.tfrProbe = { status: tr.status, contentType: ct, finalUrl: tr.url, bytes: text.length };
+        if (/json/i.test(ct) || /^[\s]*[[{]/.test(text)) {
+          try {
+            const tj = JSON.parse(text);
+            const items = tfrListItems(tj);
+            const first = items[0] ? (items[0].properties ?? items[0]) : null;
+            Object.assign(out.tfrProbe, {
+              listType: Array.isArray(tj) ? 'array' : tj?.features ? 'featurecollection' : typeof tj,
+              itemCount: items.length,
+              firstItemKeys: first ? Object.keys(first).slice(0, 50) : [],
+              hasInlineGeometry: !!(items[0]?.geometry),
+              idSamples: items.slice(0, 3).map(tfrIdOf),
+              firstItem: first,
+            });
+          } catch (e) { out.tfrProbe.parseError = String(e).slice(0, 120); out.tfrProbe.snippet = text.slice(0, 300); }
+        } else {
+          out.tfrProbe.snippet = text.slice(0, 300); // HTML/non-JSON — shows what the server returned
+        }
       } catch (e) { out.tfrProbe = { error: String(e).slice(0, 200) }; }
+      // AHAS schema probe — raw responses so the risk parser can be finalized.
+      try {
+        const route = await ahasRaw('GetAHASRisk', 'IR', 'IR154').then((t) => ({ level: parseAhasLevel(t), snippet: String(t).slice(0, 300) }), (e) => ({ error: String(e).slice(0, 150) }));
+        const airfield = await ahasRaw('GetAHASRisk12', 'MILAIR', 'ALTUS AFB').then((t) => ({ level: parseAhasLevel(t), snippet: String(t).slice(0, 300) }), (e) => ({ error: String(e).slice(0, 150) }));
+        out.ahasProbe = { route, airfield };
+      } catch (e) { out.ahasProbe = { error: String(e).slice(0, 200) }; }
+      // PIREP probe — shows why the AWC pirep endpoint isn't returning data.
+      try {
+        const pu = 'https://aviationweather.gov/api/data/pirep?format=json&age=2';
+        const pr = await fetch(pu, { headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0 (mission planning; contact: ops)' }, signal: AbortSignal.timeout(8000) });
+        const ptext = await pr.text();
+        let parsed = null; try { parsed = JSON.parse(ptext); } catch { /* not json */ }
+        out.pirepProbe = {
+          status: pr.status,
+          contentType: pr.headers.get('content-type') || '',
+          isArray: Array.isArray(parsed),
+          count: Array.isArray(parsed) ? parsed.length : (parsed && Array.isArray(parsed.features) ? parsed.features.length : null),
+          snippet: ptext.slice(0, 200),
+        };
+      } catch (e) { out.pirepProbe = { error: String(e).slice(0, 200) }; }
       sendJson(res, 200, out);
       return;
     }

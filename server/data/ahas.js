@@ -7,6 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { normalizeRisk, advisoryFor } from './birds.js';
+import { ahasRaw, parseAhasLevel, ahasRouteType } from './ahasapi.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/ahas-routes-sample.json', import.meta.url);
 
@@ -22,11 +23,21 @@ async function loadFixture() {
  *          keyed by normalized route id.
  */
 export async function fetchRouteRisk(ids, offline, signal) {
-  // No public AHAS API yet → production returns empty (UNAVAILABLE) instead of
-  // fabricated per-route risk. Bundled sample is used only by the offline/test
-  // path. (Live AHAS adapter plugs in here once an endpoint exists.)
-  void signal;
-  if (!offline) return { risk: new Map(), live: false };
+  // Live AHAS (usahas.com) per IR/VR/SR route (AR refueling tracks have no bird
+  // route). Caller passes only the nearby route ids. Capped to bound the number
+  // of requests; failures/unmapped types are omitted (UNAVAILABLE, not faked).
+  if (!offline) {
+    const risk = new Map();
+    const wanted = [...new Set(ids.map((id) => normId(id)))]
+      .map((key) => ({ key, type: ahasRouteType(key) }))
+      .filter((r) => r.type)
+      .slice(0, 25);
+    await Promise.allSettled(wanted.map(async ({ key, type }) => {
+      const level = parseAhasLevel(await ahasRaw('GetAHASRisk', type, key, undefined, signal));
+      if (level) risk.set(key, { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', segments: null });
+    }));
+    return { risk, live: risk.size > 0 };
+  }
   const fixture = await loadFixture();
   const risk = new Map();
   for (const id of ids) {

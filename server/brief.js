@@ -77,8 +77,16 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const { obs, tafs, live: wxLive } = wxRes;
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
-  // AHAS bird risk for the routes in play, attached to MTR records.
-  const ahasRes = await fetchRouteRisk(mtrResult.mtrs.map((m) => m.id), offline);
+  // AHAS bird risk only for routes near the briefed fields (live AHAS is one
+  // HTTP call per route, so don't query the whole AP/1B set).
+  const nearbyRouteIds = new Set();
+  for (const icao of fields) {
+    const ap = airportMap.get(icao);
+    if (ap && Number.isFinite(ap.lat)) {
+      for (const m of nearby(ap.lat, ap.lon, mtrResult.mtrs, MTR_THRESHOLD_NM)) nearbyRouteIds.add(m.id);
+    }
+  }
+  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline);
   const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
 
   // Winds aloft per field (needs coordinates), aligned to the observation hour.
