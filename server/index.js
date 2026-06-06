@@ -234,9 +234,9 @@ const server = createServer(async (req, res) => {
       // Only probe NMS auth detail when NOTAMs aren't coming through — a second
       // call while it's already working just trips the API rate limit (429).
       if (nmsConfigured() && !(out.live && out.live.notams)) out.nms = await nmsProbe(field);
+      const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
       // TFR schema probe — reveals the tfr3 response so the parser can be tuned.
       try {
-        const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
         const tr = await fetch(process.env.TFR_JSON_URL || 'https://tfr.faa.gov/tfrapi/exportTfrList', {
           headers: { Accept: 'application/json,text/plain,*/*', 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000),
         });
