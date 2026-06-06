@@ -668,11 +668,23 @@ async function runBrief({ ids, limits, extra = {}, button }) {
 async function buildBrief() {
   const ids = val('icaos').split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!ids.length) return;
-  const extra = {};
-  // Optional planned takeoff time (datetime-local is local) → UTC ISO.
-  const takeoff = val('takeoff');
-  if (takeoff) { const d = new Date(takeoff); if (!Number.isNaN(d.getTime())) extra.when = d.toISOString(); }
-  await runBrief({ ids, limits: readLimits(), extra, button: 'go' });
+  // Per-phase takeoff time lives in the Sortie Plan; the quick brief is "now".
+  await runBrief({ ids, limits: readLimits(), button: 'go' });
+}
+
+// Current local wall time as a datetime-local input value (YYYY-MM-DDTHH:mm).
+function nowLocalDt() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// Default every empty datetime-local input to "now" so phases/lookups start
+// from the current date+time without the user having to type it.
+function prefillDatetimes() {
+  ['sp-dep-t', 'sp-ll-t', 'sp-rec-t', 'mtr-time'].forEach((id) => {
+    const el = $(id);
+    if (el && !el.value) el.value = nowLocalDt();
+  });
 }
 
 // datetime-local (local wall time) → UTC ISO, or '' when blank/invalid.
@@ -985,7 +997,7 @@ let sortieCache = {};       // name -> { <input id>: value, ... }
 // planned takeoff, the Route/Climb Winds tool, the Route Lookup tool, and the
 // phase-by-phase Sortie Plan.
 const SORTIE_FIELDS = [
-  'icaos', 'xwind', 'tailwind', 'highda', 'agls', 'takeoff',
+  'icaos', 'xwind', 'tailwind', 'highda', 'agls',
   'winds-points',
   'mtr-id', 'mtr-time',
   'sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt',
@@ -1214,10 +1226,12 @@ window.addEventListener('afterprint', () => {
   document.querySelectorAll('.ngroup[data-washidden="1"]').forEach((g) => { g.hidden = true; delete g.dataset.washidden; });
 });
 
+  prefillDatetimes();
   on('go', 'click', buildBrief);
   on('sp-go', 'click', buildSortieBrief);
   on('sp-clear', 'click', () => {
     ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+    prefillDatetimes(); // restore the time fields to "now"
   });
   on('export-html', 'click', () => runExport('html'));
   on('export-pdf', 'click', () => runExport('pdf'));

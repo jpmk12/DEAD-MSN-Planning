@@ -73,10 +73,6 @@
             <label for="agls">Pattern AGL (ft)</label>
             <input id="agls" type="text" value="1500,2500,6000" autocomplete="off" spellcheck="false" title="Comma-separated AGL altitudes for pattern winds" />
           </div>
-          <div class="field">
-            <label for="takeoff">Takeoff (local, optional)</label>
-            <input id="takeoff" type="datetime-local" title="Tailors winds aloft and AHAS bird risk to this time. Leave blank for now / 12-hr worst-case." />
-          </div>
           <button id="go" class="go">Build Brief</button>
           <button id="export-pdf" class="go secondary" title="Open a themed copy and print/save as PDF">Export PDF</button>
           <button id="export-html" class="go secondary" title="Download an interactive, themed HTML copy (collapsible sections preserved)">Export HTML</button>
@@ -100,9 +96,9 @@
       </section>
 
       <section class="controls tool sortie-plan" id="sec-sortie">
-        <div class="tool-head" data-collapse="sec-sortie"><span class="tool-title">Sortie Plan — phase-by-phase (takeoff → low-level → landing)</span><span class="chev">▾</span></div>
+        <div class="tool-head" data-collapse="sec-sortie"><span class="tool-title">Sortie Plan</span><span class="chev">▾</span></div>
         <div class="tool-body">
-          <p class="sortie-hint">Long sorties span hours, so each phase is evaluated at <b>its own time</b>: winds aloft, TAF, AHAS birds, RAIM and airspace are tailored to that phase. Current-only data (live METAR context, PIREPs, SIGMETs) is hidden at far-future phases instead of being implied valid. Out-and-back to the same field is fine — departure and recovery use their own times.</p>
+          <p class="sortie-hint">Winds, TAF, AHAS, RAIM and airspace are tailored to each time/phase.</p>
           <div class="sortie-grid">
             <div class="sphase">
               <span class="sphase-tag dep">① Departure</span>
@@ -138,7 +134,7 @@
           <div class="row">
             <div class="field grow">
               <label for="winds-points">Airfields or navaids (space or comma separated)</label>
-              <input id="winds-points" type="text" value="KCHS KEDW" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <input id="winds-points" type="text" value="KLTS" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
             </div>
             <button id="winds-go" class="go secondary">Get Winds Aloft</button>
           </div>
@@ -152,7 +148,7 @@
           <div class="row">
             <div class="field grow">
               <label for="mtr-id">MTR / AR designators — space or comma separated to draw several at once (e.g. IR-154 AR197H)</label>
-              <input id="mtr-id" type="text" value="IR-154 AR197H" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <input id="mtr-id" type="text" value="AR312L IR-154" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
             </div>
             <div class="field">
               <label for="mtr-time">Run time (local, optional)</label>
