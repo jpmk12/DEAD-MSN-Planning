@@ -330,7 +330,12 @@ const server = createServer(async (req, res) => {
         });
         const dt = await dr.text();
         out.daipProbe = { status: dr.status, contentType: dr.headers.get('content-type') || '', bytes: dt.length, snippet: dt.slice(0, 600) };
-      } catch (e) { out.daipProbe = { error: String(e).slice(0, 200) }; }
+      } catch (e) {
+        out.daipProbe = {
+          error: String(e).slice(0, 120),
+          cause: e?.cause ? String(e.cause.code || e.cause.message || e.cause).slice(0, 180) : null,
+        };
+      }
       sendJson(res, 200, out);
       return;
     }

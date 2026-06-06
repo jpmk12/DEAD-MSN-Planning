@@ -27,16 +27,23 @@ export function ahasUrl(method, type, area, when) {
   return `${BASE}/${method}?Type=${encodeURIComponent(type)}&Area=${areaq}&iMonth=${iMonth}&iDay=${iDay}&iHour=${iHour}`;
 }
 
-/** Raw AHAS response text (cached). Throws on HTTP failure. */
+/** Raw AHAS response text (cached, stale-tolerant). Throws only when there's no
+ *  cached value to fall back on. Cache key is hour-agnostic so a slow refresh at
+ *  the top of the hour still serves the last good answer (bird risk moves slowly). */
 export async function ahasRaw(method, type, area, when, signal) {
-  const url = ahasUrl(method, type, area, when);
-  const hit = cache.get(url);
+  const key = `${method}|${type}|${area}`;
+  const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.text;
-  const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(8000), headers: { Accept: 'application/xml,text/xml,*/*', 'User-Agent': UA } });
-  if (!res.ok) throw new Error(`AHAS ${res.status}`);
-  const text = await res.text();
-  cache.set(url, { at: Date.now(), text });
-  return text;
+  try {
+    const res = await fetch(ahasUrl(method, type, area, when), { signal: signal ?? AbortSignal.timeout(8000), headers: { Accept: 'application/xml,text/xml,*/*', 'User-Agent': UA } });
+    if (!res.ok) throw new Error(`AHAS ${res.status}`);
+    const text = await res.text();
+    cache.set(key, { at: Date.now(), text });
+    return text;
+  } catch (e) {
+    if (hit) return hit.text; // transient failure → serve the last good answer
+    throw e;
+  }
 }
 
 /** Extract the worst LOW/MODERATE/SEVERE level present in an AHAS response. */
