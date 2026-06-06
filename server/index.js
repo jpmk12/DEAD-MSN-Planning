@@ -20,7 +20,7 @@ import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml } from './data/tfr.js';
-import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo } from './data/daip.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams } from './data/daip.js';
 import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
@@ -194,10 +194,11 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/diag') {
-      // Gated: when DIAG_KEY is set, require a matching ?key=. (If unset, open —
-      // set DIAG_KEY in the host env to lock it down on the published site.)
+      // Locked down: disabled unless DIAG_KEY is set, and then a matching ?key=
+      // is required. No key configured → 404 (the endpoint reveals env/source
+      // detail, so it must not be open on a published site).
       const diagKey = process.env.DIAG_KEY;
-      if (diagKey && url.searchParams.get('key') !== diagKey) {
+      if (!diagKey || url.searchParams.get('key') !== diagKey) {
         res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
         return;
       }
@@ -313,11 +314,19 @@ const server = createServer(async (req, res) => {
           snippet: ptext.slice(0, 200),
         };
       } catch (e) { out.pirepProbe = { error: String(e).slice(0, 200) }; }
-      // DAIP (DoD Aeronautical Information) probe — trusts the DoD CA bundle if
-      // present (data/dod-ca.pem); reports reachability/auth + response shape.
+      // DAIP (DoD Aeronautical Information) probe — reports the response shape so
+      // we can see what data is available beyond NOTAMs (TFRs, flight info, …).
       try {
         const r = await daipQueryRaw(daipPayload(field));
-        out.daipProbe = { ca: dodCaInfo(), status: r.status, contentType: r.contentType, bytes: r.body.length, snippet: r.body.slice(0, 600) };
+        let parsed = null; try { parsed = JSON.parse(r.body); } catch { /* non-json */ }
+        out.daipProbe = {
+          ca: dodCaInfo(), status: r.status, contentType: r.contentType, bytes: r.body.length,
+          topKeys: parsed ? Object.keys(parsed) : null,
+          count: parsed?.count ?? null, groups: parsed?.group?.length ?? null,
+          notamsParsed: parseDaipNotams(r.body).length,
+          listItemKeys: parsed?.group?.[0]?.notams?.[0]?.list?.[0] ? Object.keys(parsed.group[0].notams[0].list[0]) : null,
+          snippet: r.body.slice(0, 400),
+        };
       } catch (e) {
         out.daipProbe = {
           ca: dodCaInfo(),
@@ -325,6 +334,12 @@ const server = createServer(async (req, res) => {
           cause: e?.cause ? String(e.cause.code || e.cause.message || e.cause).slice(0, 180) : (e?.code || null),
         };
       }
+      // DAIP TFR exploration — see how DAIP returns TFRs (structure + geometry).
+      try {
+        const tr = await daipQueryRaw({ ...daipPayload(field), tfrsOnly: 'Y' });
+        let tp = null; try { tp = JSON.parse(tr.body); } catch { /* non-json */ }
+        out.daipTfrProbe = { status: tr.status, bytes: tr.body.length, topKeys: tp ? Object.keys(tp) : null, count: tp?.count ?? null, snippet: tr.body.slice(0, 700) };
+      } catch (e) { out.daipTfrProbe = { error: String(e && e.message ? e.message : e).slice(0, 150) }; }
       sendJson(res, 200, out);
       return;
     }
@@ -343,4 +358,7 @@ const server = createServer(async (req, res) => {
 const HOST = process.env.HOST ?? '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
+  if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
+    console.warn('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
+  }
 });

@@ -120,7 +120,11 @@ export async function fetchNotams(icaos, offline, signal) {
   if (!offline && nmsConfigured()) {
     try {
       const raw = await fetchNmsRaw(icaos, signal);
-      return { notams: rankNotams(raw.map(classify)), live: true, source: 'NMS-API' };
+      const staging = /staging|test/i.test(process.env.NMS_API_BASE || '');
+      return {
+        notams: rankNotams(raw.map(classify)), live: true, source: 'NMS-API',
+        sourceNote: staging ? 'Fallback: FAA NMS STAGING — non-operational test data. Verify against an authoritative source.' : 'Fallback source: FAA NMS (DAIP unavailable).',
+      };
     } catch {
       // fall through
     }

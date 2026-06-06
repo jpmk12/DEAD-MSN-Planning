@@ -237,6 +237,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     },
     limits,
     notamSource: notamResult.source ?? null,
+    notamSourceNote: notamResult.sourceNote ?? null,
     knownAirfields: await knownAirports(),
     // Map geometry, trimmed to the briefed area (see nearAnyField above).
     airspace: { tfrs: nearAnyField(tfrResult.tfrs), sua: nearAnyField(suaResult.sua) },
