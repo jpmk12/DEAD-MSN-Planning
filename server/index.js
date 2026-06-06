@@ -261,10 +261,12 @@ const server = createServer(async (req, res) => {
             if (id0 && !out.tfrProbe.hasInlineGeometry) {
               const detailId = String(id0).replace(/\//g, '_').replace(/[^0-9_]/g, '');
               try {
-                const dr = await fetch(`https://tfr.faa.gov/save_pages/detail_${detailId}.xml`, { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000) });
+                const dr = await fetch(`https://tfr.faa.gov/download/detail_${detailId}.xml`, { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000) });
                 const dt = await dr.text();
                 const recs = tfrRecordsFromXml(dt, id0);
-                out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(0, 280) };
+                // Snippet centered on the geometry tags so the parser can be tuned.
+                const gi = Math.max(dt.search(/geoLat|Avx|TFRArea|aseArea|abdMergedArea/i), 0);
+                out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(gi, gi + 600) };
               } catch (e) { out.tfrProbe.detail = { error: String(e).slice(0, 150) }; }
               // Probe candidate tfr3 geometry endpoints for this notam id.
               const enc = encodeURIComponent(id0);

@@ -13,7 +13,7 @@
 // strings like "385230.00N" / "0771500.00W".
 
 const LIST_URL = 'https://tfr.faa.gov/tfr2/list.html';
-const DETAIL_URL = (id) => `https://tfr.faa.gov/save_pages/detail_${id}.xml`;
+const DETAIL_URL = (id) => `https://tfr.faa.gov/download/detail_${id}.xml`;
 
 /** Parse an FAA coordinate string ("385230.00N", "3852N", "0771500W", or a
  *  plain decimal) into signed decimal degrees. Returns null if unparseable. */
