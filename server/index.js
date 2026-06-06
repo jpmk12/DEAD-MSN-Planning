@@ -266,6 +266,24 @@ const server = createServer(async (req, res) => {
                 const recs = tfrRecordsFromXml(dt, id0);
                 out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(0, 280) };
               } catch (e) { out.tfrProbe.detail = { error: String(e).slice(0, 150) }; }
+              // Probe candidate tfr3 geometry endpoints for this notam id.
+              const enc = encodeURIComponent(id0);
+              const us = String(id0).replace(/\//g, '_');
+              const candidates = [
+                `https://tfr.faa.gov/tfrapi/exportTfr?notamId=${enc}`,
+                `https://tfr.faa.gov/tfrapi/exportTfr/${enc}`,
+                `https://tfr.faa.gov/tfrapi/getTfr?notamId=${enc}`,
+                `https://tfr.faa.gov/download/detail_${us}.xml`,
+                `https://tfr.faa.gov/tfr3/export/geojson`,
+              ];
+              out.tfrProbe.candidates = await Promise.all(candidates.map(async (u) => {
+                try {
+                  const cr = await fetch(u, { headers: { Accept: 'application/json,application/xml,*/*', 'User-Agent': browserUA }, signal: AbortSignal.timeout(6000) });
+                  const ct = cr.headers.get('content-type') || '';
+                  const body = (await cr.text()).slice(0, 160);
+                  return { url: u, status: cr.status, ct, snippet: body };
+                } catch (e) { return { url: u, error: String(e).slice(0, 80) }; }
+              }));
             }
           } catch (e) { out.tfrProbe.parseError = String(e).slice(0, 120); out.tfrProbe.snippet = text.slice(0, 300); }
         } else {
