@@ -20,6 +20,7 @@ import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml } from './data/tfr.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded } from './data/daip.js';
 import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
@@ -312,28 +313,16 @@ const server = createServer(async (req, res) => {
           snippet: ptext.slice(0, 200),
         };
       } catch (e) { out.pirepProbe = { error: String(e).slice(0, 200) }; }
-      // DAIP (DoD Aeronautical Information) probe — checks reachability/auth and
-      // shows the response shape so a NOTAM adapter can be built.
+      // DAIP (DoD Aeronautical Information) probe — trusts the DoD CA bundle if
+      // present (data/dod-ca.pem); reports reachability/auth + response shape.
       try {
-        const payload = {
-          locs: field.toLowerCase(), poa: '', pod: '', alternates: '', route: '', radius: '10',
-          runwayLength: '', runwayWidth: '', airportType: '', type: 'LOCATION', notamId: '', acode: '',
-          artcc: '', tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
-          includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
-          sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
-        };
-        const dr = await fetch('https://www.daip.jcs.mil/daip/mobile/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json,*/*', 'User-Agent': browserUA },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(12000),
-        });
-        const dt = await dr.text();
-        out.daipProbe = { status: dr.status, contentType: dr.headers.get('content-type') || '', bytes: dt.length, snippet: dt.slice(0, 600) };
+        const r = await daipQueryRaw(daipPayload(field));
+        out.daipProbe = { dodCaLoaded: dodCaLoaded(), status: r.status, contentType: r.contentType, bytes: r.body.length, snippet: r.body.slice(0, 600) };
       } catch (e) {
         out.daipProbe = {
-          error: String(e).slice(0, 120),
-          cause: e?.cause ? String(e.cause.code || e.cause.message || e.cause).slice(0, 180) : null,
+          dodCaLoaded: dodCaLoaded(),
+          error: String(e && e.message ? e.message : e).slice(0, 120),
+          cause: e?.cause ? String(e.cause.code || e.cause.message || e.cause).slice(0, 180) : (e?.code || null),
         };
       }
       sendJson(res, 200, out);
