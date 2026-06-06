@@ -227,15 +227,21 @@ export function initMap(container, data) {
           const p = scr(g.lat, g.lon);
           overlay.appendChild(ring(p.x, p.y, nmToPx(g.radiusNm, g.lat, z), color, { dash: '6 5', opacity: 0.85, fill: color, width: 1.2 }));
           overlay.lastChild.setAttribute('fill-opacity', '0.06');
+        } else if (g.kind === 'polygon' && g.points?.length) {
+          overlay.appendChild(polygon(g.points, scr, color, 0.06));
         }
       }
       for (const t of tfrs) {
-        const g = t.geometry; if (!g || g.kind !== 'circle') continue;
+        const g = t.geometry; if (!g) continue;
         const color = TFR_COLORS[t.type] || TFR_COLORS.DEFAULT;
-        const p = scr(g.lat, g.lon);
-        const c = ring(p.x, p.y, nmToPx(g.radiusNm, g.lat, z), color, { width: 2, opacity: 0.9, fill: color });
-        c.setAttribute('fill-opacity', '0.1');
-        overlay.appendChild(c);
+        if (g.kind === 'circle') {
+          const p = scr(g.lat, g.lon);
+          const c = ring(p.x, p.y, nmToPx(g.radiusNm, g.lat, z), color, { width: 2, opacity: 0.9, fill: color });
+          c.setAttribute('fill-opacity', '0.1');
+          overlay.appendChild(c);
+        } else if (g.kind === 'polygon' && g.points?.length) {
+          overlay.appendChild(polygon(g.points, scr, color, 0.1));
+        }
       }
     }
 

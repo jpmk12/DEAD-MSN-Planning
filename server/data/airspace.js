@@ -10,6 +10,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { haversineNm } from '../core/geo.js';
+import { fetchLiveTfrs } from './tfr.js';
 
 const TFR_FIXTURE = new URL('../../data/fixtures/tfr-sample.json', import.meta.url);
 const SUA_FIXTURE = new URL('../../data/fixtures/sua-sample.json', import.meta.url);
@@ -137,9 +138,16 @@ export async function fetchTfrs(offline, signal) {
       /* unavailable — fall through */
     }
   }
+  // Default live source: the FAA TFR list/detail feed (no env var needed).
+  if (!offline) {
+    try {
+      return { tfrs: await fetchLiveTfrs(signal), live: true };
+    } catch {
+      /* unavailable — fall through */
+    }
+  }
   // offline=true → bundled sample (tests). Production with no/failed TFR source
-  // returns empty (UNAVAILABLE) — never fabricated TFRs. Set TFR_GEOJSON_URL to
-  // a live GeoJSON feed to populate it.
+  // returns empty (UNAVAILABLE) — never fabricated TFRs.
   if (offline) return { tfrs: await loadJson(TFR_FIXTURE), live: false };
   return { tfrs: [], live: false };
 }
