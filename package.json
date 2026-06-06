@@ -10,6 +10,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "dev": "node server/index.js",
     "build": "echo build",
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
