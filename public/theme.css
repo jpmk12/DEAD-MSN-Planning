@@ -350,6 +350,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .sphase input[type="datetime-local"] { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 7px 9px; outline: none; color-scheme: dark; }
 .sphase input[type="datetime-local"]:focus { border-color: var(--accent); }
 .sp-note { font-size: 11px; color: var(--text-faint); }
+.sp-z { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 5px; padding: 2px 5px; align-self: center; }
 @media (max-width: 640px) { .sortie-grid { grid-template-columns: 1fr; } }
 
 /* Relocated low-level route detail (chips + per-leg cards), shown under the map */

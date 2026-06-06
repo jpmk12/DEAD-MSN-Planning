@@ -665,26 +665,30 @@ async function runBrief({ ids, limits, extra = {}, button }) {
   }
 }
 
-// Current local wall time as a datetime-local input value (YYYY-MM-DDTHH:mm).
-function nowLocalDt() {
+// Current Zulu (UTC) wall time as a datetime-local input value
+// (YYYY-MM-DDTHH:mm). The field has no timezone, so we show the UTC digits and
+// treat what the user types as Zulu (see zuluToIso).
+function nowZuluDt() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
-// Default every empty datetime-local input to "now" so phases start from the
-// current date+time without the user having to type it.
+// Default every empty time field to "now" in Zulu so phases start from the
+// current Zulu date+time without the user having to type it.
 function prefillDatetimes() {
   ['sp-dep-t', 'sp-ll-t', 'sp-rec-t'].forEach((id) => {
     const el = $(id);
-    if (el && !el.value) el.value = nowLocalDt();
+    if (el && !el.value) el.value = nowZuluDt();
   });
 }
 
-// datetime-local (local wall time) → UTC ISO, or '' when blank/invalid.
-function localToIso(id) {
+// A datetime-local value entered as ZULU (UTC) → ISO, or '' when blank/invalid.
+// The input carries no timezone, so we pin the entered wall time to UTC.
+function zuluToIso(id) {
   const v = val(id);
   if (!v) return '';
-  const d = new Date(v);
+  const base = v.length === 16 ? `${v}:00` : v; // ensure seconds
+  const d = new Date(`${base}Z`);
   return Number.isNaN(d.getTime()) ? '' : d.toISOString();
 }
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
@@ -698,9 +702,9 @@ async function buildBrief() {
   const recIcao = splitIds(val('sp-rec'))[0];
   const alts = splitIds(val('sp-alt'));
   const routes = splitIds(val('sp-ll'));
-  const depT = localToIso('sp-dep-t');
-  const recT = localToIso('sp-rec-t');
-  const llT = localToIso('sp-ll-t');
+  const depT = zuluToIso('sp-dep-t');
+  const recT = zuluToIso('sp-rec-t');
+  const llT = zuluToIso('sp-ll-t');
 
   // Compose ordered stops (departure → recovery → alternates). A field with no
   // time still gets a card (evaluated "now"); alternates inherit the landing time.

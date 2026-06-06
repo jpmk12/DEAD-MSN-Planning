@@ -52,22 +52,22 @@
       <div id="status-strip" class="status-strip"></div>
 
       <section class="controls">
-        <p class="sortie-hint">Plan the sortie once — enter each phase below. Winds, TAF, AHAS, RAIM and airspace are tailored to each time/phase. Only Departure is required; the rest are optional.</p>
+        <p class="sortie-hint">Plan the sortie once — enter each phase below. <b>All times are Zulu (UTC).</b> Winds, TAF, AHAS, RAIM and airspace are tailored to each time/phase. Only Departure is required; the rest are optional.</p>
         <div class="sortie-grid">
           <div class="sphase">
             <span class="sphase-tag dep">① Departure</span>
             <input id="sp-dep" class="sp-field" type="text" value="KLTS" placeholder="Field ICAO (e.g. KLTS)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-dep-t" type="datetime-local" title="Takeoff time (local)" />
+            <input id="sp-dep-t" type="datetime-local" title="Takeoff time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag ll">② Low-level</span>
             <input id="sp-ll" class="sp-field" type="text" placeholder="Route(s) e.g. IR-154 AR312L (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-ll-t" type="datetime-local" title="Route entry time (local)" />
+            <input id="sp-ll-t" type="datetime-local" title="Route entry time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag rec">③ Recovery</span>
             <input id="sp-rec" class="sp-field" type="text" placeholder="Field ICAO (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-rec-t" type="datetime-local" title="Landing time (local)" />
+            <input id="sp-rec-t" type="datetime-local" title="Landing time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag alt">Alternates</span>
