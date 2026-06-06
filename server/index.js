@@ -423,6 +423,9 @@ server.listen(PORT, HOST, () => {
   // of every injected env var (names only — no values, so no secrets). A
   // platform-specific health-check path/port often shows up here.
   console.log(`[boot] node=${process.version} PORT=${process.env.PORT ?? '(unset)'} HOST=${HOST} NODE_ENV=${process.env.NODE_ENV ?? '(unset)'}`);
+  // Path-related platform vars (values are paths, not secrets) — they reveal
+  // where the publish step expects the production build output (DIST_DIR).
+  console.log(`[boot] cwd=${process.cwd()} DIST_DIR=${process.env.DIST_DIR ?? '(unset)'} CUSTOMER_APP_DIR=${process.env.CUSTOMER_APP_DIR ?? '(unset)'} BASE_APP_DIR=${process.env.BASE_APP_DIR ?? '(unset)'} INIT_CWD=${process.env.INIT_CWD ?? '(unset)'}`);
   console.log(`[boot] env-names: ${Object.keys(process.env).sort().join(',')}`);
   if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
     console.log('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
