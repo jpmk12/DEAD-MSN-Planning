@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { normalizeRisk, advisoryFor } from './birds.js';
-import { ahasRaw, parseAhasLevel, ahasRouteType } from './ahasapi.js';
+import { ahasRaw, parseAhasLevel, ahasRouteType, ahasHasRoute } from './ahasapi.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/ahas-routes-sample.json', import.meta.url);
 
@@ -30,7 +30,7 @@ export async function fetchRouteRisk(ids, offline, signal) {
     const risk = new Map();
     const wanted = [...new Set(ids.map((id) => normId(id)))]
       .map((key) => ({ key, type: ahasRouteType(key) }))
-      .filter((r) => r.type)
+      .filter((r) => r.type && ahasHasRoute(r.key)) // skip routes AHAS doesn't cover
       .slice(0, 25);
     await Promise.allSettled(wanted.map(async ({ key, type }) => {
       const level = parseAhasLevel(await ahasRaw('GetAHASRisk', type, key, undefined, signal));

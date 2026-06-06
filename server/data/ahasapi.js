@@ -7,8 +7,35 @@
 // parsed for the LOW/MODERATE/SEVERE risk vocabulary (which matches ours). All
 // calls are timeout-bounded and cached; failures yield null (UNAVAILABLE).
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 const BASE = 'https://www.usahas.com/webservices/Fluffy_AHAS2025.asmx';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+// AHAS route-coverage index (which route ids AHAS actually has), bundled from the
+// usahas.com dropdowns. Lets us skip bird-risk queries for uncovered routes.
+let routeIndex; // {IR:Set, VR:Set, ...} | null
+function routeIdx() {
+  if (routeIndex !== undefined) return routeIndex;
+  try {
+    const raw = JSON.parse(readFileSync(fileURLToPath(new URL('../../data/ahas-routes.json', import.meta.url)), 'utf8'));
+    routeIndex = {};
+    for (const k of Object.keys(raw)) if (Array.isArray(raw[k])) routeIndex[k] = new Set(raw[k].map((s) => String(s).toUpperCase()));
+  } catch { routeIndex = null; }
+  return routeIndex;
+}
+
+/** True if AHAS is known to cover this route. A type with no index list (e.g. SR)
+ *  or a missing index returns true — we only filter what we can verify. */
+export function ahasHasRoute(id) {
+  const idx = routeIdx();
+  if (!idx) return true;
+  const type = ahasRouteType(id);
+  const list = type && idx[type];
+  if (!list) return true;
+  return list.has(String(id || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+}
 
 const cache = new Map(); // key -> { at, text }
 const TTL_MS = 30 * 60 * 1000; // AHAS updates ~hourly

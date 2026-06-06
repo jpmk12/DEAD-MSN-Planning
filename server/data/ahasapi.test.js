@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhasLevel, ahasRouteType, ahasUrl, ahasAreaForIcao } from './ahasapi.js';
+import { parseAhasLevel, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute } from './ahasapi.js';
 
 test('parseAhasLevel extracts the worst level present', () => {
   assert.equal(parseAhasLevel('<string>LOW</string>'), 'LOW');
@@ -32,4 +32,11 @@ test('ahasAreaForIcao maps known bases, null otherwise', () => {
   assert.equal(ahasAreaForIcao('KLTS'), 'ALTUS AFB');
   assert.equal(ahasAreaForIcao('klts'), 'ALTUS AFB');
   assert.equal(ahasAreaForIcao('ZZZZ'), null);
+});
+
+test('ahasHasRoute filters only types with a known index list', () => {
+  assert.equal(ahasHasRoute('IR-154'), true);   // in bundled IR index
+  assert.equal(ahasHasRoute('VR-106'), true);   // in bundled VR index
+  assert.equal(ahasHasRoute('IR-999'), false);  // not covered by AHAS
+  assert.equal(ahasHasRoute('SR-100'), true);   // no SR list -> don't filter
 });
