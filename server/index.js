@@ -28,6 +28,12 @@ loadEnv(); // pick up FAA NOTAM credentials from .env if present
 const PORT = Number(process.env.PORT ?? 8787);
 const WEB_ROOT = fileURLToPath(new URL('../public', import.meta.url));
 
+// Paths a hosting health monitor might probe — all answer a fast 200 JSON.
+const HEALTH_PATHS = new Set([
+  '/healthz', '/health', '/healthcheck', '/api/health', '/api/healthz',
+  '/ping', '/status', '/_health', '/_healthz', '/livez', '/readyz',
+]);
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -374,7 +380,11 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (url.pathname === '/healthz' || url.pathname === '/api/health') {
+    // Health checks. Respond with a fast, tiny 200 JSON on every common probe
+    // path so the platform's preview/production health monitor always gets an
+    // unambiguous "healthy" (some checkers expect a small body, not the full
+    // SPA HTML the static fallback would otherwise return).
+    if (HEALTH_PATHS.has(url.pathname)) {
       sendJson(res, 200, { ok: true, service: 'c17-mission-planner', time: new Date().toISOString() });
       return;
     }
@@ -393,7 +403,10 @@ const server = createServer(async (req, res) => {
 const HOST = '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
+  // Use stdout (console.log), not stderr, for this advisory: a health monitor
+  // can treat any startup stderr as a failure and mark the environment
+  // unhealthy, even though the app is serving fine.
   if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
-    console.warn('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
+    console.log('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
   }
 });
