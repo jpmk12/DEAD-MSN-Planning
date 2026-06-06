@@ -180,6 +180,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .tool.collapsed { padding-bottom: 16px; }
 
 .status-led { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.6px; padding: 5px 10px; border-radius: 7px; white-space: nowrap; }
+.status-led[data-tip], .ahas-chip[data-tip] { cursor: help; }
 .status-GO { color: var(--go); background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.4); }
 .status-CAUTION { color: var(--caution); background: rgba(210,153,34,0.12); border: 1px solid rgba(210,153,34,0.4); }
 .status-NOGO { color: var(--nogo); background: rgba(248,81,73,0.13); border: 1px solid rgba(248,81,73,0.45); }

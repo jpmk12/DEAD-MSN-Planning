@@ -166,14 +166,23 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     const birdRisk = birdResult.risk.get(icao) ?? null;
 
     // Inside an active TFR / restricted area, RAIM outage, SEVERE birds, or a
-    // convective SIGMET / overhead hazardous-wx area = caution.
-    const alert =
-      tfrs.some((t) => t.distanceNm === 0) ||
-      sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED') ||
-      raim.status === 'PREDICTED OUTAGE' ||
-      birdRisk?.level === 'SEVERE' ||
-      hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0) ||
-      convective.some((c) => c.distanceNm === 0 && (CONV_RANK[c.risk] ?? 0) >= CONV_RANK.SLGT);
+    // convective SIGMET / overhead hazardous-wx area = caution. Collect the
+    // specific reasons so the card's status pill can explain itself.
+    const alertReasons = [];
+    if (tfrs.some((t) => t.distanceNm === 0)) alertReasons.push('Inside an active TFR');
+    if (sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED')) alertReasons.push('Inside active Restricted airspace');
+    if (raim.status === 'PREDICTED OUTAGE') alertReasons.push('Predicted GPS/RAIM outage');
+    if (birdRisk?.level === 'SEVERE') alertReasons.push('SEVERE bird risk (AHAS)');
+    if (hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0)) alertReasons.push('Hazardous weather (SIGMET) near/overhead');
+    if (convective.some((c) => c.distanceNm === 0 && (CONV_RANK[c.risk] ?? 0) >= CONV_RANK.SLGT)) alertReasons.push('Convective outlook overhead');
+    const alert = alertReasons.length > 0;
+
+    // Everything that drove the GO/CAUTION/NO-GO call (wind/runway warnings,
+    // runway closures, and the airspace/bird/wx alerts above).
+    const closureReasons = notams
+      .filter((n) => n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text))
+      .map((n) => `Runway closure (NOTAM): ${n.text.slice(0, 60)}`);
+    const statusReasons = [...(analysis ? analysis.warnings : []), ...closureReasons, ...alertReasons];
 
     airfields.push({
       icao,
@@ -196,6 +205,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       patternWinds,
       birdRisk,
       status: deriveStatus(analysis, notams, alert),
+      statusReasons,
     });
   }
 

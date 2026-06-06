@@ -439,11 +439,11 @@ function card(brief, limits) {
   }
 
   const ahasChip = brief.birdRisk
-    ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" title="${esc(brief.birdRisk.note || '')}">AHAS ${esc(brief.birdRisk.level)}</span>`
+    ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(`AHAS bird-strike risk: ${brief.birdRisk.level}.\n${brief.birdRisk.note || ''}\nSource: USAF Avian Hazard Advisory System (live).`)}>AHAS ${esc(brief.birdRisk.level)}</span>`
     : '';
   return `<div class="card" data-icao="${esc(ap.icao)}">
     <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
-      <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}">${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
+      <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}" ${tipOf(statusTip(brief))}>${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
     <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
 
@@ -507,6 +507,23 @@ const tipAttrs = (label, isLive) => {
   const t = esc(sourceTip(label, isLive));
   return `title="${t}" data-tip="${t}" role="button" tabindex="0"`;
 };
+// Generic hover-title + tap-tooltip attributes for any pill/badge.
+const tipOf = (text) => { const t = esc(text); return `title="${t}" data-tip="${t}" role="button" tabindex="0"`; };
+
+// Explain the airfield GO/CAUTION/NO-GO pill, including the specific reasons.
+const STATUS_MEANING = {
+  GO: 'GO — no limit exceedances, runway closures, or airspace/weather/bird alerts.',
+  CAUTION: 'CAUTION — review the flagged items before using this field.',
+  'NO-GO': 'NO-GO — a hard limit is exceeded (crosswind / tailwind / density altitude).',
+  'NO-DATA': 'NO DATA — live METAR was unavailable, so the field could not be assessed.',
+};
+function statusTip(brief) {
+  const reasons = brief.statusReasons || [];
+  const head = `Field status ${brief.status} — computed from live METAR, NOTAMs, airspace (TFR/SUA/RAIM), AHAS birds, and SIGMET/convective.`;
+  const meaning = STATUS_MEANING[brief.status] || '';
+  const why = reasons.length ? `\nWhy:\n• ${reasons.join('\n• ')}` : '';
+  return `${head}\n${meaning}${why}`;
+}
 const pillState = (isLive) => (isLive ? 'live' : 'unavail');
 
 function setSourcePills(live) {
@@ -931,9 +948,10 @@ function init() {
   });
 
 $('results')?.addEventListener('click', (e) => {
-  // Collapse/expand a whole airfield card by clicking its header.
+  // Collapse/expand a whole airfield card by clicking its header (but not when
+  // tapping a pill in the header — that shows its tooltip instead).
   const cardHead = e.target.closest('.card > .head');
-  if (cardHead) { cardHead.parentElement.classList.toggle('collapsed'); return; }
+  if (cardHead && !e.target.closest('[data-tip]')) { cardHead.parentElement.classList.toggle('collapsed'); return; }
 
   // Tab switching within a card.
   const tab = e.target.closest('.card-tabs .tab');
