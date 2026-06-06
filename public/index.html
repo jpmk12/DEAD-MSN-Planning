@@ -99,6 +99,39 @@
         </div>
       </section>
 
+      <section class="controls tool sortie-plan" id="sec-sortie">
+        <div class="tool-head" data-collapse="sec-sortie"><span class="tool-title">Sortie Plan — phase-by-phase (takeoff → low-level → landing)</span><span class="chev">▾</span></div>
+        <div class="tool-body">
+          <p class="sortie-hint">Long sorties span hours, so each phase is evaluated at <b>its own time</b>: winds aloft, TAF, AHAS birds, RAIM and airspace are tailored to that phase. Current-only data (live METAR context, PIREPs, SIGMETs) is hidden at far-future phases instead of being implied valid. Out-and-back to the same field is fine — departure and recovery use their own times.</p>
+          <div class="sortie-grid">
+            <div class="sphase">
+              <span class="sphase-tag dep">① Departure</span>
+              <input id="sp-dep" class="sp-field" type="text" placeholder="Field ICAO (e.g. KLTS)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <input id="sp-dep-t" type="datetime-local" title="Takeoff time (local)" />
+            </div>
+            <div class="sphase">
+              <span class="sphase-tag ll">② Low-level</span>
+              <input id="sp-ll" class="sp-field" type="text" placeholder="Route(s) e.g. IR-154 AR197H (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <input id="sp-ll-t" type="datetime-local" title="Route entry time (local)" />
+            </div>
+            <div class="sphase">
+              <span class="sphase-tag rec">③ Recovery</span>
+              <input id="sp-rec" class="sp-field" type="text" placeholder="Field ICAO (e.g. KLTS)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <input id="sp-rec-t" type="datetime-local" title="Landing time (local)" />
+            </div>
+            <div class="sphase">
+              <span class="sphase-tag alt">Alternates</span>
+              <input id="sp-alt" class="sp-field" type="text" placeholder="ICAO(s) e.g. KSKF KDYS (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <span class="sp-note" title="Alternates are evaluated at the landing time">@ landing time</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="sp-go" class="go">Build Sortie Brief</button>
+            <button id="sp-clear" class="go secondary">Clear</button>
+          </div>
+        </div>
+      </section>
+
       <section class="controls tool winds-tool" id="sec-winds">
         <div class="tool-head" data-collapse="sec-winds"><span class="tool-title">Route / Climb Winds</span><span class="chev">▾</span></div>
         <div class="tool-body">

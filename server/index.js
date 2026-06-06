@@ -58,6 +58,21 @@ function readJsonBody(req, limit = 1e6) {
   });
 }
 
+// Parse the optional `stops` param: pipe-separated stops, each a `@`-delimited
+// "ICAO@ISO@ROLE@Label" (only ICAO required). Returns null when empty so the
+// caller falls back to the flat id list. Capped to bound work per request.
+function parseStops(raw) {
+  if (!raw) return null;
+  const stops = raw.split('|').map((tok) => {
+    const [icao, when, role, label] = tok.split('@');
+    const id = String(icao || '').trim().toUpperCase();
+    if (!id) return null;
+    const iso = when && !Number.isNaN(Date.parse(when)) ? new Date(when).toISOString() : null;
+    return { icao: id, when: iso, role: (role || 'FIELD').trim().toUpperCase(), label: (label || id).trim() };
+  }).filter(Boolean).slice(0, 12);
+  return stops.length ? stops : null;
+}
+
 function parseLimits(url) {
   const num = (key, fallback) => {
     const v = Number(url.searchParams.get(key));
@@ -138,7 +153,12 @@ const server = createServer(async (req, res) => {
         .slice(0, 6);
       const whenRaw = url.searchParams.get('when');
       const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
-      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined, whenIso));
+      // Optional structured sortie: ordered stops, each "ICAO@ISO@ROLE@Label"
+      // (time/role/label optional), pipe-separated. When present each location is
+      // evaluated at its own time (departure ≠ recovery, even for an out-and-back
+      // to the same field). Falls back to the flat id list when absent.
+      const stops = parseStops(url.searchParams.get('stops'));
+      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined, whenIso, stops));
       return;
     }
 

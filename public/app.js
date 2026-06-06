@@ -385,8 +385,16 @@ function tabbedDetails(brief) {
       : `${notamFilterBar(brief.notams)}<div class="ngroups">${notamGroups(brief.notams)}</div>`;
   push('notams', 'NOTAMs', nCount, notamHtml);
 
-  const hazards = (hazardWxSection(brief) || '') + (pirepSection(brief) || '');
-  push('hazards', 'Hazards', (brief.hazardWx?.length || 0) + (brief.convective?.length || 0) + (brief.pireps?.length || 0) || null, hazards);
+  // Current-only hazards (PIREP/SIGMET/convective now-casts) aren't valid for a
+  // far-future phase, so hide them there (the user's "hide at future phases"
+  // choice) and leave a short note instead of implying they're forecasts.
+  if (brief.phase?.hideCurrentOnly) {
+    push('hazards', 'Hazards', null,
+      '<div class="readout" style="font-size:12px">Current-only hazards (PIREPs, SIGMETs, convective now-cast) are hidden for this future phase — they reflect conditions now, not at the planned time. Re-check closer to the time.</div>');
+  } else {
+    const hazards = (hazardWxSection(brief) || '') + (pirepSection(brief) || '');
+    push('hazards', 'Hazards', (brief.hazardWx?.length || 0) + (brief.convective?.length || 0) + (brief.pireps?.length || 0) || null, hazards);
+  }
 
   push('taf', 'TAF', null, tafSection(brief));
   push('airspace', 'Airspace', (brief.airspace ? brief.airspace.tfrs.length + brief.airspace.sua.length : 0) || null, airspaceSection(brief));
@@ -401,15 +409,36 @@ function tabbedDetails(brief) {
   return `<div class="card-tabs">${tabs}</div><div class="tabpanels">${bodies}</div>`;
 }
 
+// Role tag shown on a phased card's header (sortie mode).
+const PHASE_TAG = { DEPARTURE: 'DEP', RECOVERY: 'REC', ALTERNATE: 'ALT' };
+// A planned-time banner for a phased card: states the phase time + lead, and
+// (for far-future phases) that current METAR is shown for reference only.
+function phaseBanner(brief) {
+  const p = brief.phase;
+  if (!p || !p.when || p.role === 'FIELD') return '';
+  const lead = (() => {
+    const m = p.minutesAhead;
+    if (m == null) return '';
+    if (m <= 0) return 'now';
+    const h = Math.floor(m / 60), mm = m % 60;
+    return '+' + (h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}m`);
+  })();
+  const cls = p.future ? 'phase-when future' : 'phase-when';
+  const note = p.hideCurrentOnly
+    ? '<div class="phase-caveat">Winds aloft, TAF, AHAS birds &amp; airspace are tailored to this time. Current METAR/PIREP/SIGMET shown elsewhere reflect now, not this phase.</div>'
+    : '';
+  return `<div class="${cls}">⏱ Planned ${esc(zuluLocal(p.when, { date: true }))}${lead ? ` · ${esc(lead)}` : ''}</div>${note}`;
+}
+
 function card(brief, limits) {
   if (!brief.found) {
-    return `<div class="missing-card"><span class="icao">${esc(brief.icao)}</span> — not in the reference dataset yet.
-      <div style="margin-top:6px;font-size:12px">Add it via NASR/OpenAIP ingest, or pick a bundled field.</div></div>`;
+    return `<div class="missing-card" data-uid="${esc(brief.uid || brief.icao)}"><span class="icao">${esc(brief.icao)}</span> — not in the reference dataset yet.
+      ${phaseBanner(brief)}<div style="margin-top:6px;font-size:12px">Add it via NASR/OpenAIP ingest, or pick a bundled field.</div></div>`;
   }
   const a = brief.analysis;
   const ap = brief.airport;
   const statusClass = 'status-' + brief.status.replace('-', '');
-  let body = '';
+  let body = phaseBanner(brief);
 
   if (a) {
     const highDA = a.densityAltitudeFt != null && limits.highda && a.densityAltitudeFt > limits.highda;
@@ -421,7 +450,7 @@ function card(brief, limits) {
           `<div class="warn-item ${/exceeds|CLOSED/.test(w) ? 'crit' : ''}"><span class="ico">⚠</span><span>${esc(w)}</span></div>`).join('')}</div>`
       : '';
 
-    body = `
+    body += `
       <div class="readout"><div class="raw">${esc(a.observation.rawText || 'No raw report')}</div></div>
       <div class="metrics">
         <div class="metric"><div class="k">Wind</div><div class="v" style="font-size:13px">${esc(formatWind(a.observation.wind))}</div></div>
@@ -435,14 +464,16 @@ function card(brief, limits) {
       <div class="rwys">${runwayRows(a, brief)}</div>
       ${warns}`;
   } else {
-    body = `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
+    body += `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
   }
 
   const ahasChip = brief.birdRisk
     ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(birdRiskTip(brief.birdRisk))}>AHAS ${esc(brief.birdRisk.level)}</span>`
     : '';
-  return `<div class="card" data-icao="${esc(ap.icao)}">
-    <div class="head"><div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
+  const roleTag = PHASE_TAG[brief.phase?.role]
+    ? `<span class="role-tag role-${esc(brief.phase.role.toLowerCase())}">${esc(PHASE_TAG[brief.phase.role])}</span>` : '';
+  return `<div class="card" data-icao="${esc(ap.icao)}" data-uid="${esc(brief.uid || ap.icao)}">
+    <div class="head">${roleTag}<div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}" ${tipOf(statusTip(brief))}>${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
     <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
@@ -570,20 +601,46 @@ function updateStatusStrip(live) {
     badge('TFR', live.tfr);
 }
 
-async function buildBrief() {
-  const ids = val('icaos').split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (!ids.length) return;
-  const limits = readLimits();
+// Phase-group headers (sortie mode), in the order the client builds the stops.
+const PHASE_GROUP = { DEPARTURE: '① Departure', RECOVERY: '③ Recovery', ALTERNATE: 'Alternates', FIELD: 'Fields' };
+
+// Render the airfield cards. In sortie mode (data.sortie) cards are grouped by
+// phase, in stop order, so the brief reads takeoff → recovery → alternates; the
+// low-level phase is a slim banner pointing at the Route Lookup + map. Otherwise
+// it's the flat grid the quick brief has always used.
+function renderAirfields(data, limits) {
+  if (!data.sortie) return `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
+  const groups = [];
+  for (const b of data.airfields) {
+    const role = b.phase?.role || 'FIELD';
+    let g = groups[groups.length - 1];
+    if (!g || g.role !== role) { g = { role, items: [] }; groups.push(g); }
+    g.items.push(b);
+  }
+  const html = groups.map((g) =>
+    `<div class="phase-group"><div class="phase-group-h">${esc(PHASE_GROUP[g.role] || PHASE_GROUP.FIELD)}</div>
+      <div class="grid">${g.items.map((b) => card(b, limits)).join('')}</div></div>`);
+  // Insert the low-level banner between Departure and Recovery when routes exist.
+  if (activeRoutes.length) {
+    const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-level</div>
+      <div class="ll-banner">${activeRoutes.map((d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}"><span class="rc-dot"></span>${esc(d.id)}${d.birdRisk ? ` · <b style="color:${BIRD_COLOR[d.birdRisk.level]}">AHAS ${esc(d.birdRisk.level)}</b>` : ''}</span>`).join('')}
+        <span class="ll-hint">See Route Lookup &amp; map below for per-leg winds, altitudes and entry-time AHAS.</span></div></div>`;
+    const depIdx = groups.findIndex((g) => g.role === 'RECOVERY');
+    if (depIdx >= 0) html.splice(depIdx, 0, ll); else html.push(ll);
+  }
+  return html.join('');
+}
+
+// Shared fetch + render for both the quick brief and the structured sortie.
+async function runBrief({ ids, limits, extra = {}, button }) {
   const params = new URLSearchParams({
     ids: ids.join(','), xwind: limits.xwind, tailwind: limits.tailwind, highda: limits.highda,
   });
   const agls = val('agls').replace(/\s+/g, '');
   if (agls) params.set('agls', agls);
-  // Optional planned takeoff time (datetime-local is local) → UTC ISO.
-  const takeoff = val('takeoff');
-  if (takeoff) { const d = new Date(takeoff); if (!Number.isNaN(d.getTime())) params.set('when', d.toISOString()); }
+  for (const [k, v] of Object.entries(extra)) if (v) params.set(k, v);
 
-  $('go').disabled = true;
+  if (button) $(button).disabled = true;
   $('results').innerHTML = `<div class="loading"><div class="spinner"></div>Pulling weather &amp; NOTAMs…</div>`;
   try {
     const res = await fetch(`/api/brief?${params}`);
@@ -594,16 +651,72 @@ async function buildBrief() {
     setSourcePills(data.live);
     updateStatusStrip(data.live);
     cardData = {};
-    data.airfields.forEach((b) => { cardData[b.icao.toUpperCase()] = { brief: b, limits }; });
-    $('results').innerHTML = `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
+    data.airfields.forEach((b) => { cardData[(b.uid || b.icao).toUpperCase()] = { brief: b, limits }; });
+    $('results').innerHTML = renderAirfields(data, limits);
     updatePrintHead(data, ids, limits);
     renderMap(data);
+    return data;
   } catch (err) {
     $('results').innerHTML = `<div class="errbox">Failed to build brief: ${esc(err.message)}<br/>
-      <span style="color:var(--text-dim);font-size:12px">Is the server running? Try the offline/demo toggle.</span></div>`;
+      <span style="color:var(--text-dim);font-size:12px">Is the server running?</span></div>`;
+    return null;
   } finally {
-    $('go').disabled = false;
+    if (button) $(button).disabled = false;
   }
+}
+
+async function buildBrief() {
+  const ids = val('icaos').split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+  if (!ids.length) return;
+  const extra = {};
+  // Optional planned takeoff time (datetime-local is local) → UTC ISO.
+  const takeoff = val('takeoff');
+  if (takeoff) { const d = new Date(takeoff); if (!Number.isNaN(d.getTime())) extra.when = d.toISOString(); }
+  await runBrief({ ids, limits: readLimits(), extra, button: 'go' });
+}
+
+// datetime-local (local wall time) → UTC ISO, or '' when blank/invalid.
+function localToIso(id) {
+  const v = val(id);
+  if (!v) return '';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+
+// Build a phase-by-phase sortie brief: each field is evaluated at its own time,
+// and any low-level routes are looked up at the entry time and overlaid.
+async function buildSortieBrief() {
+  const depIcao = splitIds(val('sp-dep'))[0];
+  const recIcao = splitIds(val('sp-rec'))[0];
+  const alts = splitIds(val('sp-alt'));
+  const routes = splitIds(val('sp-ll'));
+  const depT = localToIso('sp-dep-t');
+  const recT = localToIso('sp-rec-t');
+  const llT = localToIso('sp-ll-t');
+
+  // Compose ordered stops (departure → recovery → alternates). A field with no
+  // time still gets a card (evaluated "now"); alternates inherit the landing time.
+  const stops = [];
+  if (depIcao) stops.push({ icao: depIcao, when: depT, role: 'DEPARTURE', label: 'Departure' });
+  if (recIcao) stops.push({ icao: recIcao, when: recT, role: 'RECOVERY', label: 'Recovery' });
+  for (const a of alts) stops.push({ icao: a, when: recT, role: 'ALTERNATE', label: 'Alternate' });
+  if (!stops.length) {
+    $('results').innerHTML = `<div class="errbox">Enter at least a departure or recovery field.</div>`;
+    return;
+  }
+  const ids = [...new Set(stops.map((s) => s.icao))];
+  const stopsParam = stops.map((s) => `${s.icao}@${s.when || ''}@${s.role}@${s.label}`).join('|');
+
+  // Look up the low-level routes (at entry time) first so the brief's low-level
+  // banner can show their entry-time AHAS risk, and the map overlays them.
+  if (routes.length) {
+    await lookupRoutes(routes, llT, { scroll: false });
+  } else {
+    activeRoutes = [];
+    renderRouteResults();
+  }
+  await runBrief({ ids, limits: readLimits(), extra: { stops: stopsParam }, button: 'sp-go' });
 }
 
 async function loadQuickChips() {
@@ -723,14 +836,13 @@ function renderRouteResults(missing = []) {
   $('mtr-results').innerHTML = (routeChips() + details + miss) || '';
 }
 
-async function lookupMtr() {
-  const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-  if (!ids.length) return;
+// Look up one or more routes (optionally at a given entry time), accumulate them
+// onto the map, and render the route detail cards. Shared by the Route Lookup
+// tool and the Sortie Plan's low-level phase. Returns the found routes.
+async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
+  if (!ids.length) return [];
   const params = new URLSearchParams({ id: ids.join(',') });
-  const rt = val('mtr-time');
-  if (rt) { const d = new Date(rt); if (!Number.isNaN(d.getTime())) params.set('when', d.toISOString()); }
-  $('mtr-go').disabled = true;
-  $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
+  if (whenIso) params.set('when', whenIso);
   try {
     const res = await fetch(`/api/mtr?${params}`);
     const data = await res.json();
@@ -744,13 +856,23 @@ async function lookupMtr() {
     }
     renderRouteResults(missing);
     if (activeRoutes.length) {
-      // Overlay every active route on the brief map (airfields + radar +
-      // weather) and bring it into view (on mobile the map sits below the tool).
       paintMap();
-      $('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (scroll) $('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+    return routes.filter((r) => r.found);
   } catch (err) {
     $('mtr-results').innerHTML = `<div class="errbox">Lookup failed: ${esc(err.message)}</div>`;
+    return [];
+  }
+}
+
+async function lookupMtr() {
+  const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  if (!ids.length) return;
+  $('mtr-go').disabled = true;
+  $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
+  try {
+    await lookupRoutes(ids, localToIso('mtr-time'));
   } finally {
     $('mtr-go').disabled = false;
   }
@@ -828,9 +950,18 @@ function paintMap() {
 
 function updatePrintHead(data, ids, limits) {
   const src = `WX ${data.live.weather ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.live.notams ? 'LIVE' : 'UNAVAIL'}`;
-  const takeoff = data.targetTime
-    ? `<div class="ph-meta">Planned takeoff ${esc(zuluLocal(data.targetTime, { date: true }))} — winds &amp; AHAS tailored to this time</div>`
-    : '';
+  let takeoff = '';
+  if (data.sortie) {
+    // Summarize the phase timeline (each phase at its own time).
+    const phases = data.airfields
+      .filter((b) => b.phase && b.phase.when && b.phase.role !== 'FIELD')
+      .map((b) => `${esc(b.phase.label)} ${esc(b.icao)} @ ${esc(zuluLocal(b.phase.when))}`);
+    const ll = activeRoutes.length ? [`Low-level ${activeRoutes.map((d) => esc(d.id)).join(', ')}`] : [];
+    const line = [...phases.slice(0, 1), ...ll, ...phases.slice(1)].join('  →  ');
+    takeoff = line ? `<div class="ph-meta">Sortie timeline: ${line} — each phase evaluated at its own time</div>` : '';
+  } else if (data.targetTime) {
+    takeoff = `<div class="ph-meta">Planned takeoff ${esc(zuluLocal(data.targetTime, { date: true }))} — winds &amp; AHAS tailored to this time</div>`;
+  }
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
@@ -1011,7 +1142,7 @@ $('results')?.addEventListener('click', (e) => {
   const row = e.target.closest('.rwy-row.selectable');
   if (row && row.dataset.rwy) {
     const cardEl = row.closest('.card');
-    const entry = cardData[(cardEl?.dataset.icao || '').toUpperCase()];
+    const entry = cardData[(cardEl?.dataset.uid || cardEl?.dataset.icao || '').toUpperCase()];
     if (entry && entry.brief.analysis) {
       const rwy = entry.brief.analysis.runways.find((r) => r.ident === row.dataset.rwy);
       const wb = cardEl.querySelector('.wind-block');
@@ -1049,6 +1180,10 @@ window.addEventListener('afterprint', () => {
 });
 
   on('go', 'click', buildBrief);
+  on('sp-go', 'click', buildSortieBrief);
+  on('sp-clear', 'click', () => {
+    ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+  });
   on('export-html', 'click', () => runExport('html'));
   on('export-pdf', 'click', () => runExport('pdf'));
   on('sortie-save', 'click', saveCurrentSortie);

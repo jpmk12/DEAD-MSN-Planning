@@ -31,6 +31,26 @@ const PIREP_THRESHOLD_NM = 125;
 // Low-level routes within this radius of a field are noted.
 const MTR_THRESHOLD_NM = 60;
 
+// Sortie time-horizon thresholds (minutes from "now"). A C-17 sortie spans many
+// hours, so each stop is evaluated at its own planned time. Beyond FUTURE_MIN a
+// phase is "future" (forecast sources are tailored to it); beyond
+// CURRENT_ONLY_MIN the transient now-cast layers (current METAR-only context,
+// PIREPs, SIGMET, convective) are no longer representative and are hidden by the
+// client (with a note) rather than implied to be valid at that time.
+const FUTURE_MIN = 90;
+const CURRENT_ONLY_MIN = 180;
+
+/** Classify a stop time relative to now for the data-horizon logic. */
+function phaseHorizon(whenIso, nowMs) {
+  if (!whenIso) return { future: false, minutesAhead: 0, hideCurrentOnly: false };
+  const minutesAhead = Math.round((Date.parse(whenIso) - nowMs) / 60000);
+  return {
+    future: minutesAhead > FUTURE_MIN,
+    minutesAhead,
+    hideCurrentOnly: minutesAhead > CURRENT_ONLY_MIN,
+  };
+}
+
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
 export const DEFAULT_LIMITS = {
   crosswindKt: 30,
@@ -56,11 +76,33 @@ function deriveStatus(analysis, notams, airspaceAlert) {
   return 'GO';
 }
 
-export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null) {
-  const fields = icaos.map((s) => s.toUpperCase());
+export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null) {
+  const nowMs = Date.now();
+  const normWhen = (w) => (w && !Number.isNaN(Date.parse(w)) ? new Date(w).toISOString() : null);
   // Optional planned takeoff time. When set, time-sensitive layers (winds aloft,
   // AHAS bird risk) are tailored to it instead of "now".
-  const targetIso = whenIso && !Number.isNaN(Date.parse(whenIso)) ? new Date(whenIso).toISOString() : null;
+  const targetIso = normWhen(whenIso);
+
+  // A sortie is an ordered list of stops, each with its own planned time and
+  // role (DEPARTURE / RECOVERY / ALTERNATE / FIELD). When `stops` is supplied
+  // each location's time-sensitive data is evaluated AT ITS OWN time — so an
+  // out-and-back to the same field shows departure and recovery at their real,
+  // different times. Without `stops` we fall back to the flat icao list (every
+  // field shares the single optional takeoff time), preserving the quick-brief.
+  const stopList = (Array.isArray(stops) && stops.length
+    ? stops.map((s) => ({
+        icao: String(s.icao || '').toUpperCase(),
+        when: normWhen(s.when) ?? targetIso,
+        role: String(s.role || 'FIELD').toUpperCase(),
+        label: s.label || String(s.icao || '').toUpperCase(),
+      }))
+    : icaos.map((s) => ({ icao: String(s).toUpperCase(), when: targetIso, role: 'FIELD', label: String(s).toUpperCase() }))
+  ).filter((s) => s.icao);
+  const isSortie = Array.isArray(stops) && stops.length > 0;
+  // Unique fields drive the shared (time-agnostic / single-fetch) data layers.
+  const fields = [...new Set(stopList.map((s) => s.icao))];
+  // Per-stop cache key (a field can appear twice at different times).
+  const stopKey = (s) => `${s.when || ''}|${s.icao}`;
 
   // Pre-fetch airport records (needed for coordinates + winds-aloft lookups).
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
@@ -79,12 +121,11 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     pirepBbox = `${Math.min(...lats) - 6},${Math.min(...lons) - 6},${Math.max(...lats) + 6},${Math.max(...lons) + 6}`;
   }
 
-  const [wxRes, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
+  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
     fetchTfrs(offline),
     fetchSua(offline),
-    fetchBirdRisk(fields, offline, targetIso),
     fetchAirSigmets(offline),
     fetchPireps(offline, pirepBbox),
     fetchConvective(offline),
@@ -93,8 +134,31 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const { obs, tafs, live: wxLive } = wxRes;
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
 
+  // AHAS airfield bird risk, evaluated AT EACH STOP'S TIME. Fields that share a
+  // time are fetched together (one HTTP call per field per distinct time). An
+  // out-and-back field gets a separate departure-time and recovery-time risk.
+  const byWhen = new Map(); // when -> Set(icao)
+  for (const s of stopList) {
+    const k = s.when || '';
+    if (!byWhen.has(k)) byWhen.set(k, new Set());
+    byWhen.get(k).add(s.icao);
+  }
+  const birdByKey = new Map(); // `${when}|${icao}` -> risk record
+  let birdLive = false;
+  await Promise.all([...byWhen].map(async ([whenKey, icaoSet]) => {
+    const res = await fetchBirdRisk([...icaoSet], offline, whenKey || null);
+    birdLive = birdLive || res.live;
+    for (const icao of icaoSet) {
+      const rec = res.risk.get(icao);
+      if (rec) birdByKey.set(`${whenKey}|${icao}`, rec);
+    }
+  }));
+
   // AHAS bird risk only for routes near the briefed fields (live AHAS is one
-  // HTTP call per route, so don't query the whole AP/1B set).
+  // HTTP call per route, so don't query the whole AP/1B set). Evaluated at the
+  // departure time (the dedicated Route Lookup gives entry-time precision).
+  const depStop = stopList.find((s) => s.role === 'DEPARTURE') || stopList[0];
+  const routeWhen = depStop?.when ?? targetIso;
   const nearbyRouteIds = new Set();
   for (const icao of fields) {
     const ap = airportMap.get(icao);
@@ -102,23 +166,29 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       for (const m of nearby(ap.lat, ap.lon, mtrResult.mtrs, MTR_THRESHOLD_NM)) nearbyRouteIds.add(m.id);
     }
   }
-  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline, targetIso);
+  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline, routeWhen);
   const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
 
-  // Winds aloft per field (needs coordinates), aligned to the observation hour.
-  const windsPairs = await Promise.all(
-    fields.map(async (icao) => {
-      const ap = airportMap.get(icao);
-      if (!ap || ap.lat == null) return [icao, null];
-      const o = byIcao.get(icao);
-      const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, targetIso ?? o?.obsTime).catch(() => null);
-      return [icao, r];
-    }),
-  );
-  const windsMap = new Map(windsPairs);
+  // Winds aloft per stop (needs coordinates), tailored to the stop time (or the
+  // observation hour when no time is set).
+  const windsByKey = new Map();
+  let windsLive = false;
+  await Promise.all(stopList.map(async (s) => {
+    const key = stopKey(s);
+    if (windsByKey.has(key)) return; // shared by stops with identical icao+time
+    const ap = airportMap.get(s.icao);
+    if (!ap || ap.lat == null) { windsByKey.set(key, null); return; }
+    const o = byIcao.get(s.icao);
+    const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, s.when ?? o?.obsTime).catch(() => null);
+    if (r && r.live) windsLive = true;
+    windsByKey.set(key, r || null);
+  }));
 
   const airfields = [];
-  for (const icao of fields) {
+  for (let si = 0; si < stopList.length; si++) {
+    const stop = stopList[si];
+    const icao = stop.icao;
+    const horizon = phaseHorizon(stop.when, nowMs);
     const airport = airportMap.get(icao);
     const o = byIcao.get(icao);
     const notams = notamResult.notams.filter((n) => n.icao.toUpperCase() === icao);
@@ -154,7 +224,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     // Winds aloft: profile + pattern winds at 1500 & 2500 AGL (with MSL),
     // interpolated to those altitudes. Head/cross is recomputed client-side for
     // the selected runway.
-    const windsAloft = windsMap.get(icao) ?? null;
+    const windsAloft = windsByKey.get(stopKey(stop)) ?? null;
     let patternWinds = [];
     if (windsAloft && windsAloft.profile.length) {
       const elev = airport?.elevationFt ?? 0;
@@ -165,19 +235,23 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       }).filter(Boolean);
     }
 
-    // Bird/wildlife risk for this field.
-    const birdRisk = birdResult.risk.get(icao) ?? null;
+    // Bird/wildlife risk for this stop, at the stop's time.
+    const birdRisk = birdByKey.get(`${stop.when || ''}|${icao}`) ?? null;
 
     // Inside an active TFR / restricted area, RAIM outage, SEVERE birds, or a
     // convective SIGMET / overhead hazardous-wx area = caution. Collect the
-    // specific reasons so the card's status pill can explain itself.
+    // specific reasons so the card's status pill can explain itself. The
+    // current-only weather alerts (SIGMET/convective now-casts) are skipped for
+    // far-future phases, where they aren't representative (they're hidden).
     const alertReasons = [];
     if (tfrs.some((t) => t.distanceNm === 0)) alertReasons.push('Inside an active TFR');
     if (sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED')) alertReasons.push('Inside active Restricted airspace');
     if (raim.status === 'PREDICTED OUTAGE') alertReasons.push('Predicted GPS/RAIM outage');
     if (birdRisk?.level === 'SEVERE') alertReasons.push('SEVERE bird risk (AHAS)');
-    if (hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0)) alertReasons.push('Hazardous weather (SIGMET) near/overhead');
-    if (convective.some((c) => c.distanceNm === 0 && (CONV_RANK[c.risk] ?? 0) >= CONV_RANK.SLGT)) alertReasons.push('Convective outlook overhead');
+    if (!horizon.hideCurrentOnly) {
+      if (hazardWx.some((h) => h.hazard === 'CONVECTIVE' || h.distanceNm === 0)) alertReasons.push('Hazardous weather (SIGMET) near/overhead');
+      if (convective.some((c) => c.distanceNm === 0 && (CONV_RANK[c.risk] ?? 0) >= CONV_RANK.SLGT)) alertReasons.push('Convective outlook overhead');
+    }
     const alert = alertReasons.length > 0;
 
     // Everything that drove the GO/CAUTION/NO-GO call (wind/runway warnings,
@@ -189,6 +263,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
 
     airfields.push({
       icao,
+      uid: `${icao}-${si}`,
       found: !!airport,
       airport,
       lat,
@@ -209,6 +284,16 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       birdRisk,
       status: deriveStatus(analysis, notams, alert),
       statusReasons,
+      // Sortie phase + data-horizon: lets the client group cards by phase, label
+      // the planned time, and hide current-only layers at far-future phases.
+      phase: {
+        role: stop.role,
+        label: stop.label,
+        when: stop.when,
+        future: horizon.future,
+        minutesAhead: horizon.minutesAhead,
+        hideCurrentOnly: horizon.hideCurrentOnly,
+      },
     });
   }
 
@@ -224,6 +309,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   return {
     generatedAt: new Date().toISOString(),
     targetTime: targetIso,
+    sortie: isSortie,
     live: {
       weather: wxLive,
       taf: wxRes.tafLive,
@@ -231,8 +317,8 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       airspace: tfrResult.live && suaResult.live,
       tfr: tfrResult.live,
       sua: suaResult.live,
-      windsAloft: windsPairs.some(([, r]) => r && r.live),
-      birds: birdResult.live,
+      windsAloft: windsLive,
+      birds: birdLive,
       hazardWx: sigmetResult.live,
       pireps: pirepResult.live,
       convective: convResult.live,

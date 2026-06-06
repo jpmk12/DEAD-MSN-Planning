@@ -336,6 +336,37 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .route-chip-clear { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.3px; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
 .route-chip-clear:hover { border-color: var(--accent-dim); color: var(--text); }
 
+/* ---- Sortie plan (phase-by-phase) --------------------------------------- */
+.sortie-hint { font-size: 12px; line-height: 1.5; color: var(--text-dim); margin: 0 0 12px; }
+.sortie-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sphase { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+.sphase-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 6px; white-space: nowrap; border: 1px solid; }
+.sphase-tag.dep { color: var(--go); border-color: rgba(63,185,80,0.5); background: rgba(63,185,80,0.1); }
+.sphase-tag.ll { color: #c77dff; border-color: rgba(199,125,255,0.5); background: rgba(199,125,255,0.1); }
+.sphase-tag.rec { color: var(--accent); border-color: var(--accent-dim); background: rgba(55,182,195,0.1); }
+.sphase-tag.alt { color: var(--caution); border-color: rgba(210,153,34,0.5); background: rgba(210,153,34,0.1); }
+.sp-field { flex: 1; min-width: 130px; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 8px 10px; outline: none; }
+.sp-field:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,182,195,0.18); }
+.sphase input[type="datetime-local"] { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 7px 9px; outline: none; color-scheme: dark; }
+.sphase input[type="datetime-local"]:focus { border-color: var(--accent); }
+.sp-note { font-size: 11px; color: var(--text-faint); }
+@media (max-width: 640px) { .sortie-grid { grid-template-columns: 1fr; } }
+
+/* Phase grouping in the brief output */
+.phase-group { margin-bottom: 18px; }
+.phase-group-h { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); padding: 0 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.ll-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid #c77dff; border-radius: 9px; padding: 10px 12px; }
+.ll-hint { font-size: 11.5px; color: var(--text-dim); }
+
+/* Per-card phase banner + role tag */
+.role-tag { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 7px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+.role-tag.role-departure { color: var(--go); border-color: rgba(63,185,80,0.5); background: rgba(63,185,80,0.1); }
+.role-tag.role-recovery { color: var(--accent); border-color: var(--accent-dim); background: rgba(55,182,195,0.1); }
+.role-tag.role-alternate { color: var(--caution); border-color: rgba(210,153,34,0.5); background: rgba(210,153,34,0.1); }
+.phase-when { font-family: var(--mono); font-size: 12px; color: var(--accent); background: rgba(55,182,195,0.08); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; }
+.phase-when.future { color: var(--caution); background: rgba(210,153,34,0.08); border-color: rgba(210,153,34,0.35); }
+.phase-caveat { font-size: 11.5px; line-height: 1.45; color: var(--text-dim); margin-top: 6px; }
+
 /* ---- MTR detail ---------------------------------------------------------- */
 .bird-badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-bright); white-space: nowrap; }
 .mtr-bird { font-size: 12.5px; margin-bottom: 10px; }
