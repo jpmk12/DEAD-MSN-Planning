@@ -622,9 +622,13 @@ function renderAirfields(data, limits) {
       <div class="grid">${g.items.map((b) => card(b, limits)).join('')}</div></div>`);
   // Insert the low-level banner between Departure and Recovery when routes exist.
   if (activeRoutes.length) {
+    const llWhen = activeRoutes.find((d) => d.birdRisk?.runAt)?.birdRisk?.runAt
+      || activeRoutes.find((d) => d.windsAt)?.windsAt || null;
+    const llValid = llWhen ? `<span class="ll-hint">AHAS valid ${esc(zuluLocal(llWhen, { date: true }))} · per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`
+      : `<span class="ll-hint">Per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`;
     const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-level</div>
       <div class="ll-banner">${activeRoutes.map((d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}"><span class="rc-dot"></span>${esc(d.id)}${d.birdRisk ? ` · <b style="color:${BIRD_COLOR[d.birdRisk.level]}">AHAS ${esc(d.birdRisk.level)}</b>` : ''}</span>`).join('')}
-        <span class="ll-hint">Per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span></div></div>`;
+        ${llValid}</div></div>`;
     const depIdx = groups.findIndex((g) => g.role === 'RECOVERY');
     if (depIdx >= 0) html.splice(depIdx, 0, ll); else html.push(ll);
   }
@@ -833,7 +837,22 @@ function mtrDetailCard(d) {
       <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
     </div>`;
   }).join('');
-  const routeBird = d.birdRisk ? `<div class="mtr-bird" style="color:${BIRD_COLOR[d.birdRisk.level]}">⚠ AHAS bird risk: <b>${esc(d.birdRisk.level)}</b> — ${esc(d.birdRisk.note || '')}${d.birdRisk.runAt ? ` <span style="color:var(--text-faint)">· valid ${esc(zuluLocal(d.birdRisk.runAt))}</span>` : ''}</div>` : '';
+  const bv = d.birdRisk;
+  // AHAS validity: the Zulu hour the risk was pulled for, plus the route-entry
+  // time requested — so the user can confirm the right time was used. (AHAS is a
+  // point-in-time value floored to the top of the Zulu hour.)
+  const ahasWhen = (() => {
+    const bits = [];
+    if (bv?.runAt) bits.push(`valid <b>${esc(zuluLocal(bv.runAt, { date: true }))}</b> (AHAS top-of-hour)`);
+    const req = bv?.requested || d.windsAt;
+    if (req) bits.push(`route entry ${esc(zuluLocal(req, { date: true }))}`);
+    return bits.length ? `<div class="mtr-when">${bits.join(' · ')}</div>` : '';
+  })();
+  const routeBird = bv
+    ? `<div class="mtr-bird" style="color:${BIRD_COLOR[bv.level]}">⚠ AHAS bird risk: <b>${esc(bv.level)}</b> — ${esc(bv.note || '')}</div>${ahasWhen}`
+    : (d.windsAt
+        ? `<div class="mtr-bird" style="color:var(--text-dim)">AHAS bird risk: UNAVAILABLE — no data returned for route entry ${esc(zuluLocal(d.windsAt, { date: true }))} (nothing fabricated)</div>`
+        : '');
   const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>

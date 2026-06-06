@@ -373,7 +373,9 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 
 /* ---- MTR detail ---------------------------------------------------------- */
 .bird-badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-bright); white-space: nowrap; }
-.mtr-bird { font-size: 12.5px; margin-bottom: 10px; }
+.mtr-bird { font-size: 12.5px; margin-bottom: 4px; }
+.mtr-when { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+.mtr-when b { color: var(--accent); }
 .mtr-segs { display: flex; flex-direction: column; gap: 8px; }
 .mtr-seg { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid #4aa3df; border-radius: 7px; padding: 8px 10px; }
 .mtr-seg-h { font-family: var(--mono); font-size: 13px; color: var(--text); }

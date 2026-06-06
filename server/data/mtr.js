@@ -156,6 +156,9 @@ export async function buildMtrDetail(id, offline, targetIso) {
     }),
   );
 
+  // Normalize the requested time to the AHAS Zulu run-hour so the UI can show
+  // (and the user can verify) exactly which hour the bird risk was pulled for.
+  const requestedIso = targetIso && !Number.isNaN(Date.parse(targetIso)) ? new Date(targetIso).toISOString() : null;
   return {
     found: true,
     id: mtr.id,
@@ -164,7 +167,12 @@ export async function buildMtrDetail(id, offline, targetIso) {
     agency: mtr.agency,
     refuelAlt: mtr.refuelAlt ?? null,
     geometry: mtr.geometry,
-    birdRisk: routeRisk ? { level: routeRisk.level, note: routeRisk.note, source: routeRisk.source } : null,
+    // Carry the AHAS validity (run hour) + the requested time through so the
+    // route card can display the period the risk is valid for.
+    birdRisk: routeRisk
+      ? { level: routeRisk.level, note: routeRisk.note, source: routeRisk.source, runAt: routeRisk.runAt ?? null, requested: requestedIso }
+      : null,
+    windsAt: requestedIso,
     segments,
   };
 }
