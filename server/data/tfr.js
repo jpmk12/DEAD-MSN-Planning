@@ -120,31 +120,29 @@ export function tfrRecordsFromXml(xml, fallbackId = 'TFR') {
     if (rec.codeId) areaByCode.set(rec.codeId, rec);
   }
 
-  // Geometry from per-area <Abd> boundaries; some TFRs only carry an
-  // <abdMergedArea> (union) instead. Fall back to that, then to the areas.
-  const boundaries = allBlocks(xml, 'Abd');
-  const merged = boundaries.length ? [] : allBlocks(xml, 'abdMergedArea');
-  const sources = boundaries.length ? boundaries
-    : merged.length ? merged
-    : allBlocks(xml, 'aseTFRArea');
-
-  const records = [];
-  sources.forEach((blk, i) => {
-    const geometry = geometryFromBoundary(blk);
-    if (!geometry) return;
-    const area = areaByCode.get(tag(blk, 'codeId')) || areaList[i] || areaList[0] || {};
-    records.push({
-      id: String(id),
-      type: 'HAZARD',
-      name: String(area.name || name),
-      lowerFt: area.lowerFt ?? 0,
-      upperFt: area.upperFt ?? null,
-      effectiveStart,
-      effectiveEnd,
-      url: 'https://tfr.faa.gov',
-      geometry,
+  // Build records from a set of boundary blocks (those that actually yield
+  // geometry). Per-area <Abd> is preferred; if it yields nothing (e.g. the Abd
+  // only holds AbdUid and the vertices live in <abdMergedArea>), fall back to the
+  // merged union, then to geometry embedded in the areas. Fallback is by RESULT,
+  // not element presence — an empty <Abd> must not block the merged area.
+  const buildFrom = (blocks) => {
+    const recs = [];
+    blocks.forEach((blk, i) => {
+      const geometry = geometryFromBoundary(blk);
+      if (!geometry) return;
+      const area = areaByCode.get(tag(blk, 'codeId')) || areaList[i] || areaList[0] || {};
+      recs.push({
+        id: String(id), type: 'HAZARD', name: String(area.name || name),
+        lowerFt: area.lowerFt ?? 0, upperFt: area.upperFt ?? null,
+        effectiveStart, effectiveEnd, url: 'https://tfr.faa.gov', geometry,
+      });
     });
-  });
+    return recs;
+  };
+
+  let records = buildFrom(allBlocks(xml, 'Abd'));
+  if (!records.length) records = buildFrom(allBlocks(xml, 'abdMergedArea'));
+  if (!records.length) records = buildFrom(allBlocks(xml, 'aseTFRArea'));
   return records;
 }
 

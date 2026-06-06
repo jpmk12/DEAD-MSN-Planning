@@ -165,6 +165,26 @@ test('tfrRecordsFromXml parses an abdMergedArea-only TFR', () => {
   assert.equal(recs[0].upperFt, 5000);
 });
 
+// Real shape (TFR 6/5940): an empty <Abd> (AbdUid only) plus a populated
+// <abdMergedArea>. Must fall back to the merged area by RESULT, not skip it.
+const SAMPLE_AIXM_EMPTY_ABD = `
+<XNOTAM-Update><Not><NotUid><txtLocalName>6/5940</txtLocalName></NotUid>
+  <aseTFRArea><AseUid><codeId>1</codeId></AseUid><valDistVerUpper>050</valDistVerUpper><uomDistVerUpper>FL</uomDistVerUpper></aseTFRArea>
+  <Abd><AbdUid><AseUid><codeId>1</codeId></AseUid></AbdUid></Abd>
+  <abdMergedArea>
+    <Avx><codeType>GRC</codeType><geoLat>61.98034894N</geoLat><geoLong>150.0975W</geoLong></Avx>
+    <Avx><codeType>GRC</codeType><geoLat>61.97781066N</geoLat><geoLong>150.03616926W</geoLong></Avx>
+    <Avx><codeType>GRC</codeType><geoLat>61.97027421N</geoLat><geoLong>150.05000000W</geoLong></Avx>
+  </abdMergedArea>
+</Not></XNOTAM-Update>`;
+
+test('tfrRecordsFromXml falls back to abdMergedArea when <Abd> has no geometry', () => {
+  const recs = tfrRecordsFromXml(SAMPLE_AIXM_EMPTY_ABD, '6/5940');
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].geometry.kind, 'polygon');
+  assert.equal(recs[0].geometry.points.length, 3);
+});
+
 test('tfrRecordsFromXml reads geoLat, not geoLatArc, on an arc-edged vertex', () => {
   const recs = tfrRecordsFromXml(SAMPLE_AIXM_ARCVERTEX);
   assert.equal(recs.length, 1);
