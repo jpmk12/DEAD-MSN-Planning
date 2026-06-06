@@ -269,7 +269,7 @@ const server = createServer(async (req, res) => {
       } catch (e) { out.ahasProbe = { error: String(e).slice(0, 200) }; }
       // PIREP probe — shows why the AWC pirep endpoint isn't returning data.
       try {
-        const pu = 'https://aviationweather.gov/api/data/pirep?format=json&age=2';
+        const pu = 'https://aviationweather.gov/api/data/pirep?format=json&age=2&bbox=20,-130,55,-60';
         const pr = await fetch(pu, { headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0 (mission planning; contact: ops)' }, signal: AbortSignal.timeout(8000) });
         const ptext = await pr.text();
         let parsed = null; try { parsed = JSON.parse(ptext); } catch { /* not json */ }

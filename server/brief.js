@@ -63,6 +63,19 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
   const airportMap = new Map(airportPairs);
 
+  // Field coordinates (reused for the PIREP bounding box and the map trim).
+  const fieldPts = fields
+    .map((i) => airportMap.get(i))
+    .filter((a) => a && Number.isFinite(a.lat) && Number.isFinite(a.lon))
+    .map((a) => ({ lat: a.lat, lon: a.lon }));
+  // AWC's pirep endpoint needs a bbox (lat0,lon0,lat1,lon1); pad the fields ~6°.
+  let pirepBbox;
+  if (fieldPts.length) {
+    const lats = fieldPts.map((p) => p.lat);
+    const lons = fieldPts.map((p) => p.lon);
+    pirepBbox = `${Math.min(...lats) - 6},${Math.min(...lons) - 6},${Math.max(...lats) + 6},${Math.max(...lons) + 6}`;
+  }
+
   const [wxRes, notamResult, tfrResult, suaResult, birdResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
     loadWeather(fields, offline),
     fetchNotams(fields, offline),
@@ -70,7 +83,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     fetchSua(offline),
     fetchBirdRisk(fields, offline),
     fetchAirSigmets(offline),
-    fetchPireps(offline),
+    fetchPireps(offline, pirepBbox),
     fetchConvective(offline),
     fetchMtrs(offline),
   ]);
@@ -188,13 +201,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
 
   // The map only needs geometry around the briefed fields. Live nationwide feeds
   // (e.g. ~1500 SUA areas) would otherwise bloat the response and the overlay,
-  // so trim every map layer to within MAP_AIRSPACE_NM of any briefed field. The
-  // per-field tab data (computed above) keeps its tighter proximity threshold.
+  // so trim every map layer to within MAP_AIRSPACE_NM of any briefed field
+  // (fieldPts computed above). Per-field tab data keeps its tighter threshold.
   const MAP_AIRSPACE_NM = 300;
-  const fieldPts = fields
-    .map((i) => airportMap.get(i))
-    .filter((a) => a && Number.isFinite(a.lat) && Number.isFinite(a.lon))
-    .map((a) => ({ lat: a.lat, lon: a.lon }));
   const nearAnyField = (items) => (fieldPts.length
     ? items.filter((it) => fieldPts.some((p) => distanceToGeometry(p.lat, p.lon, it.geometry) <= MAP_AIRSPACE_NM))
     : items);

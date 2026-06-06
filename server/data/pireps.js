@@ -10,7 +10,10 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { USER_AGENT } from './awc.js';
 
-const URL_PIREP = 'https://aviationweather.gov/api/data/pirep?format=json&age=2';
+// The AWC pirep endpoint REQUIRES a bounding box (lat0,lon0,lat1,lon1); without
+// one it 400s. Default to a CONUS box when no field bbox is supplied.
+const CONUS_BBOX = '20,-130,55,-60';
+const pirepUrl = (bbox) => `https://aviationweather.gov/api/data/pirep?format=json&age=2&bbox=${encodeURIComponent(bbox || CONUS_BBOX)}`;
 const FIXTURE_URL = new URL('../../data/fixtures/pireps-sample.json', import.meta.url);
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -66,13 +69,13 @@ async function loadFixture() {
 }
 
 /** @returns {Promise<{pireps:any[], live:boolean}>} */
-export async function fetchPireps(offline, signal) {
+export async function fetchPireps(offline, bbox, signal) {
   if (!offline) {
     try {
-      const res = await fetch(URL_PIREP, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
+      const res = await fetch(pirepUrl(bbox), { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
       if (res.ok) return { pireps: mapPireps(await res.json()), live: true };
     } catch {
-      /* fall through to fixture */
+      /* unavailable */
     }
   }
   if (offline) return { pireps: mapPireps(await loadFixture()), live: false };
