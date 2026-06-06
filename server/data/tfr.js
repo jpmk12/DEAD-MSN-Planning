@@ -135,7 +135,7 @@ export function tfrIdsFromList(html) {
 // tfr.faa.gov serves an HTML page to non-browser User-Agents, so present a
 // browser UA here (unlike the AWC/ArcGIS feeds, which accept our app UA).
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-const LIST_JSON_URL = 'https://tfr.faa.gov/tfr3/export/json';
+const LIST_JSON_URL = 'https://tfr.faa.gov/tfrapi/exportTfrList';
 
 /** Normalize a tfr3 list response to an array of items. */
 export function tfrListItems(json) {

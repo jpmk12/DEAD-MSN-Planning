@@ -19,7 +19,7 @@ import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.j
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
-import { tfrListItems, tfrIdOf } from './data/tfr.js';
+import { tfrListItems, tfrIdOf, tfrRecordsFromXml } from './data/tfr.js';
 import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
@@ -237,7 +237,7 @@ const server = createServer(async (req, res) => {
       // TFR schema probe — reveals the tfr3 response so the parser can be tuned.
       try {
         const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-        const tr = await fetch(process.env.TFR_JSON_URL || 'https://tfr.faa.gov/tfr3/export/json', {
+        const tr = await fetch(process.env.TFR_JSON_URL || 'https://tfr.faa.gov/tfrapi/exportTfrList', {
           headers: { Accept: 'application/json,text/plain,*/*', 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000),
         });
         const ct = tr.headers.get('content-type') || '';
@@ -256,6 +256,17 @@ const server = createServer(async (req, res) => {
               idSamples: items.slice(0, 3).map(tfrIdOf),
               firstItem: first,
             });
+            // If geometry isn't inline, test the detail-XML path for the first id.
+            const id0 = items.slice(0, 1).map(tfrIdOf)[0];
+            if (id0 && !out.tfrProbe.hasInlineGeometry) {
+              const detailId = String(id0).replace(/\//g, '_').replace(/[^0-9_]/g, '');
+              try {
+                const dr = await fetch(`https://tfr.faa.gov/save_pages/detail_${detailId}.xml`, { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(8000) });
+                const dt = await dr.text();
+                const recs = tfrRecordsFromXml(dt, id0);
+                out.tfrProbe.detail = { id: id0, detailId, status: dr.status, bytes: dt.length, parsed: recs.length, geom: recs[0]?.geometry?.kind || null, snippet: dt.slice(0, 280) };
+              } catch (e) { out.tfrProbe.detail = { error: String(e).slice(0, 150) }; }
+            }
           } catch (e) { out.tfrProbe.parseError = String(e).slice(0, 120); out.tfrProbe.snippet = text.slice(0, 300); }
         } else {
           out.tfrProbe.snippet = text.slice(0, 300); // HTML/non-JSON — shows what the server returned
