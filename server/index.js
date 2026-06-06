@@ -136,7 +136,9 @@ const server = createServer(async (req, res) => {
         .map((s) => parseInt(s, 10))
         .filter((n) => Number.isFinite(n) && n > 0 && n <= 60000)
         .slice(0, 6);
-      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined));
+      const whenRaw = url.searchParams.get('when');
+      const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
+      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined, whenIso));
       return;
     }
 
@@ -160,7 +162,9 @@ const server = createServer(async (req, res) => {
       )].slice(0, 8);
       if (!ids.length) { sendJson(res, 400, { error: 'provide ?id=IR-021 (comma/space separated for multiple)' }); return; }
       const offline = url.searchParams.get('offline') === '1';
-      const routes = await Promise.all(ids.map((id) => buildMtrDetail(id, offline)));
+      const whenRaw = url.searchParams.get('when');
+      const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
+      const routes = await Promise.all(ids.map((id) => buildMtrDetail(id, offline, whenIso)));
       sendJson(res, 200, { routes });
       return;
     }

@@ -113,7 +113,7 @@ export async function buildMtrDetail(id, offline, targetIso) {
   const mtr = await lookupMtr(id, offline);
   if (!mtr) return { found: false, id };
 
-  const { risk } = await fetchRouteRisk([mtr.id], offline);
+  const { risk } = await fetchRouteRisk([mtr.id], offline, targetIso);
   const routeRisk = risk.get(normalizeId(mtr.id)) || null;
 
   const segments = await Promise.all(

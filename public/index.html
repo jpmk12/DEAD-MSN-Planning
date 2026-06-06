@@ -73,6 +73,10 @@
             <label for="agls">Pattern AGL (ft)</label>
             <input id="agls" type="text" value="1500,2500,6000" autocomplete="off" spellcheck="false" title="Comma-separated AGL altitudes for pattern winds" />
           </div>
+          <div class="field">
+            <label for="takeoff">Takeoff (local, optional)</label>
+            <input id="takeoff" type="datetime-local" title="Tailors winds aloft and AHAS bird risk to this time. Leave blank for now / 12-hr worst-case." />
+          </div>
           <button id="go" class="go">Build Brief</button>
           <button id="export-pdf" class="go secondary" title="Open a themed copy and print/save as PDF">Export PDF</button>
           <button id="export-html" class="go secondary" title="Download an interactive, themed HTML copy (collapsible sections preserved)">Export HTML</button>
@@ -116,6 +120,10 @@
             <div class="field grow">
               <label for="mtr-id">MTR / AR designators — space or comma separated to draw several at once (e.g. IR-154 AR197H)</label>
               <input id="mtr-id" type="text" value="IR-154 AR197H" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="mtr-time">Run time (local, optional)</label>
+              <input id="mtr-time" type="datetime-local" title="Tailors per-leg winds and AHAS bird risk to this time. Leave blank for now." />
             </div>
             <button id="mtr-go" class="go secondary">Look Up Route</button>
           </div>

@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhasLevel, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute } from './ahasapi.js';
+import { parseAhasLevel, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
+
+test('ahasRunAtIso floors to the requested Zulu hour', () => {
+  assert.equal(ahasRunAtIso('2026-06-06T18:42:30Z'), '2026-06-06T18:00:00.000Z');
+  assert.equal(ahasUrl('GetAHASRisk', 'IR', 'IR154', '2026-06-06T18:42:30Z').includes('iHour=18'), true);
+});
 
 test('parseAhasLevel extracts the worst level present', () => {
   assert.equal(parseAhasLevel('<string>LOW</string>'), 'LOW');

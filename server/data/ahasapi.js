@@ -47,6 +47,13 @@ function dateParts(when) {
   return { iMonth: ok.getUTCMonth() + 1, iDay: ok.getUTCDate(), iHour: ok.getUTCHours() };
 }
 
+/** ISO of the Zulu hour a query is run for (the requested time, or now). */
+export function ahasRunAtIso(when) {
+  const d = when ? new Date(when) : new Date();
+  const ok = Number.isNaN(d.getTime()) ? new Date() : d;
+  return new Date(Date.UTC(ok.getUTCFullYear(), ok.getUTCMonth(), ok.getUTCDate(), ok.getUTCHours())).toISOString();
+}
+
 export function ahasUrl(method, type, area, when) {
   const { iMonth, iDay, iHour } = dateParts(when);
   // AHAS wants the Area single-quoted and encoded as %27 (encodeURIComponent
@@ -56,10 +63,10 @@ export function ahasUrl(method, type, area, when) {
 }
 
 /** Raw AHAS response text (cached, stale-tolerant). Throws only when there's no
- *  cached value to fall back on. Cache key is hour-agnostic so a slow refresh at
- *  the top of the hour still serves the last good answer (bird risk moves slowly). */
+ *  cached value to fall back on. Cache key includes the requested Zulu hour so a
+ *  specific takeoff-time query doesn't collide with the "now" query. */
 export async function ahasRaw(method, type, area, when, signal) {
-  const key = `${method}|${type}|${area}`;
+  const key = `${method}|${type}|${area}|${ahasRunAtIso(when)}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.text;
   try {

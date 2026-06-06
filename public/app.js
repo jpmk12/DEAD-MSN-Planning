@@ -579,6 +579,9 @@ async function buildBrief() {
   });
   const agls = val('agls').replace(/\s+/g, '');
   if (agls) params.set('agls', agls);
+  // Optional planned takeoff time (datetime-local is local) → UTC ISO.
+  const takeoff = val('takeoff');
+  if (takeoff) { const d = new Date(takeoff); if (!Number.isNaN(d.getTime())) params.set('when', d.toISOString()); }
 
   $('go').disabled = true;
   $('results').innerHTML = `<div class="loading"><div class="spinner"></div>Pulling weather &amp; NOTAMs…</div>`;
@@ -690,7 +693,7 @@ function mtrDetailCard(d) {
       <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
     </div>`;
   }).join('');
-  const routeBird = d.birdRisk ? `<div class="mtr-bird" style="color:${BIRD_COLOR[d.birdRisk.level]}">⚠ AHAS bird risk: <b>${esc(d.birdRisk.level)}</b> — ${esc(d.birdRisk.note || '')}</div>` : '';
+  const routeBird = d.birdRisk ? `<div class="mtr-bird" style="color:${BIRD_COLOR[d.birdRisk.level]}">⚠ AHAS bird risk: <b>${esc(d.birdRisk.level)}</b> — ${esc(d.birdRisk.note || '')}${d.birdRisk.runAt ? ` <span style="color:var(--text-faint)">· valid ${esc(zuluLocal(d.birdRisk.runAt))}</span>` : ''}</div>` : '';
   const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
@@ -724,6 +727,8 @@ async function lookupMtr() {
   const ids = $('mtr-id').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
   if (!ids.length) return;
   const params = new URLSearchParams({ id: ids.join(',') });
+  const rt = val('mtr-time');
+  if (rt) { const d = new Date(rt); if (!Number.isNaN(d.getTime())) params.set('when', d.toISOString()); }
   $('mtr-go').disabled = true;
   $('mtr-results').innerHTML = `<div class="loading"><div class="spinner"></div>Looking up route…</div>`;
   try {
@@ -823,10 +828,14 @@ function paintMap() {
 
 function updatePrintHead(data, ids, limits) {
   const src = `WX ${data.live.weather ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.live.notams ? 'LIVE' : 'UNAVAIL'}`;
+  const takeoff = data.targetTime
+    ? `<div class="ph-meta">Planned takeoff ${esc(zuluLocal(data.targetTime, { date: true }))} — winds &amp; AHAS tailored to this time</div>`
+    : '';
   $('print-head').innerHTML =
     `<div class="ph-title">C-17 MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
      <div class="ph-meta">Generated ${esc(zuluLocal(data.generatedAt, { date: true }))} · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
+     ${takeoff}
      <div class="ph-meta ph-warn">PLANNING AID ONLY — VERIFY WITH OFFICIAL SOURCES</div>`;
 }
 

@@ -56,8 +56,11 @@ function deriveStatus(analysis, notams, airspaceAlert) {
   return 'GO';
 }
 
-export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS) {
+export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null) {
   const fields = icaos.map((s) => s.toUpperCase());
+  // Optional planned takeoff time. When set, time-sensitive layers (winds aloft,
+  // AHAS bird risk) are tailored to it instead of "now".
+  const targetIso = whenIso && !Number.isNaN(Date.parse(whenIso)) ? new Date(whenIso).toISOString() : null;
 
   // Pre-fetch airport records (needed for coordinates + winds-aloft lookups).
   const airportPairs = await Promise.all(fields.map(async (i) => [i, await getAirport(i, offline)]));
@@ -81,7 +84,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     fetchNotams(fields, offline),
     fetchTfrs(offline),
     fetchSua(offline),
-    fetchBirdRisk(fields, offline),
+    fetchBirdRisk(fields, offline, targetIso),
     fetchAirSigmets(offline),
     fetchPireps(offline, pirepBbox),
     fetchConvective(offline),
@@ -99,7 +102,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       for (const m of nearby(ap.lat, ap.lon, mtrResult.mtrs, MTR_THRESHOLD_NM)) nearbyRouteIds.add(m.id);
     }
   }
-  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline);
+  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline, targetIso);
   const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
 
   // Winds aloft per field (needs coordinates), aligned to the observation hour.
@@ -108,7 +111,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       const ap = airportMap.get(icao);
       if (!ap || ap.lat == null) return [icao, null];
       const o = byIcao.get(icao);
-      const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, o?.obsTime).catch(() => null);
+      const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, targetIso ?? o?.obsTime).catch(() => null);
       return [icao, r];
     }),
   );
@@ -220,6 +223,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
 
   return {
     generatedAt: new Date().toISOString(),
+    targetTime: targetIso,
     live: {
       weather: wxLive,
       taf: wxRes.tafLive,

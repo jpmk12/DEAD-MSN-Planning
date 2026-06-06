@@ -8,7 +8,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './ahasapi.js';
+import { ahasRaw, parseAhasLevel, ahasAreaForIcao, ahasRunAtIso } from './ahasapi.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/birds-sample.json', import.meta.url);
 
@@ -35,7 +35,7 @@ async function loadFixture() {
 }
 
 /** @returns {Promise<{risk:Map<string,{level,note,source}>, live:boolean}>} */
-export async function fetchBirdRisk(icaos, offline, signal) {
+export async function fetchBirdRisk(icaos, offline, whenIso, signal) {
   // offline=true → bundled sample (tests only).
   if (offline) {
     const fixture = await loadFixture();
@@ -46,17 +46,18 @@ export async function fetchBirdRisk(icaos, offline, signal) {
     }
     return { risk, live: false };
   }
-  // Live AHAS (usahas.com) per field; fields without a known base name, or any
-  // failed lookup, are simply omitted (UNAVAILABLE — never fabricated). GetAHASRisk12
-  // is a 12-hour outlook from the current Zulu hour; record that window.
-  const now = new Date();
-  const runAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
+  // Live AHAS (usahas.com). With a takeoff time, query the point-in-time risk AT
+  // that Zulu hour (GetAHASRisk); without one, the 12-hour worst-case outlook
+  // from now (GetAHASRisk12). Unmapped/failed fields are omitted (never faked).
+  const method = whenIso ? 'GetAHASRisk' : 'GetAHASRisk12';
+  const windowHours = whenIso ? null : 12;
+  const runAt = ahasRunAtIso(whenIso);
   const risk = new Map();
   await Promise.allSettled(icaos.map(async (icao) => {
     const area = ahasAreaForIcao(icao);
     if (!area) return;
-    const level = parseAhasLevel(await ahasRaw('GetAHASRisk12', 'MILAIR', area, undefined, signal));
-    if (level) risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', runAt, windowHours: 12 });
+    const level = parseAhasLevel(await ahasRaw(method, 'MILAIR', area, whenIso, signal));
+    if (level) risk.set(icao.toUpperCase(), { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', runAt, windowHours });
   }));
   return { risk, live: risk.size > 0 };
 }

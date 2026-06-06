@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { normalizeRisk, advisoryFor } from './birds.js';
-import { ahasRaw, parseAhasLevel, ahasRouteType, ahasHasRoute } from './ahasapi.js';
+import { ahasRaw, parseAhasLevel, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/ahas-routes-sample.json', import.meta.url);
 
@@ -22,19 +22,20 @@ async function loadFixture() {
  * @returns {Promise<{risk: Map<string, {level,note,source,segments}>, live: boolean}>}
  *          keyed by normalized route id.
  */
-export async function fetchRouteRisk(ids, offline, signal) {
-  // Live AHAS (usahas.com) per IR/VR/SR route (AR refueling tracks have no bird
-  // route). Caller passes only the nearby route ids. Capped to bound the number
-  // of requests; failures/unmapped types are omitted (UNAVAILABLE, not faked).
+export async function fetchRouteRisk(ids, offline, whenIso, signal) {
+  // Live AHAS (usahas.com) per IR/VR/SR route at the takeoff Zulu hour (or now).
+  // Caller passes only the nearby route ids. Capped to bound the number of
+  // requests; failures/unmapped types are omitted (UNAVAILABLE, not faked).
   if (!offline) {
     const risk = new Map();
+    const runAt = ahasRunAtIso(whenIso);
     const wanted = [...new Set(ids.map((id) => normId(id)))]
       .map((key) => ({ key, type: ahasRouteType(key) }))
       .filter((r) => r.type && ahasHasRoute(r.key)) // skip routes AHAS doesn't cover
       .slice(0, 25);
     await Promise.allSettled(wanted.map(async ({ key, type }) => {
-      const level = parseAhasLevel(await ahasRaw('GetAHASRisk', type, key, undefined, signal));
-      if (level) risk.set(key, { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', segments: null });
+      const level = parseAhasLevel(await ahasRaw('GetAHASRisk', type, key, whenIso, signal));
+      if (level) risk.set(key, { level, note: advisoryFor(level), source: 'AHAS (usahas.com)', segments: null, runAt });
     }));
     return { risk, live: risk.size > 0 };
   }
