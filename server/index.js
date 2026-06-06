@@ -137,6 +137,22 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
 
+    // Request log (stdout, on by default; set REQUEST_LOG=off to silence). This
+    // exists so the platform's health probe is VISIBLE in the deploy log: its
+    // path, method, user-agent, forwarded headers, and the status we return.
+    // That's the one thing support couldn't tell us — now we can see it.
+    if (process.env.REQUEST_LOG !== 'off') {
+      const t0 = Date.now();
+      const h = req.headers;
+      res.on('finish', () => {
+        console.log(
+          `[req] ${req.method} ${url.pathname} -> ${res.statusCode} ${Date.now() - t0}ms` +
+          ` ua="${(h['user-agent'] || '').slice(0, 80)}" xff="${h['x-forwarded-for'] || ''}"` +
+          ` proto="${h['x-forwarded-proto'] || ''}" host="${h['host'] || ''}"`,
+        );
+      });
+    }
+
     if (url.pathname === '/api/airfields') {
       sendJson(res, 200, { airfields: await knownAirports() });
       return;
@@ -403,9 +419,11 @@ const server = createServer(async (req, res) => {
 const HOST = '0.0.0.0';
 server.listen(PORT, HOST, () => {
   console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
-  // Use stdout (console.log), not stderr, for this advisory: a health monitor
-  // can treat any startup stderr as a failure and mark the environment
-  // unhealthy, even though the app is serving fine.
+  // Startup diagnostics (stdout): how the platform configured us, and the NAMES
+  // of every injected env var (names only — no values, so no secrets). A
+  // platform-specific health-check path/port often shows up here.
+  console.log(`[boot] node=${process.version} PORT=${process.env.PORT ?? '(unset)'} HOST=${HOST} NODE_ENV=${process.env.NODE_ENV ?? '(unset)'}`);
+  console.log(`[boot] env-names: ${Object.keys(process.env).sort().join(',')}`);
   if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
     console.log('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
   }
