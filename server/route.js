@@ -16,7 +16,21 @@ import { resolveNavaid } from './data/ourairports.js';
 import { resolveFix } from './data/fixes.js';
 import { airwaysAvailable, hasAirway, airwaySegmentNames } from './data/airways.js';
 import { proceduresAvailable, expandProcedure } from './data/procedures.js';
+import { lookupMtr, fetchMtrs, normalizeId } from './data/mtr.js';
 import { destinationPoint, haversineNm, bearingDeg, normalize360 } from './core/geo.js';
+
+const MIL_ROUTE = /^(AR|IR|VR|SR)-?\d/; // military AR/IR/VR/SR routes (IR154 or IR-154)
+
+// Resolve a military route id (AR312, IR154, VR1355…) to its centerline points,
+// allowing a prefix match (AR312 -> AR312H) since AR tracks carry H/L suffixes.
+async function resolveMtr(tok, offline) {
+  const m = await lookupMtr(tok, offline);
+  if (m?.geometry?.points?.length) return { id: m.id, points: m.geometry.points };
+  const want = normalizeId(tok);
+  const { mtrs } = await fetchMtrs(offline);
+  const hit = mtrs.find((x) => normalizeId(x.id).startsWith(want) && x.geometry?.points?.length);
+  return hit ? { id: hit.id, points: hit.geometry.points } : null;
+}
 
 const CONNECTORS = new Set(['DCT', 'DIRECT', '.', '..']);
 const RADIAL_DME = /^([A-Z]{2,3})(\d{3})(\d{3})$/;          // LRP270015
@@ -88,6 +102,16 @@ export async function buildRoute(routeStr, offline, near) {
     if (CONNECTORS.has(tok)) continue;
     const ll = parseLatLon(tok); if (ll) { entries.push(ll); continue; }
     const rd = await tryRadialDme(tok, offline, near); if (rd) { entries.push(rd); continue; }
+    // Military AR/IR/VR/SR routes — draw the centerline from the MTR/AR data.
+    if (MIL_ROUTE.test(tok)) {
+      const mtr = await resolveMtr(tok, offline);
+      if (mtr) {
+        mtr.points.forEach((pt, idx) => entries.push({ id: idx === 0 ? mtr.id : '', kind: 'mtr', lat: pt[0], lon: pt[1], vertexOnly: idx !== 0 }));
+      } else {
+        entries.push({ unresolved: true, raw: tok, note: 'MTR/AR route not found (not in bundled routes)' });
+      }
+      continue;
+    }
     if (hasAirway(tok)) { entries.push({ airway: tok }); continue; }
     const np = await resolveNamed(tok, offline, near); if (np) { entries.push(np); continue; }
     if (AIRWAY_LIKE.test(tok)) { entries.push({ unresolved: true, raw: tok, note: airwaysAvailable() ? 'unknown airway' : 'airway data not loaded' }); continue; }
@@ -142,19 +166,21 @@ export async function buildRoute(routeStr, offline, near) {
     expanded.push(e);
   }
 
-  const points = expanded.filter(isPt);
+  // allPts = every drawable vertex (incl. dense MTR/AR centerline); labeled =
+  // the named waypoints that get a marker + label on the map.
+  const allPts = expanded.filter(isPt);
+  const labeled = allPts.filter((p) => !p.vertexOnly);
   const unresolved = expanded.filter((e) => e.unresolved).map((e) => ({ token: e.raw, note: e.note }));
   let totalNm = 0;
+  for (let i = 1; i < allPts.length; i++) totalNm += haversineNm(allPts[i - 1].lat, allPts[i - 1].lon, allPts[i].lat, allPts[i].lon);
   const legs = [];
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1], b = points[i];
-    const dist = haversineNm(a.lat, a.lon, b.lat, b.lon);
-    totalNm += dist;
-    legs.push({ from: a.id, to: b.id, distNm: Math.round(dist), bearingTrue: Math.round(bearingDeg(a.lat, a.lon, b.lat, b.lon)) });
+  for (let i = 1; i < labeled.length; i++) {
+    const a = labeled[i - 1], b = labeled[i];
+    legs.push({ from: a.id, to: b.id, distNm: Math.round(haversineNm(a.lat, a.lon, b.lat, b.lon)), bearingTrue: Math.round(bearingDeg(a.lat, a.lon, b.lat, b.lon)) });
   }
   return {
-    points: points.map((p) => ({ id: p.id, kind: p.kind, lat: p.lat, lon: p.lon })),
-    geometry: { kind: 'line', points: points.map((p) => [p.lat, p.lon]) },
+    points: labeled.map((p) => ({ id: p.id, kind: p.kind, lat: p.lat, lon: p.lon })),
+    geometry: { kind: 'line', points: allPts.map((p) => [p.lat, p.lon]) },
     legs,
     totalNm: Math.round(totalNm),
     unresolved,

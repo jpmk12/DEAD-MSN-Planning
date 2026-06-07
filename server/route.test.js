@@ -27,6 +27,16 @@ test('buildRoute resolves a bundled fix and flags airway with bad anchors', asyn
   assert.ok(r.unresolved.some((u) => u.token === 'J78'));
 });
 
+test('buildRoute draws military AR/IR routes from the MTR data', async () => {
+  const r = await buildRoute('IR-154', true); // dash-insensitive
+  assert.ok(r.geometry.points.length > 2, 'centerline drawn');
+  assert.equal(r.unresolved.length, 0);
+  assert.ok(r.points.some((p) => p.id === 'IR-154'), 'labeled with the route id');
+  // AR312 (no suffix) prefix-matches an AR312H/L track.
+  const ar = await buildRoute('AR312', true);
+  assert.ok(ar.geometry.points.length >= 2 && ar.unresolved.length === 0);
+});
+
 test('buildRoute expands a SID anchored to its departure airport', async () => {
   const r = await buildRoute('KCHS LGRHD3.GIPPL', true, { lat: 32.9, lon: -80 });
   const ids = r.points.map((p) => p.id);
