@@ -401,9 +401,10 @@ function tabbedDetails(brief) {
   push('lowlevel', 'Low-Level', (brief.mtrs || []).length || null, mtrSection(brief));
   push('winds', 'Winds Aloft', null, windsAloftSection(brief));
 
-  // On Departure and Recovery cards, lead with TAF (forecast) instead of NOTAMs.
+  // On Departure, Recovery and Alternate cards, lead with TAF (forecast)
+  // instead of NOTAMs.
   const role = brief.phase?.role;
-  if (role === 'DEPARTURE' || role === 'RECOVERY') {
+  if (role === 'DEPARTURE' || role === 'RECOVERY' || role === 'ALTERNATE') {
     const i = panels.findIndex((p) => p.key === 'taf');
     if (i > 0) panels.unshift(panels.splice(i, 1)[0]);
   }
