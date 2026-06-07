@@ -4,6 +4,7 @@
 
 import { getAirport } from './data/airports.js';
 import { resolveNavaid } from './data/ourairports.js';
+import { resolveFix } from './data/fixes.js';
 import { fetchWindsAloft } from './data/windsaloft.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
 import { nearby } from './data/airspace.js';
@@ -21,6 +22,11 @@ async function resolvePoint(id, offline, near) {
   const nv = await resolveNavaid(id, offline, near);
   if (nv) {
     return { kind: (nv.type || 'navaid').toString(), name: nv.name, lat: nv.lat, lon: nv.lon, elevationFt: nv.elevationFt ?? 0 };
+  }
+  // Enroute IFR fix / RNAV waypoint (e.g. FLOYD) from the bundled FAA NASR data.
+  const fx = resolveFix(id, near);
+  if (fx) {
+    return { kind: 'fix', name: fx.name, lat: fx.lat, lon: fx.lon, elevationFt: 0 };
   }
   return null;
 }

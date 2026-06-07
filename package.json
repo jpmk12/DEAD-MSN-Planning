@@ -13,6 +13,7 @@
     "dev": "node server.js",
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
+    "ingest:fixes": "node scripts/ingest-faa-fixes.js",
     "test": "node --test"
   }
 }
