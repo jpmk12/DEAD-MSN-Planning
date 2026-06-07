@@ -14,7 +14,7 @@
 import { getAirport } from './data/airports.js';
 import { resolveNavaid } from './data/ourairports.js';
 import { resolveFix } from './data/fixes.js';
-import { airwaysAvailable, hasAirway, expandAirway } from './data/airways.js';
+import { airwaysAvailable, hasAirway, airwaySegmentNames } from './data/airways.js';
 import { proceduresAvailable, expandProcedure } from './data/procedures.js';
 import { destinationPoint, haversineNm, bearingDeg, normalize360 } from './core/geo.js';
 
@@ -96,14 +96,26 @@ export async function buildRoute(routeStr, offline, near) {
     entries.push({ unresolved: true, raw: tok, note: proceduresAvailable() ? 'unknown point/procedure' : 'not found' });
   }
 
-  // Expand airways between their surrounding anchor points.
+  // Expand airways between their surrounding anchor points: look up the ordered
+  // point NAMES for the segment, then resolve each at runtime (biased to the
+  // entry anchor so navaid/fix idents pick the nearby one).
   const expanded = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     if (e.airway) {
-      const seg = expandAirway(e.airway, lastPoint(expanded), nextPoint(entries, i + 1));
-      if (seg) expanded.push(...seg);
-      else expanded.push({ unresolved: true, raw: e.airway, note: airwaysAvailable() ? 'airway segment not found' : 'airway data not loaded' });
+      const from = lastPoint(expanded);
+      const to = nextPoint(entries, i + 1);
+      const names = (from && to) ? airwaySegmentNames(e.airway, from.id, to.id) : null;
+      if (names) {
+        const bias = from ? { lat: from.lat, lon: from.lon } : near;
+        for (const nm of names) {
+          const p = await resolveNamed(nm, offline, bias);
+          if (p) expanded.push(p);
+          else expanded.push({ unresolved: true, raw: `${e.airway}:${nm}`, note: 'airway point not found' });
+        }
+      } else {
+        expanded.push({ unresolved: true, raw: e.airway, note: airwaysAvailable() ? 'airway segment not found — check entry/exit fixes' : 'airway data not loaded' });
+      }
       continue;
     }
     expanded.push(e);
