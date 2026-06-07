@@ -42,6 +42,17 @@ test('parseAhasHourly takes the worst AHASRISK per forecast hour, time-ordered',
   assert.deepEqual(parseAhasHourly(''), []);
 });
 
+test('parseAhasHourly handles the airfield shape (one row/hour, coords ignored)', () => {
+  // Airfield GetAHASRisk12: one row per hour, with a big coordinates polygon that
+  // must not pollute the risk parse.
+  const row = (dt, ahas) => `<Table><Route>ALTUS AFB</Route><DateTime>${dt}</DateTime><NEXRADRISK>NO DATA</NEXRADRISK><BAMRISK>MODERATE</BAMRISK><AHASRISK>${ahas}</AHASRISK><coordinates>34.7 -99.2 34.5 -99.3 34.7 -99.2</coordinates></Table>`;
+  const xml = '</xs:schema><NewDataSet>'
+    + row('2026-06-07 15:06:00.000', 'LOW') + row('2026-06-07 16:00:00.000', 'MODERATE') + row('2026-06-08 02:00:00.000', 'LOW')
+    + '</NewDataSet>';
+  const h = parseAhasHourly(xml);
+  assert.deepEqual(h.map((x) => x.level), ['LOW', 'MODERATE', 'LOW']);
+});
+
 test('ahasRouteType maps IR/VR/SR, skips AR', () => {
   assert.equal(ahasRouteType('IR154'), 'IR');
   assert.equal(ahasRouteType('IR-154'), 'IR');
