@@ -96,18 +96,30 @@ function build(text) {
 async function main() {
   const args = process.argv.slice(2);
   let out = fileURLToPath(new URL('../data/procedures.json', import.meta.url));
-  let src = null;
-  for (let i = 0; i < args.length; i++) { if (args[i] === '--out') out = args[++i]; else src = args[i]; }
+  let src = null, merge = false;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--out') out = args[++i];
+    else if (args[i] === '--merge') merge = true;
+    else src = args[i];
+  }
   if (!src) {
-    console.error('Usage: node scripts/ingest-faa-cifp.js <FAACIFP18 | extract> [--out data/procedures.json]');
+    console.error('Usage: node scripts/ingest-faa-cifp.js <FAACIFP18 | extract> [--merge] [--out data/procedures.json]');
+    console.error('  --merge  add/replace these airports in the existing procedures.json (keep the rest)');
     console.error('Get FAACIFP18 from the FAA CIFP: https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/download/');
     process.exit(2);
   }
   const procs = build(readText(src));
-  const aprts = Object.keys(procs);
-  const nProc = aprts.reduce((n, a) => n + Object.keys(procs[a]).length, 0);
-  await writeFile(out, JSON.stringify(procs));
-  console.log(`Wrote ${nProc} procedures across ${aprts.length} airports -> ${out}`);
+  let result = procs;
+  if (merge) {
+    let base = {};
+    try { base = JSON.parse(readFileSync(out, 'utf8')); } catch { /* none yet */ }
+    for (const [apt, v] of Object.entries(procs)) base[apt] = { ...(base[apt] || {}), ...v };
+    result = base;
+  }
+  const aprts = Object.keys(result);
+  const nProc = aprts.reduce((n, a) => n + Object.keys(result[a]).length, 0);
+  await writeFile(out, JSON.stringify(result));
+  console.log(`${merge ? 'Merged' : 'Wrote'} ${Object.keys(procs).length} airport(s) from input; file now has ${nProc} procedures across ${aprts.length} airports -> ${out}`);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
