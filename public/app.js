@@ -626,7 +626,7 @@ function renderAirfields(data, limits) {
       || activeRoutes.find((d) => d.windsAt)?.windsAt || null;
     const llValid = llWhen ? `<span class="ll-hint">AHAS valid ${esc(zuluLocal(llWhen, { date: true }))} · per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`
       : `<span class="ll-hint">Per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`;
-    const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-level</div>
+    const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-Level/AR</div>
       <div class="ll-banner">${activeRoutes.map((d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}"><span class="rc-dot"></span>${esc(d.id)}${d.birdRisk ? ` · <b style="color:${BIRD_COLOR[d.birdRisk.level]}">AHAS ${esc(d.birdRisk.level)}</b>` : ''}</span>`).join('')}
         ${llValid}</div></div>`;
     const depIdx = groups.findIndex((g) => g.role === 'RECOVERY');
@@ -1011,7 +1011,7 @@ function updatePrintHead(data, ids, limits) {
     const phases = data.airfields
       .filter((b) => b.phase && b.phase.when && b.phase.role !== 'FIELD')
       .map((b) => `${esc(b.phase.label)} ${esc(b.icao)} @ ${esc(zuluLocal(b.phase.when))}`);
-    const ll = activeRoutes.length ? [`Low-level ${activeRoutes.map((d) => esc(d.id)).join(', ')}`] : [];
+    const ll = activeRoutes.length ? [`Low-Level/AR ${activeRoutes.map((d) => esc(d.id)).join(', ')}`] : [];
     const line = [...phases.slice(0, 1), ...ll, ...phases.slice(1)].join('  →  ');
     takeoff = line ? `<div class="ph-meta">Sortie timeline: ${line} — each phase evaluated at its own time</div>` : '';
   } else if (data.targetTime) {
