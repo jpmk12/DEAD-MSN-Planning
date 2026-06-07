@@ -45,7 +45,16 @@ export async function fetchMetars(icaos, signal) {
 export async function fetchTafs(icaos, signal) {
   if (icaos.length === 0) return [];
   const url = `${BASE}/taf?ids=${encodeURIComponent(icaos.join(','))}&format=json`;
-  const data = await getJson(url, signal);
+  const res = await fetch(url, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
+  if (!res.ok) throw new Error(`AWC ${res.status} ${res.statusText} for ${url}`);
+  // AWC often returns 200 with an EMPTY or non-JSON body for stations that issue
+  // no TAF (common for military fields like KLTS). Treat that as "reachable, no
+  // TAF" — return [] instead of throwing — so the source stays LIVE and the
+  // field card simply shows no TAF (rather than the source reading UNAVAILABLE).
+  const text = (await res.text()).trim();
+  if (!text) return [];
+  let data;
+  try { data = JSON.parse(text); } catch { return []; }
   return (Array.isArray(data) ? data : [])
     .map((t) => ({ icao: t.icaoId, rawTaf: t.rawTAF ?? t.rawOb ?? t.raw_text ?? t.rawText ?? '' }))
     .filter((t) => t.icao);

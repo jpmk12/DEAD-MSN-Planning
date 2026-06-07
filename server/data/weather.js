@@ -55,7 +55,11 @@ export async function loadWeather(icaos, offline) {
       for (const tf of taf.list) {
         if (tf && tf.icao) tafs.set(String(tf.icao).toUpperCase(), tf.rawTaf || '');
       }
-      return { obs, tafs, live: true, tafLive: taf.ok };
+      // TAF and METAR come from the SAME AWC API. If METARs came back, the AWC
+      // source is reachable, so the TAF source is "live" too — a field with no
+      // TAF (e.g. KLTS) is "no TAF for this field", not "source unreachable".
+      // Only when METAR is also unavailable do we mark TAF unreachable.
+      return { obs, tafs, live: true, tafLive: taf.ok || obs.length > 0 };
     }
   } catch {
     // unavailable — fall through
