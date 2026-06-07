@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DEAD reticle skull over wordmark">
+  <defs>
+    <radialGradient id="bgA" cx="38%" cy="26%" r="95%">
+      <stop offset="0%" stop-color="#143b46"/><stop offset="55%" stop-color="#0a1c22"/><stop offset="100%" stop-color="#04090b"/>
+    </radialGradient>
+    <linearGradient id="skullA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f04437"/><stop offset="100%" stop-color="#b3231b"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bgA)"/>
+  <!-- reticle around the skull, upper region -->
+  <circle cx="256" cy="190" r="150" fill="none" stroke="#22d3ee" stroke-width="6" stroke-dasharray="5 13" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="256" cy="190" r="126" fill="none" stroke="#1c6f80" stroke-width="3" opacity="0.55"/>
+  <g stroke="#22d3ee" stroke-width="7" stroke-linecap="round" opacity="0.9">
+    <line x1="256" y1="74" x2="256" y2="104"/>
+    <line x1="256" y1="276" x2="256" y2="306"/>
+    <line x1="92" y1="190" x2="122" y2="190"/>
+    <line x1="390" y1="190" x2="420" y2="190"/>
+  </g>
+  <line x1="256" y1="74" x2="256" y2="104" stroke="#3ddc5a" stroke-width="7" stroke-linecap="round"/>
+  <!-- skull, scaled into the reticle -->
+  <g transform="translate(256 190) scale(0.62) translate(-256 -240)">
+    <path d="M256 150 c-58 0 -100 40 -100 95 c0 32 15 57 38 71 l0 31 c0 10 8 18 18 18 l88 0 c10 0 18 -8 18 -18 l0 -31 c23 -14 38 -39 38 -71 c0 -55 -42 -95 -100 -95 z" fill="url(#skullA)"/>
+    <path d="M198 236 l50 -16 l0 38 l-34 9 c-13 -9 -18 -19 -16 -31 z" fill="#0a1418"/>
+    <path d="M314 236 l-50 -16 l0 38 l34 9 c13 -9 18 -19 16 -31 z" fill="#0a1418"/>
+    <path d="M256 270 l-10 20 l20 0 z" fill="#0a1418"/>
+    <g fill="#0a1418"><rect x="234" y="300" width="5" height="30" rx="2"/><rect x="253" y="300" width="6" height="32" rx="2"/><rect x="273" y="300" width="5" height="30" rx="2"/></g>
+  </g>
+  <!-- DEAD wordmark + runway underline -->
+  <text x="256" y="416" text-anchor="middle" font-family="'Arial Narrow','Helvetica Neue',Impact,sans-serif" font-weight="800" font-size="116" letter-spacing="7" fill="#f4f7fa" transform="scale(1,1.05)">DEAD</text>
+  <line x1="150" y1="446" x2="362" y2="446" stroke="#22d3ee" stroke-width="7" stroke-dasharray="18 15" stroke-linecap="round" opacity="0.9"/>
+</svg>
