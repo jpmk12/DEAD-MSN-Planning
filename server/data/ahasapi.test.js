@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhasLevel, parseAhasSeries, parseAhasHourly, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
+import { parseAhasLevel, parseAhasSeries, parseAhasHourly, parseAhasRouteMatrix, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
 
 test('ahasRunAtIso floors to the requested Zulu hour', () => {
   assert.equal(ahasRunAtIso('2026-06-06T18:42:30Z'), '2026-06-06T18:00:00.000Z');
@@ -51,6 +51,23 @@ test('parseAhasHourly handles the airfield shape (one row/hour, coords ignored)'
     + '</NewDataSet>';
   const h = parseAhasHourly(xml);
   assert.deepEqual(h.map((x) => x.level), ['LOW', 'MODERATE', 'LOW']);
+});
+
+test('parseAhasRouteMatrix groups per turn point, worst risk per hour', () => {
+  const row = (seg, dt, ahas) => `<Table><Segment>${seg}</Segment><DateTime>${dt}</DateTime><NEXRADRISK>NO DATA</NEXRADRISK><AHASRISK>${ahas}</AHASRISK></Table>`;
+  const xml = '</xs:schema><NewDataSet>'
+    // segment 2 listed before 1 to prove numeric ordering
+    + row('2', '2026-06-07 16:00:00.000', 'MODERATE') + row('2', '2026-06-07 17:00:00.000', 'LOW')
+    + row('1', '2026-06-07 16:00:00.000', 'LOW') + row('1', '2026-06-07 16:00:00.000', 'SEVERE')
+    + row('1', '2026-06-07 17:00:00.000', 'LOW')
+    + '</NewDataSet>';
+  const segs = parseAhasRouteMatrix(xml);
+  assert.deepEqual(segs.map((s) => s.segment), ['1', '2']);              // numeric order
+  assert.deepEqual(segs[0].series.map((h) => h.level), ['SEVERE', 'LOW']); // worst per hour
+  assert.deepEqual(segs[1].series.map((h) => h.level), ['MODERATE', 'LOW']);
+  // Airfield shape (no <Segment>) yields no per-segment matrix.
+  assert.deepEqual(parseAhasRouteMatrix('</xs:schema><Table><DateTime>x</DateTime><AHASRISK>LOW</AHASRISK></Table>'), []);
+  assert.deepEqual(parseAhasRouteMatrix(''), []);
 });
 
 test('ahasRouteType maps IR/VR/SR, skips AR', () => {

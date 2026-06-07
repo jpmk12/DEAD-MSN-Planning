@@ -193,12 +193,35 @@ const server = createServer(async (req, res) => {
     // brief data or making cross-origin writes to /api/sorties (the JSON POST
     // preflight will fail). nosniff is cheap defense-in-depth.
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Don't leak the full URL (which can carry briefed ICAOs/times) to the
+    // third-party tile/CDN hosts the page talks to.
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Frame-Options', 'DENY');
+    // Content-Security-Policy: lock the origin down while still allowing the
+    // live map (CARTO/IEM/RainViewer tiles + their JSON over https) and the few
+    // inline <style>/<script>/onclick hooks the app and the printable refcard
+    // use. 'unsafe-inline' is required for those inline handlers; everything
+    // else is same-origin. frame-ancestors blocks clickjacking.
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "img-src 'self' data: https:",
+        "connect-src 'self' https:",
+        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
+      ].join('; '),
+    );
 
-    // Request log (stdout, on by default; set REQUEST_LOG=off to silence). This
-    // exists so the platform's health probe is VISIBLE in the deploy log: its
+    // Request log (stdout, OFF by default; set REQUEST_LOG=on to enable). When
+    // on it makes the platform's health probe VISIBLE in the deploy log: its
     // path, method, user-agent, forwarded headers, and the status we return.
     // That's the one thing support couldn't tell us — now we can see it.
-    if (process.env.REQUEST_LOG !== 'off') {
+    if (process.env.REQUEST_LOG === 'on' || process.env.REQUEST_LOG === '1') {
       const t0 = Date.now();
       const h = req.headers;
       res.on('finish', () => {

@@ -137,6 +137,41 @@ export function parseAhasHourly(text) {
     .slice(0, 12);
 }
 
+/** Per-turn-point (per-segment) 12-hour outlook from a route GetAHASRisk12
+ *  response. The DataSet serializes one row per (segment × forecast hour); each
+ *  row carries <Segment>, <DateTime> and the combined <AHASRISK>. We zip the
+ *  three parallel columns by index (same shape parseAhasHourly relies on), group
+ *  by segment, and within each segment take the worst risk per Zulu hour, time-
+ *  ordered and capped at 12. Returns [{ segment, series:[{time,level}] }] ordered
+ *  by segment number. Falls back to [] when the per-segment shape isn't present
+ *  (e.g. an airfield response, or no data). */
+export function parseAhasRouteMatrix(text) {
+  if (!text) return [];
+  const s = String(text);
+  const segs = [...s.matchAll(/<Segment>([^<]+)<\/Segment>/gi)].map((m) => m[1].trim());
+  const times = [...s.matchAll(/<DateTime>([^<]+)<\/DateTime>/gi)].map((m) => m[1].trim());
+  const risks = [...s.matchAll(/<AHASRISK>([^<]+)<\/AHASRISK>/gi)].map((m) => m[1].trim().toUpperCase());
+  const n = Math.min(segs.length, times.length, risks.length);
+  if (!n) return [];
+  const bySeg = new Map(); // segment -> Map(hourKey -> { time, level })
+  const order = []; // preserve first-seen segment order
+  for (let i = 0; i < n; i++) {
+    const level = risks[i];
+    if (!(level in AHAS_RANK)) continue; // skip "NO DATA"
+    const seg = segs[i];
+    let hours = bySeg.get(seg);
+    if (!hours) { hours = new Map(); bySeg.set(seg, hours); order.push(seg); }
+    const key = times[i].slice(0, 13);
+    const cur = hours.get(key);
+    if (!cur || AHAS_RANK[level] > AHAS_RANK[cur.level]) hours.set(key, { time: times[i], level });
+  }
+  const numeric = (a, b) => { const na = parseFloat(a), nb = parseFloat(b); return (Number.isNaN(na) || Number.isNaN(nb)) ? (a < b ? -1 : a > b ? 1 : 0) : na - nb; };
+  return order.sort(numeric).map((seg) => ({
+    segment: seg,
+    series: [...bySeg.get(seg).entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map((e) => e[1]).slice(0, 12),
+  }));
+}
+
 /** AHAS route Type from an MTR id prefix; AR (refueling) has no bird route. */
 export function ahasRouteType(id) {
   const u = String(id || '').toUpperCase();

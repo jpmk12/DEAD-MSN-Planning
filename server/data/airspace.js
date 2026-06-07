@@ -128,7 +128,10 @@ async function fetchGeoJson(url, signal) {
 function suaArcgisUrl(bbox) {
   const params = new URLSearchParams({
     where: '1=1',
-    outFields: 'IDENT,NAME,TYPE_CODE,STATUS,SCHEDULE,LOWER_VAL,UPPER_VAL',
+    // Request all fields: the SUA layer's column names vary, and an explicit
+    // list that names a field the layer doesn't have makes ArcGIS return an
+    // error (0 features). '*' is robust and the payload is already bbox-bounded.
+    outFields: '*',
     geometry: `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`,
     geometryType: 'esriGeometryEnvelope',
     inSR: '4326',

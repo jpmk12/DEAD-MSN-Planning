@@ -10,7 +10,7 @@ import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
 import { fetchNotams } from './data/notams.js';
 import { advisoryFor } from './data/birds.js';
-import { ahasRaw, parseAhasLevel, parseAhasSeries, parseAhasHourly, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
+import { ahasRaw, parseAhasLevel, parseAhasSeries, parseAhasHourly, parseAhasRouteMatrix, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -43,6 +43,26 @@ async function ahas12(type, area, whenIso) {
     if (!series.length) { const lv = parseAhasLevel(xml); return lv ? { level: lv, series: [], runAt: ahasRunAtIso(whenIso) } : null; }
     const level = series.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), 'LOW');
     return { level, series, runAt: ahasRunAtIso(whenIso) };
+  } catch { return null; }
+}
+
+// 12-hour AHAS outlook for a ROUTE, resolved per turn point (segment). Returns
+// the per-segment hourly matrix plus an overall worst level. Falls back to the
+// route-level series when the per-segment shape isn't present.
+async function ahas12Route(type, area, whenIso) {
+  try {
+    const xml = await ahasRaw('GetAHASRisk12', type, area, whenIso);
+    const segments = parseAhasRouteMatrix(xml);
+    if (segments.length) {
+      const level = segments.reduce((w, seg) => seg.series.reduce((ww, s) => (RANK[s.level] > RANK[ww] ? s.level : ww), w), 'LOW');
+      return { level, segments, series: [], runAt: ahasRunAtIso(whenIso) };
+    }
+    // No per-segment rows — fall back to the route-level hourly series.
+    let series = parseAhasHourly(xml);
+    if (!series.length) series = parseAhasSeries(xml).map((level) => ({ time: null, level }));
+    if (!series.length) { const lv = parseAhasLevel(xml); return lv ? { level: lv, segments: [], series: [], runAt: ahasRunAtIso(whenIso) } : null; }
+    const level = series.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), 'LOW');
+    return { level, segments: [], series, runAt: ahasRunAtIso(whenIso) };
   } catch { return null; }
 }
 
@@ -84,14 +104,28 @@ function ahasFieldSection(label, a) {
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
+// Per-turn-point 12-hour matrix: one labelled hourly strip per route segment.
+function segmentMatrix(segments) {
+  if (!segments || !segments.length) return '';
+  const rows = segments.map((seg) => {
+    const worst = seg.series.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), 'LOW');
+    return `<div class="seg-row"><div class="seg-id" style="color:${riskColor(worst)}">TP ${esc(seg.segment)}</div>${hourlyStrip(seg.series) || '<div class="none">no data</div>'}</div>`;
+  }).join('');
+  return `<div class="seg-matrix">${rows}</div>`;
+}
+
 function routeAhasSection(routeAhas) {
   if (!routeAhas.length) return '';
   const rows = routeAhas.map((r) => {
     if (!r.ahas) return `<div class="notam"><span class="cat">${esc(r.id)}</span><div><div class="txt none">No AHAS data (route not covered by AHAS — e.g. AR tracks — or unavailable).</div></div></div>`;
-    const worst = r.ahas.level || (r.ahas.series && r.ahas.series[0] && r.ahas.series[0].level) || 'LOW';
+    const worst = r.ahas.level || (r.ahas.segments && r.ahas.segments[0]?.series?.[0]?.level) || (r.ahas.series && r.ahas.series[0] && r.ahas.series[0].level) || 'LOW';
+    const detail = (r.ahas.segments && r.ahas.segments.length)
+      ? segmentMatrix(r.ahas.segments)       // per-turn-point 12-hr matrix
+      : hourlyStrip(r.ahas.series);          // route-level fallback strip
+    const tpNote = (r.ahas.segments && r.ahas.segments.length) ? ` · ${r.ahas.segments.length} turn points` : '';
     return `<div class="route-ahas"><div class="notam"><span class="cat" style="color:${riskColor(worst)};background:#fff;border:1px solid ${riskColor(worst)}">${esc(r.id)}</span>
-      <div><div class="txt"><b style="color:${riskColor(worst)}">${esc(worst)}</b> 12-hr worst${r.ahas.runAt ? ` · from ${esc(zulu(r.ahas.runAt))}` : ''}</div></div></div>
-      ${hourlyStrip(r.ahas.series)}</div>`;
+      <div><div class="txt"><b style="color:${riskColor(worst)}">${esc(worst)}</b> 12-hr worst${r.ahas.runAt ? ` · from ${esc(zulu(r.ahas.runAt))}` : ''}${tpNote}</div></div></div>
+      ${detail}</div>`;
   }).join('');
   return `<section><h2>AHAS Bird Risk (12-hour) — Low-Level / AR routes</h2>${rows}
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
@@ -136,6 +170,10 @@ const STYLE = `
   .hr-t { font: 9px ui-monospace, monospace; color: #777; }
   .hr-l { font: 700 11px ui-monospace, monospace; color: #fff; width: 26px; height: 22px; line-height: 22px; border-radius: 4px; }
   .route-ahas { padding: 4px 0; border-top: 1px solid #f0f0f0; }
+  .seg-matrix { margin: 4px 0 2px; }
+  .seg-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .seg-id { font: 700 10px ui-monospace, monospace; min-width: 46px; }
+  .seg-row .strip { margin: 2px 0; }
   .src { color: #999; font-size: 11px; margin-top: 4px; }
   .notam { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid #f0f0f0; }
   .notam .cat { font: 10px ui-monospace, monospace; font-weight: 700; background: #eef; color: #335; border-radius: 4px; padding: 2px 6px; height: fit-content; white-space: nowrap; }
@@ -188,7 +226,7 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     ? await Promise.all(routes.map(async (id) => {
         const type = ahasRouteType(id);
         if (!type || !ahasHasRoute(id)) return { id, ahas: null };
-        return { id, ahas: await ahas12(type, normRoute(id), routeWhen).catch(() => null) };
+        return { id, ahas: await ahas12Route(type, normRoute(id), routeWhen).catch(() => null) };
       }))
     : [];
 
@@ -197,12 +235,13 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     const label = f.label ? `${f.icao} (${f.label})` : f.icao;
     // For the combined view, group a base's sections under a heading.
     if (only === 'all') body += `<div class="field-group-h">${esc(label)}</div>`;
-    if (want('notams')) body += notamSection(label, (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao), notamRes.source);
+    // Section order: weather → NOTAMs → AHAS.
     if (want('wx')) {
       const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
       const tafRaw = wx.tafs?.get(f.icao);
       body += wxSection(label, obs, tafRaw, decodeTaf(tafRaw));
     }
+    if (want('notams')) body += notamSection(label, (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao), notamRes.source);
     if (want('ahas')) body += ahasFieldSection(label, ahas);
   }
   if (want('ahas') && routeAhas.length) {
