@@ -105,8 +105,9 @@ async function fetchGeoJson(url, signal) {
   const hit = geojsonCache.get(url);
   if (hit && Date.now() - hit.at < GEOJSON_TTL_MS) return hit.data;
   try {
-    // The nationwide SUA query is large/slow; allow a generous timeout.
-    const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(12000), headers: { Accept: 'application/json' } });
+    // Allow a generous timeout (these feeds can be large/slow, esp. on a cold
+    // or bandwidth-limited host).
+    const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(20000), headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`GeoJSON ${res.status} for ${url}`);
     const data = await res.json();
     geojsonCache.set(url, { at: Date.now(), data });
@@ -117,6 +118,24 @@ async function fetchGeoJson(url, signal) {
     if (hit && Date.now() - hit.at < GEOJSON_MAX_STALE_MS) return hit.data;
     throw e;
   }
+}
+
+// Build the FAA SUA ArcGIS query restricted to a bounding box around the briefed
+// fields, with only the fields the mapper needs and reduced coordinate
+// precision. The nationwide `where=1=1` query is multi-MB and times out on
+// constrained hosts; this returns just the relevant SUA, fast.
+function suaArcgisUrl(bbox) {
+  const params = new URLSearchParams({
+    where: '1=1',
+    outFields: 'IDENT,NAME,TYPE_CODE,STATUS,SCHEDULE,LOWER_VAL,UPPER_VAL',
+    geometry: `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`,
+    geometryType: 'esriGeometryEnvelope',
+    inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects',
+    geometryPrecision: '4',
+    f: 'geojson',
+  });
+  return `https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/Special_Use_Airspace/FeatureServer/0/query?${params}`;
 }
 
 const firstProp = (props, keys, fallback) => {
@@ -160,8 +179,11 @@ export async function fetchTfrs(offline, signal) {
 }
 
 /** @returns {Promise<{sua:any[], live:boolean}>} */
-export async function fetchSua(offline, signal) {
-  const url = process.env.SUA_GEOJSON_URL || SUA_DEFAULT_URL;
+export async function fetchSua(offline, signal, bbox) {
+  const custom = process.env.SUA_GEOJSON_URL;
+  // Use the bbox-restricted FAA ArcGIS query when we're on the default source
+  // and have a briefed area; otherwise the custom URL or the nationwide default.
+  const url = custom || (bbox ? suaArcgisUrl(bbox) : SUA_DEFAULT_URL);
   if (!offline && url) {
     try {
       const gj = await fetchGeoJson(url, signal);

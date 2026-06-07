@@ -115,74 +115,90 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     .map((a) => ({ lat: a.lat, lon: a.lon }));
   // AWC's pirep endpoint needs a bbox (lat0,lon0,lat1,lon1); pad the fields ~6°.
   let pirepBbox;
+  // SUA query bounding box (~5° ≈ 300NM pad, matching the map trim) so we fetch
+  // only the relevant Special Use Airspace instead of the whole nation.
+  let airspaceBbox = null;
   if (fieldPts.length) {
     const lats = fieldPts.map((p) => p.lat);
     const lons = fieldPts.map((p) => p.lon);
     pirepBbox = `${Math.min(...lats) - 6},${Math.min(...lons) - 6},${Math.max(...lats) + 6},${Math.max(...lons) + 6}`;
+    airspaceBbox = { minLat: Math.min(...lats) - 5, minLon: Math.min(...lons) - 5, maxLat: Math.max(...lats) + 5, maxLon: Math.max(...lons) + 5 };
   }
 
-  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult] = await Promise.all([
-    loadWeather(fields, offline),
-    fetchNotams(fields, offline),
-    fetchTfrs(offline),
-    fetchSua(offline),
-    fetchAirSigmets(offline),
-    fetchPireps(offline, pirepBbox),
-    fetchConvective(offline),
-    fetchMtrs(offline),
-  ]);
-  const { obs, tafs, live: wxLive } = wxRes;
-  const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
+  // Run EVERY source concurrently. Dependent steps chain only on the one promise
+  // they need (route AHAS on the bundled MTR set; nothing else waits on the slow
+  // feeds), and birds/winds run alongside the rest instead of stacking after —
+  // so total time is the slowest single source, not their sum.
+  const weatherP = loadWeather(fields, offline);
+  const notamsP = fetchNotams(fields, offline);
+  const tfrP = fetchTfrs(offline);
+  const suaP = fetchSua(offline, undefined, airspaceBbox);
+  const sigmetP = fetchAirSigmets(offline);
+  const pirepP = fetchPireps(offline, pirepBbox);
+  const convP = fetchConvective(offline);
+  const mtrP = fetchMtrs(offline);
 
-  // AHAS airfield bird risk, evaluated AT EACH STOP'S TIME. Fields that share a
-  // time are fetched together (one HTTP call per field per distinct time). An
-  // out-and-back field gets a separate departure-time and recovery-time risk.
+  // AHAS airfield bird risk per stop time. Fields sharing a time are fetched
+  // together; an out-and-back field gets separate departure/recovery risk.
   const byWhen = new Map(); // when -> Set(icao)
   for (const s of stopList) {
     const k = s.when || '';
     if (!byWhen.has(k)) byWhen.set(k, new Set());
     byWhen.get(k).add(s.icao);
   }
-  const birdByKey = new Map(); // `${when}|${icao}` -> risk record
   let birdLive = false;
-  await Promise.all([...byWhen].map(async ([whenKey, icaoSet]) => {
+  const birdsP = Promise.all([...byWhen].map(async ([whenKey, icaoSet]) => {
     const res = await fetchBirdRisk([...icaoSet], offline, whenKey || null);
     birdLive = birdLive || res.live;
-    for (const icao of icaoSet) {
-      const rec = res.risk.get(icao);
-      if (rec) birdByKey.set(`${whenKey}|${icao}`, rec);
+    return [whenKey, res];
+  })).then((entries) => {
+    const m = new Map(); // `${when}|${icao}` -> risk record
+    for (const [whenKey, res] of entries) {
+      for (const icao of byWhen.get(whenKey)) {
+        const rec = res.risk.get(icao);
+        if (rec) m.set(`${whenKey}|${icao}`, rec);
+      }
     }
-  }));
+    return m;
+  });
 
-  // AHAS bird risk only for routes near the briefed fields (live AHAS is one
-  // HTTP call per route, so don't query the whole AP/1B set). Evaluated at the
-  // departure time (the dedicated Route Lookup gives entry-time precision).
+  // Route AHAS for routes near the fields, at the departure time. Depends only
+  // on the bundled MTR set + airport coords, so it starts as soon as MTRs load.
   const depStop = stopList.find((s) => s.role === 'DEPARTURE') || stopList[0];
   const routeWhen = depStop?.when ?? targetIso;
-  const nearbyRouteIds = new Set();
-  for (const icao of fields) {
-    const ap = airportMap.get(icao);
-    if (ap && Number.isFinite(ap.lat)) {
-      for (const m of nearby(ap.lat, ap.lon, mtrResult.mtrs, MTR_THRESHOLD_NM)) nearbyRouteIds.add(m.id);
+  const routeAhasP = mtrP.then((mtrRes) => {
+    const ids = new Set();
+    for (const icao of fields) {
+      const ap = airportMap.get(icao);
+      if (ap && Number.isFinite(ap.lat)) {
+        for (const m of nearby(ap.lat, ap.lon, mtrRes.mtrs, MTR_THRESHOLD_NM)) ids.add(m.id);
+      }
     }
-  }
-  const ahasRes = await fetchRouteRisk([...nearbyRouteIds], offline, routeWhen);
-  const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
+    return fetchRouteRisk([...ids], offline, routeWhen);
+  });
 
-  // Winds aloft per stop (needs coordinates), tailored to the stop time (or the
-  // observation hour when no time is set).
-  const windsByKey = new Map();
+  // Winds aloft per stop — needs only coordinates + the stop time, so it's fully
+  // independent of the weather/NOTAM/airspace fetches.
   let windsLive = false;
-  await Promise.all(stopList.map(async (s) => {
-    const key = stopKey(s);
-    if (windsByKey.has(key)) return; // shared by stops with identical icao+time
-    const ap = airportMap.get(s.icao);
-    if (!ap || ap.lat == null) { windsByKey.set(key, null); return; }
-    const o = byIcao.get(s.icao);
-    const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, s.when ?? o?.obsTime).catch(() => null);
-    if (r && r.live) windsLive = true;
-    windsByKey.set(key, r || null);
-  }));
+  const windsP = (async () => {
+    const map = new Map();
+    await Promise.all(stopList.map(async (s) => {
+      const key = stopKey(s);
+      if (map.has(key)) return; // shared by stops with identical icao+time
+      const ap = airportMap.get(s.icao);
+      if (!ap || ap.lat == null) { map.set(key, null); return; }
+      const r = await fetchWindsAloft(ap.lat, ap.lon, ap.elevationFt, offline, s.when || null).catch(() => null);
+      if (r && r.live) windsLive = true;
+      map.set(key, r || null);
+    }));
+    return map;
+  })();
+
+  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey] =
+    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP]);
+  const { obs, tafs, live: wxLive } = wxRes;
+  const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
+  const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
 
   const airfields = [];
   for (let si = 0; si < stopList.length; si++) {
