@@ -699,9 +699,7 @@ const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUp
 
 // Quick-links toolbar: external references for the current departure airfield.
 // The visible label stays short (just the tool name); the field is reflected in
-// the href and the hover title. AWC and DAIP deep-link to the field.
-// TODO: wire AHAS to its per-ICAO deep-link URL once known (user to provide the
-// exact handler/URL format) so it jumps straight to the field.
+// the href and the hover title. All three deep-link to the field.
 function quickLinkUrls(icao) {
   const id = encodeURIComponent(icao);
   // DAIP deep-link: its SPA (/daip/mobile/index) drives a POST search; pass the
@@ -711,15 +709,42 @@ function quickLinkUrls(icao) {
   return {
     'ql-daip': { href: `https://www.daip.jcs.mil/daip/mobile/index?${daip}`, title: `DoD DAIP — NOTAMs for ${icao} (10 NM)` },
     'ql-awc': { href: `https://aviationweather.gov/data/metar/?ids=${id}&taf=true`, title: `Aviation Weather — ${icao} METAR/TAF` },
-    'ql-ahas': { href: 'https://www.usahas.com/', title: `USAF AHAS — bird/wildlife risk (look up ${icao})` },
   };
 }
+
+// AHAS deep-link: the usahas.com web service keys off the AHAS AREA NAME (not the
+// ICAO) and the Zulu month/day/hour. Resolve the area via the server map, build
+// the GetAHASRisk12 (12-hr outlook) URL at the departure time. Falls back to the
+// AHAS home page when the field has no mapped military area.
+const ahasAreaCache = {}; // icao -> area | null
+function ahasUrlFor(area) {
+  if (!area) return 'https://www.usahas.com/';
+  const whenIso = zuluToIso('sp-dep-t');
+  const d = whenIso ? new Date(whenIso) : new Date();
+  const qs = `Type=MILAIR&Area=${encodeURIComponent(`'${area}'`)}&iMonth=${d.getUTCMonth() + 1}&iDay=${d.getUTCDate()}&iHour=${d.getUTCHours()}`;
+  return `https://www.usahas.com/webservices/Fluffy_AHAS2025.asmx/GetAHASRisk12?${qs}`;
+}
+async function setAhasLink(icao) {
+  const el = $('ql-ahas');
+  if (!el) return;
+  el.href = 'https://www.usahas.com/'; // safe fallback until the area resolves
+  let area = ahasAreaCache[icao];
+  if (area === undefined) {
+    try { const r = await fetch(`/api/ahas-area?icao=${encodeURIComponent(icao)}`); area = (await r.json()).area || null; }
+    catch { area = null; }
+    ahasAreaCache[icao] = area;
+  }
+  el.href = ahasUrlFor(area);
+  el.title = area ? `USAF AHAS — ${area} 12-hr risk` : `USAF AHAS — bird/wildlife risk (look up ${icao})`;
+}
+
 function updateQuickLinks() {
   const icao = splitIds(val('sp-dep'))[0] || 'KLTS';
   for (const [linkId, { href, title }] of Object.entries(quickLinkUrls(icao))) {
     const el = $(linkId);
     if (el) { el.href = href; el.title = title; } // label text left as-is (short)
   }
+  setAhasLink(icao);
 }
 
 // Build the brief from the single sortie panel: each phase (departure /
@@ -1263,6 +1288,7 @@ window.addEventListener('afterprint', () => {
   trackChipTarget();
   updateQuickLinks();
   on('sp-dep', 'input', updateQuickLinks); // keep the toolbar in sync with the field
+  on('sp-dep-t', 'input', updateQuickLinks); // AHAS link embeds the departure Zulu hour
   on('go', 'click', buildBrief);
   on('sp-clear', 'click', () => {
     ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });

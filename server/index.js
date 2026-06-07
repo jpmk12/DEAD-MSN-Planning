@@ -21,7 +21,7 @@ import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
 import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams } from './data/daip.js';
-import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
+import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './data/ahasapi.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -155,6 +155,13 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === '/api/airfields') {
       sendJson(res, 200, { airfields: await knownAirports() });
+      return;
+    }
+
+    // ICAO -> AHAS area name (e.g. KLTS -> "ALTUS AFB"), for the AHAS quick-link.
+    if (url.pathname === '/api/ahas-area') {
+      const icao = (url.searchParams.get('icao') || '').trim().toUpperCase();
+      sendJson(res, 200, { icao, area: ahasAreaForIcao(icao) || null });
       return;
     }
 
