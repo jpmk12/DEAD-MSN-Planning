@@ -705,11 +705,17 @@ function quickLinkUrls(icao) {
   const id = encodeURIComponent(icao);
   const whenIso = zuluToIso('sp-dep-t');
   const when = whenIso ? `&when=${encodeURIComponent(whenIso)}` : '';
+  // Low-level/AR routes from the sortie plan, evaluated at the entry time — added
+  // to the AHAS view and the Build PDF so route bird-risk is included.
+  const routeIds = splitIds(val('sp-ll'));
+  const routes = routeIds.length ? `&routes=${encodeURIComponent(routeIds.join(','))}` : '';
+  const rwhenIso = zuluToIso('sp-ll-t');
+  const rwhen = rwhenIso ? `&rwhen=${encodeURIComponent(rwhenIso)}` : '';
   return {
     'ql-daip': { href: `/api/refcard?icao=${id}&only=notams`, title: `DAIP NOTAMs for ${icao}` },
     'ql-awc': { href: `/api/refcard?icao=${id}&only=wx`, title: `${icao} METAR + decoded TAF (AWC)` },
-    'ql-ahas': { href: `/api/refcard?icao=${id}&only=ahas${when}`, title: `${icao} AHAS bird/wildlife risk` },
-    'ql-build': { href: `/api/refcard?icao=${id}${when}&print=1`, title: `Combined NOTAMs + weather + AHAS for ${icao}, ready to save as PDF` },
+    'ql-ahas': { href: `/api/refcard?icao=${id}&only=ahas${when}${routes}${rwhen}`, title: `${icao} + route AHAS bird/wildlife risk` },
+    'ql-build': { href: `/api/refcard?icao=${id}${when}${routes}${rwhen}&print=1`, title: `Combined NOTAMs + weather + AHAS (incl. routes) for ${icao}, ready to save as PDF` },
   };
 }
 
@@ -1261,8 +1267,9 @@ window.addEventListener('afterprint', () => {
   prefillDatetimes();
   trackChipTarget();
   updateQuickLinks();
-  on('sp-dep', 'input', updateQuickLinks); // keep the toolbar in sync with the field
-  on('sp-dep-t', 'input', updateQuickLinks); // AHAS link embeds the departure Zulu hour
+  // Keep the toolbar links in sync with the departure field/time and the
+  // low-level routes/entry time (AHAS + Build PDF include route bird-risk).
+  ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t'].forEach((id) => on(id, 'input', updateQuickLinks));
   on('go', 'click', buildBrief);
   on('sp-clear', 'click', () => {
     ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });

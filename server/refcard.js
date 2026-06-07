@@ -9,6 +9,7 @@ import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
 import { fetchNotams } from './data/notams.js';
 import { fetchBirdRisk } from './data/birds.js';
+import { fetchRouteRisk } from './data/ahas.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -44,14 +45,36 @@ function wxSection(icao, obs, tafRaw, decoded) {
     ${cite('FAA / NWS Aviation Weather Center', 'aviationweather.gov')}</section>`;
 }
 
-function ahasSection(icao, bird) {
-  if (!bird) return `<section><h2>AHAS Bird Risk — ${esc(icao)}</h2><div class="none">No AHAS risk available for this field.</div></section>`;
-  const when = bird.runAt ? `${bird.windowHours ? `${bird.windowHours}-hr outlook from ` : 'valid '}${zulu(bird.runAt)}` : '';
-  const color = bird.level === 'SEVERE' ? '#b3231b' : bird.level === 'MODERATE' ? '#b5840a' : '#1a7f37';
-  return `<section><h2>AHAS Bird Risk — ${esc(icao)}</h2>
-    <div class="ahas"><span class="lvl" style="color:${color};border-color:${color}">${esc(bird.level)}</span>
+const riskColor = (lvl) => (lvl === 'SEVERE' ? '#b3231b' : lvl === 'MODERATE' ? '#b5840a' : '#1a7f37');
+const normRoute = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// Low-level / AR route bird risk rows (from the sortie's low-level field).
+function routeAhasRows(routeIds, riskMap) {
+  if (!routeIds.length) return '';
+  const rows = routeIds.map((id) => {
+    const r = riskMap.get(normRoute(id));
+    if (!r) return `<div class="notam"><span class="cat">${esc(id)}</span><div><div class="txt none">No AHAS data (route not covered, or unavailable).</div></div></div>`;
+    const when = r.runAt ? ` · valid ${zulu(r.runAt)}` : '';
+    return `<div class="notam"><span class="cat" style="color:${riskColor(r.level)};background:#fff;border:1px solid ${riskColor(r.level)}">${esc(id)}</span>
+      <div><div class="txt"><b style="color:${riskColor(r.level)}">${esc(r.level)}</b> — ${esc(r.note || '')}${esc(when)}</div></div></div>`;
+  }).join('');
+  return `<h3>Low-Level / AR routes</h3>${rows}`;
+}
+
+function ahasSection(icao, bird, routeIds = [], routeRisk = new Map()) {
+  const routes = routeAhasRows(routeIds, routeRisk);
+  let field;
+  if (!bird) {
+    field = '<div class="none">No AHAS risk available for this field.</div>';
+  } else {
+    const when = bird.runAt ? `${bird.windowHours ? `${bird.windowHours}-hr outlook from ` : 'valid '}${zulu(bird.runAt)}` : '';
+    field = `<div class="ahas"><span class="lvl" style="color:${riskColor(bird.level)};border-color:${riskColor(bird.level)}">${esc(bird.level)}</span>
       <span class="ahas-note">${esc(bird.note || '')}</span></div>
-    ${when ? `<div class="when">${esc(when)}</div>` : ''}
+      ${when ? `<div class="when">${esc(when)}</div>` : ''}`;
+  }
+  return `<section><h2>AHAS Bird Risk — ${esc(icao)}</h2>
+    <h3>Airfield</h3>${field}
+    ${routes}
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
@@ -104,13 +127,15 @@ const STYLE = `
  * @param {('all'|'notams'|'wx'|'ahas')} only  which sections to include
  * @param {boolean} autoPrint  open the print dialog on load (Build PDF)
  */
-export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = false) {
+export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
   const want = (k) => only === 'all' || only === k;
-  const [airport, wx, notamRes, birdRes] = await Promise.all([
+  const wantRoutes = want('ahas') && routes.length > 0;
+  const [airport, wx, notamRes, birdRes, routeRes] = await Promise.all([
     getAirport(icao, false).catch(() => null),
     want('wx') ? loadWeather([icao], false).catch(() => ({ obs: [], tafs: new Map() })) : Promise.resolve({ obs: [], tafs: new Map() }),
     want('notams') ? fetchNotams([icao], false).catch(() => ({ notams: [], source: null })) : Promise.resolve({ notams: [], source: null }),
     want('ahas') ? fetchBirdRisk([icao], false, whenIso).catch(() => ({ risk: new Map() })) : Promise.resolve({ risk: new Map() }),
+    wantRoutes ? fetchRouteRisk(routes, false, routeWhen || whenIso).catch(() => ({ risk: new Map() })) : Promise.resolve({ risk: new Map() }),
   ]);
 
   const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === icao);
@@ -122,7 +147,7 @@ export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = fals
   let body = '';
   if (want('notams')) body += notamSection(icao, notams, notamRes.source);
   if (want('wx')) body += wxSection(icao, obs, tafRaw, decodeTaf(tafRaw));
-  if (want('ahas')) body += ahasSection(icao, bird);
+  if (want('ahas')) body += ahasSection(icao, bird, routes, routeRes.risk || new Map());
 
   const name = airport?.name ? ` — ${esc(airport.name)}` : '';
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8">

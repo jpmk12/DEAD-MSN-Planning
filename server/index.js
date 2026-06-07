@@ -175,9 +175,12 @@ const server = createServer(async (req, res) => {
       const only = ['all', 'notams', 'wx', 'ahas'].includes(onlyRaw) ? onlyRaw : 'all';
       const whenRaw = url.searchParams.get('when');
       const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
+      const rwhenRaw = url.searchParams.get('rwhen');
+      const routeWhen = rwhenRaw && !Number.isNaN(Date.parse(rwhenRaw)) ? new Date(rwhenRaw).toISOString() : null;
+      const routes = (url.searchParams.get('routes') || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 8);
       const autoPrint = url.searchParams.get('print') === '1';
       try {
-        const html = await buildRefCard(icao, whenIso, only, autoPrint);
+        const html = await buildRefCard(icao, whenIso, only, autoPrint, routes, routeWhen);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(html);
       } catch (e) {
