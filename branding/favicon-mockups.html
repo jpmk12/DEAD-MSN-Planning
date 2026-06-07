@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEAD — Favicon mockups (4 options)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px; background: #0b0f12; color: #e7edf2;
+         font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #93a1ab; margin: 0 0 24px; max-width: 720px; }
+  .sub code { background:#16202690; padding:1px 5px; border-radius:4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px,1fr)); gap: 22px; }
+  .card { background: #11181d; border: 1px solid #1f2a31; border-radius: 14px; padding: 18px 18px 20px; }
+  .card h2 { font-size: 16px; margin: 0 0 2px; }
+  .card .tag { font-size: 12px; color: #6fd6e6; text-transform: uppercase; letter-spacing: .08em; }
+  .card p { color: #9fb0ba; font-size: 13.5px; margin: 8px 0 16px; }
+  .row { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  .row.light { background:#e9eef2; border-radius:10px; padding:14px; margin-top:14px; }
+  .swatch { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .swatch span { font: 11px ui-monospace, monospace; color:#7d8d97; }
+  .row.light .swatch span { color:#55636c; }
+  /* app icon squircle frame */
+  .app { width:120px; height:120px; border-radius:27px; overflow:hidden; box-shadow:0 6px 18px #0008; }
+  .app img, .ico img { width:100%; height:100%; display:block; }
+  .ico48 { width:48px; height:48px; }
+  .ico32 { width:32px; height:32px; }
+  .ico16 { width:16px; height:16px; image-rendering:auto; }
+  .browser { display:flex; align-items:center; gap:8px; margin-top:14px; background:#1c272e; border-radius:8px 8px 0 0; padding:8px 12px; }
+  .browser .tab { display:flex; align-items:center; gap:7px; background:#0b0f12; padding:6px 12px; border-radius:7px 7px 0 0; font-size:12.5px; color:#cdd8df; }
+  .browser .tab img { width:16px; height:16px; }
+  .note { margin-top:26px; color:#8a99a3; font-size:13px; max-width:760px; }
+  .note b { color:#cdd8df; }
+</style>
+</head>
+<body>
+  <h1>DEAD — Mission Planner · favicon &amp; app-icon mockups</h1>
+  <p class="sub">Four directions, all original artwork (no Marvel/Deadpool trademarked marks — generic geometric skull + targeting reticle, license-safe). Each is a single scalable <code>.svg</code>, shown here at app-icon (120px), 48, 32 and 16px, plus a browser-tab and light-background check. Pick one (or mix elements) and I'll wire it in as <code>favicon.svg</code> + PNG fallbacks and the web-app manifest icons.</p>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="tag">Option 1</div>
+      <h2>Reticle Skull</h2>
+      <p>The strongest "DEAD" read: original geometric skull dead-center in a dashed targeting reticle, north tick in green. Blends the current planner dial with the crosshair/skull reference.</p>
+      <div class="row">
+        <div class="swatch"><div class="app"><img src="option1-reticle-skull.svg" alt=""></div><span>app 120</span></div>
+        <div class="swatch"><div class="ico ico48"><img src="option1-reticle-skull.svg" alt=""></div><span>48</span></div>
+        <div class="swatch"><div class="ico ico32"><img src="option1-reticle-skull.svg" alt=""></div><span>32</span></div>
+        <div class="swatch"><div class="ico ico16"><img src="option1-reticle-skull.svg" alt=""></div><span>16</span></div>
+      </div>
+      <div class="browser"><div class="tab"><img src="option1-reticle-skull.svg" alt="">DEAD · Mission Planner</div></div>
+      <div class="row light"><div class="swatch"><div class="ico ico48"><img src="option1-reticle-skull.svg" alt=""></div><span>on light</span></div><div class="swatch"><div class="ico ico32"><img src="option1-reticle-skull.svg" alt=""></div><span>32</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="tag">Option 2</div>
+      <h2>Approach Skull</h2>
+      <p>Keeps the existing planner composition — dashed dial, angled runway, green approach arrow — but the waypoint at touchdown is a tiny skull in a cyan target ring. Most "mission-planning first."</p>
+      <div class="row">
+        <div class="swatch"><div class="app"><img src="option2-approach-skull.svg" alt=""></div><span>app 120</span></div>
+        <div class="swatch"><div class="ico ico48"><img src="option2-approach-skull.svg" alt=""></div><span>48</span></div>
+        <div class="swatch"><div class="ico ico32"><img src="option2-approach-skull.svg" alt=""></div><span>32</span></div>
+        <div class="swatch"><div class="ico ico16"><img src="option2-approach-skull.svg" alt=""></div><span>16</span></div>
+      </div>
+      <div class="browser"><div class="tab"><img src="option2-approach-skull.svg" alt="">DEAD · Mission Planner</div></div>
+      <div class="row light"><div class="swatch"><div class="ico ico48"><img src="option2-approach-skull.svg" alt=""></div><span>on light</span></div><div class="swatch"><div class="ico ico32"><img src="option2-approach-skull.svg" alt=""></div><span>32</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="tag">Option 3</div>
+      <h2>DEAD Stencil</h2>
+      <p>Bold tactical wordmark with the "target dot + crosshair" as a crown and a dashed-runway underline. Great for splash/banner/large icon; the wordmark won't read at 16px (the crosshair carries it there).</p>
+      <div class="row">
+        <div class="swatch"><div class="app"><img src="option3-dead-stencil.svg" alt=""></div><span>app 120</span></div>
+        <div class="swatch"><div class="ico ico48"><img src="option3-dead-stencil.svg" alt=""></div><span>48</span></div>
+        <div class="swatch"><div class="ico ico32"><img src="option3-dead-stencil.svg" alt=""></div><span>32</span></div>
+        <div class="swatch"><div class="ico ico16"><img src="option3-dead-stencil.svg" alt=""></div><span>16</span></div>
+      </div>
+      <div class="browser"><div class="tab"><img src="option3-dead-stencil.svg" alt="">DEAD · Mission Planner</div></div>
+      <div class="row light"><div class="swatch"><div class="ico ico48"><img src="option3-dead-stencil.svg" alt=""></div><span>on light</span></div><div class="swatch"><div class="ico ico32"><img src="option3-dead-stencil.svg" alt=""></div><span>32</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="tag">Option 4</div>
+      <h2>Compass Crosshair</h2>
+      <p>The professional / SOF-clean route: no skull. A 4-point compass rose (north in green) fused with a crosshair and a center waypoint over the dashed dial. Reads cleanly at every size.</p>
+      <div class="row">
+        <div class="swatch"><div class="app"><img src="option4-compass-crosshair.svg" alt=""></div><span>app 120</span></div>
+        <div class="swatch"><div class="ico ico48"><img src="option4-compass-crosshair.svg" alt=""></div><span>48</span></div>
+        <div class="swatch"><div class="ico ico32"><img src="option4-compass-crosshair.svg" alt=""></div><span>32</span></div>
+        <div class="swatch"><div class="ico ico16"><img src="option4-compass-crosshair.svg" alt=""></div><span>16</span></div>
+      </div>
+      <div class="browser"><div class="tab"><img src="option4-compass-crosshair.svg" alt="">DEAD · Mission Planner</div></div>
+      <div class="row light"><div class="swatch"><div class="ico ico48"><img src="option4-compass-crosshair.svg" alt=""></div><span>on light</span></div><div class="swatch"><div class="ico ico32"><img src="option4-compass-crosshair.svg" alt=""></div><span>32</span></div></div>
+    </div>
+
+  </div>
+
+  <p class="note"><b>Licensing:</b> none of these use Deadpool's logo, mask, or any Marvel asset. The skull is an original geometric silhouette and skulls/crosshairs aren't protectable on their own — only Deadpool's specific stylized mark is. The palette matches the current app (teal-black, cyan waypoints, green approach). <b>Next:</b> tell me the option (e.g. "go with 1") and I'll export <code>favicon.svg</code>, <code>favicon-32/16.png</code>, <code>apple-touch-icon.png</code> + maskable manifest icons and wire the <code>&lt;link&gt;</code> tags + <code>manifest.webmanifest</code>.</p>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DEAD reticle skull">
+  <defs>
+    <radialGradient id="bg1" cx="38%" cy="28%" r="95%">
+      <stop offset="0%" stop-color="#143b46"/>
+      <stop offset="55%" stop-color="#0a1c22"/>
+      <stop offset="100%" stop-color="#04090b"/>
+    </radialGradient>
+    <linearGradient id="skull1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f04437"/>
+      <stop offset="100%" stop-color="#b3231b"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg1)"/>
+  <!-- targeting reticle: dashed compass ring + inner ring + crosshair ticks -->
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#22d3ee" stroke-width="6" stroke-dasharray="6 14" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#1c6f80" stroke-width="3" opacity="0.6"/>
+  <g stroke="#22d3ee" stroke-width="8" stroke-linecap="round" opacity="0.9">
+    <line x1="256" y1="44" x2="256" y2="86"/>
+    <line x1="256" y1="426" x2="256" y2="468"/>
+    <line x1="44" y1="256" x2="86" y2="256"/>
+    <line x1="426" y1="256" x2="468" y2="256"/>
+  </g>
+  <!-- north tick highlighted green (heading up) -->
+  <line x1="256" y1="44" x2="256" y2="86" stroke="#3ddc5a" stroke-width="8" stroke-linecap="round"/>
+  <!-- original geometric skull (license-safe; not the Deadpool mark) -->
+  <g>
+    <path d="M256 150 c-58 0 -100 40 -100 95 c0 32 15 57 38 71 l0 31 c0 10 8 18 18 18 l88 0 c10 0 18 -8 18 -18 l0 -31 c23 -14 38 -39 38 -71 c0 -55 -42 -95 -100 -95 z" fill="url(#skull1)"/>
+    <!-- angled menacing eyes -->
+    <path d="M198 236 l50 -16 l0 38 l-34 9 c-13 -9 -18 -19 -16 -31 z" fill="#0a1418"/>
+    <path d="M314 236 l-50 -16 l0 38 l34 9 c13 -9 18 -19 16 -31 z" fill="#0a1418"/>
+    <!-- nose -->
+    <path d="M256 270 l-10 20 l20 0 z" fill="#0a1418"/>
+    <!-- teeth gaps -->
+    <g fill="#0a1418">
+      <rect x="234" y="300" width="5" height="30" rx="2"/>
+      <rect x="253" y="300" width="6" height="32" rx="2"/>
+      <rect x="273" y="300" width="5" height="30" rx="2"/>
+    </g>
+  </g>
+  <!-- center pip -->
+  <circle cx="256" cy="256" r="6" fill="#22d3ee" opacity="0.0"/>
+</svg>

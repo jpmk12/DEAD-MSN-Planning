@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DEAD compass crosshair">
+  <defs>
+    <radialGradient id="bg4" cx="38%" cy="28%" r="95%">
+      <stop offset="0%" stop-color="#143b46"/>
+      <stop offset="55%" stop-color="#0a1c22"/>
+      <stop offset="100%" stop-color="#04090b"/>
+    </radialGradient>
+    <linearGradient id="north4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3ddc5a"/>
+      <stop offset="100%" stop-color="#1f9c3c"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg4)"/>
+  <!-- dashed dial -->
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#22d3ee" stroke-width="6" stroke-dasharray="5 14" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#1c6f80" stroke-width="3" opacity="0.6"/>
+  <!-- crosshair lines through center -->
+  <g stroke="#22d3ee" stroke-width="6" stroke-linecap="round" opacity="0.55">
+    <line x1="256" y1="70" x2="256" y2="442"/>
+    <line x1="70" y1="256" x2="442" y2="256"/>
+  </g>
+  <!-- 4-point compass rose: north filled green, others cyan -->
+  <polygon points="256,96 286,256 256,256 226,256" fill="url(#north4)"/>
+  <polygon points="256,416 226,256 256,256 286,256" fill="#0e7c8f"/>
+  <polygon points="96,256 256,226 256,256 256,286" fill="#137e91"/>
+  <polygon points="416,256 256,286 256,256 256,226" fill="#137e91"/>
+  <!-- diagonal minor points -->
+  <g fill="#0c5a68" opacity="0.85">
+    <polygon points="370,142 256,256 286,256 286,226"/>
+    <polygon points="142,370 256,256 226,256 226,286"/>
+    <polygon points="142,142 256,256 256,226 226,256"/>
+    <polygon points="370,370 256,256 256,286 286,256"/>
+  </g>
+  <!-- center waypoint -->
+  <circle cx="256" cy="256" r="22" fill="#04090b" stroke="#22d3ee" stroke-width="6"/>
+  <circle cx="256" cy="256" r="8" fill="#22d3ee"/>
+</svg>

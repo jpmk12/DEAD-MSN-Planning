@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DEAD approach planner">
+  <defs>
+    <radialGradient id="bg2" cx="38%" cy="28%" r="95%">
+      <stop offset="0%" stop-color="#143b46"/>
+      <stop offset="55%" stop-color="#0a1c22"/>
+      <stop offset="100%" stop-color="#04090b"/>
+    </radialGradient>
+    <linearGradient id="rwy2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4f7fa"/>
+      <stop offset="100%" stop-color="#c7d0d8"/>
+    </linearGradient>
+    <linearGradient id="skull2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f04437"/>
+      <stop offset="100%" stop-color="#b3231b"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg2)"/>
+  <!-- dashed compass ring (planning dial, from current icon) -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#22d3ee" stroke-width="6" stroke-dasharray="5 14" stroke-linecap="round" opacity="0.8"/>
+  <!-- runway strip, angled, with dashed centerline -->
+  <g transform="rotate(-32 256 256)">
+    <rect x="226" y="120" width="60" height="272" rx="8" fill="url(#rwy2)"/>
+    <line x1="256" y1="150" x2="256" y2="362" stroke="#0a1c22" stroke-width="7" stroke-dasharray="16 18" stroke-linecap="round" opacity="0.65"/>
+  </g>
+  <!-- green approach arrow descending to the waypoint -->
+  <g stroke="#3ddc5a" stroke-width="34" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M352 150 L262 240"/>
+  </g>
+  <path d="M262 240 l66 -2 l-2 -66 z" fill="#3ddc5a"/>
+  <!-- waypoint = small skull in a cyan target ring (the DEAD callsign) -->
+  <circle cx="256" cy="256" r="46" fill="#04090b" stroke="#22d3ee" stroke-width="5"/>
+  <g transform="translate(256 258) scale(0.34) translate(-256 -250)">
+    <path d="M256 150 c-58 0 -100 40 -100 95 c0 32 15 57 38 71 l0 31 c0 10 8 18 18 18 l88 0 c10 0 18 -8 18 -18 l0 -31 c23 -14 38 -39 38 -71 c0 -55 -42 -95 -100 -95 z" fill="url(#skull2)"/>
+    <path d="M198 236 l50 -16 l0 38 l-34 9 c-13 -9 -18 -19 -16 -31 z" fill="#04090b"/>
+    <path d="M314 236 l-50 -16 l0 38 l34 9 c13 -9 18 -19 16 -31 z" fill="#04090b"/>
+    <path d="M256 272 l-10 20 l20 0 z" fill="#04090b"/>
+    <g fill="#04090b">
+      <rect x="236" y="302" width="6" height="28" rx="2"/>
+      <rect x="253" y="302" width="6" height="30" rx="2"/>
+      <rect x="272" y="302" width="6" height="28" rx="2"/>
+    </g>
+  </g>
+</svg>
