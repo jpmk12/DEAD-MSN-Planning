@@ -699,13 +699,17 @@ const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUp
 
 // Quick-links toolbar: external references for the current departure airfield.
 // The visible label stays short (just the tool name); the field is reflected in
-// the href and the hover title. AWC deep-links to the field's METAR/TAF.
-// TODO: wire DAIP and AHAS to their per-ICAO deep-link URLs once known (user to
-// provide the exact handler/URL format) so they jump straight to the field.
+// the href and the hover title. AWC and DAIP deep-link to the field.
+// TODO: wire AHAS to its per-ICAO deep-link URL once known (user to provide the
+// exact handler/URL format) so it jumps straight to the field.
 function quickLinkUrls(icao) {
   const id = encodeURIComponent(icao);
+  // DAIP deep-link: its SPA (/daip/mobile/index) drives a POST search; pass the
+  // search fields as query params (locs/radius/type/sort) so it opens for this
+  // field. (Payload reference: locs, radius=10, type=LOCATION, sort=Criticality.)
+  const daip = new URLSearchParams({ locs: icao.toLowerCase(), radius: '10', type: 'LOCATION', sort: 'Criticality' });
   return {
-    'ql-daip': { href: 'https://www.daip.jcs.mil/', title: `DoD DAIP — NOTAMs / flight info (look up ${icao})` },
+    'ql-daip': { href: `https://www.daip.jcs.mil/daip/mobile/index?${daip}`, title: `DoD DAIP — NOTAMs for ${icao} (10 NM)` },
     'ql-awc': { href: `https://aviationweather.gov/data/metar/?ids=${id}&taf=true`, title: `Aviation Weather — ${icao} METAR/TAF` },
     'ql-ahas': { href: 'https://www.usahas.com/', title: `USAF AHAS — bird/wildlife risk (look up ${icao})` },
   };
