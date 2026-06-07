@@ -37,6 +37,7 @@ const nmToPx = (nm, lat, z) => (nm * 1852) / mppAt(lat, z);
 
 export function initMap(container, data) {
   const airfields = (data.airfields || []).filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon));
+  const navaids = (data.navaids || []).filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon));
   const tfrs = data.tfrs || [];
   const sua = data.sua || [];
   const sigmets = data.sigmets || [];
@@ -92,6 +93,7 @@ export function initMap(container, data) {
     <div class="lg-title">Legend</div>
     <div class="lg-row"><span class="lg-dot" style="background:#3fb950"></span><span class="lg-dot" style="background:#d29922"></span><span class="lg-dot" style="background:#f85149"></span> Airfield GO / CAUTION / NO-GO</div>
     <div class="lg-row"><span class="lg-ring"></span> 10 NM range ring</div>
+    <div class="lg-row"><span style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #37b6c3;display:inline-block"></span> Winds navaid (VOR/TACAN)</div>
     <div class="lg-row"><span class="lg-dia" style="background:#f85149"></span><span class="lg-dia" style="background:#d29922"></span><span class="lg-dia" style="background:#37b6c3"></span> PIREP urgent / turb-ice / routine</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#f85149;background:rgba(248,81,73,.12)"></span> Convective SIGMET</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.12)"></span> SIGMET &nbsp; <span class="lg-poly" style="border-color:#8a7bd8;background:rgba(138,123,216,.12)"></span> AIRMET</div>
@@ -166,6 +168,13 @@ export function initMap(container, data) {
     if (opts.dash) c.setAttribute('stroke-dasharray', opts.dash);
     if (opts.opacity != null) c.setAttribute('opacity', opts.opacity);
     return c;
+  }
+  // Navaid symbol: a small hollow triangle (distinct from airfield dots).
+  function navMarker(cx, cy, r, color) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    t.setAttribute('d', `M ${cx} ${cy - r} L ${cx + r} ${cy + r * 0.8} L ${cx - r} ${cy + r * 0.8} Z`);
+    t.setAttribute('fill', '#0a0e14'); t.setAttribute('stroke', color); t.setAttribute('stroke-width', '2');
+    return t;
   }
   function label(x, y, text, color) {
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -273,6 +282,14 @@ export function initMap(container, data) {
       dot.setAttribute('stroke', '#0a0e14');
       overlay.appendChild(dot);
       overlay.appendChild(label(p.x + 8, p.y + 4, a.icao, '#e6edf3'));
+    }
+
+    // Winds navaids (VOR/TACAN/etc.) — triangle marker, no pattern ring.
+    for (const n of navaids) {
+      const p = scr(n.lat, n.lon);
+      const col = n.status === 'CAUTION' ? '#d29922' : '#37b6c3';
+      overlay.appendChild(navMarker(p.x, p.y, 6, col));
+      overlay.appendChild(label(p.x + 8, p.y + 4, n.icao, '#bfe9f0'));
     }
   }
 

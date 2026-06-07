@@ -852,7 +852,11 @@ async function getRouteWinds() {
     $('winds-results').innerHTML = `<div class="grid">${data.points.map(windsProfileCard).join('')}</div>`;
     // Overlay the winds points ON TOP of the brief map (airfields + routes +
     // radar), not as a replacement — paintMap() merges windsPoints.
-    windsPoints = data.points.filter((p) => p.found).map((p) => ({ icao: p.id, lat: p.lat, lon: p.lon, status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO' }));
+    windsPoints = data.points.filter((p) => p.found).map((p) => ({
+      icao: p.id, lat: p.lat, lon: p.lon,
+      type: p.kind || 'navaid', // 'airport' | 'VOR' | 'TACAN' | 'navaid' | ...
+      status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO',
+    }));
     paintMap();
   } catch (err) {
     $('winds-results').innerHTML = `<div class="errbox">Failed: ${esc(err.message)}</div>`;
@@ -1007,21 +1011,25 @@ function paintMap() {
   // rather than replacing the brief's airfields + routes.
   const have = new Set(briefAirfields.map((a) => a.icao));
   const windPts = windsPoints.filter((w) => Number.isFinite(w.lat) && Number.isFinite(w.lon) && !have.has(w.icao));
-  const airfields = [...briefAirfields, ...windPts];
+  // Winds airfields render as airfields; winds navaids (VOR/TACAN/etc.) render
+  // as distinct navaid markers (no traffic-pattern ring, no GO/NO-GO status).
+  const isAirport = (t) => String(t || '').toLowerCase() === 'airport';
+  const navaids = windPts.filter((w) => !isAirport(w.type));
+  const airfields = [...briefAirfields, ...windPts.filter((w) => isAirport(w.type))];
   // With routes looked up, show exactly those (chip-controlled) over the brief;
   // otherwise fall back to the brief's auto nearby routes.
   const mtrs = activeRoutes.length
     ? activeRoutes.map((d) => ({ id: d.id, type: d.type, geometry: d.geometry }))
     : (data?.mtrs || []);
-  if (!airfields.length && !mtrs.length) { mapEl.style.display = 'none'; return; }
+  if (!airfields.length && !navaids.length && !mtrs.length) { mapEl.style.display = 'none'; return; }
   mapEl.style.display = '';
   const as = data?.airspace || { tfrs: [], sua: [] };
   // Fit to the airfields plus any looked-up route points (auto nearby routes
   // don't drag the default view out).
   const routePts = activeRoutes.flatMap((d) => (d.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
-  const focus = (activeRoutes.length || windPts.length) ? [...airfields, ...routePts] : briefAirfields;
+  const focus = (activeRoutes.length || windPts.length) ? [...airfields, ...navaids, ...routePts] : briefAirfields;
   currentMap = initMap(mapEl, {
-    airfields, tfrs: as.tfrs, sua: as.sua,
+    airfields, navaids, tfrs: as.tfrs, sua: as.sua,
     sigmets: data?.airsigmets || [], pireps: data?.pireps || [], convective: data?.convective || [],
     mtrs, validity: data ? wxValidity(data) : [], focus,
   });
