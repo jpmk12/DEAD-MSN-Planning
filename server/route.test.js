@@ -27,6 +27,14 @@ test('buildRoute resolves a bundled fix and flags airway with bad anchors', asyn
   assert.ok(r.unresolved.some((u) => u.token === 'J78'));
 });
 
+test('buildRoute resolves radial/DME off a NASR navaid (offline)', async () => {
+  const r = await buildRoute('MMB270030', true); // 270 radial, 30 DME from MMB VORTAC
+  assert.equal(r.points.length, 1);
+  assert.equal(r.points[0].kind, 'rdme');
+  assert.ok(Number.isFinite(r.points[0].lat) && Number.isFinite(r.points[0].lon));
+  assert.equal(r.unresolved.length, 0);
+});
+
 test('buildRoute draws military AR/IR routes from the MTR data', async () => {
   const r = await buildRoute('IR-154', true); // dash-insensitive
   assert.ok(r.geometry.points.length > 2, 'centerline drawn');

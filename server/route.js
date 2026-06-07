@@ -12,7 +12,7 @@
 // the front end just draws the returned geometry.
 
 import { getAirport } from './data/airports.js';
-import { resolveNavaid } from './data/ourairports.js';
+import { resolveNavaid } from './data/navaids.js';
 import { resolveFix } from './data/fixes.js';
 import { airwaysAvailable, hasAirway, airwaySegmentNames } from './data/airways.js';
 import { proceduresAvailable, expandProcedure } from './data/procedures.js';

@@ -3,7 +3,7 @@
 // /api/winds endpoint used by the Route Winds tool.
 
 import { getAirport } from './data/airports.js';
-import { resolveNavaid } from './data/ourairports.js';
+import { resolveNavaid } from './data/navaids.js';
 import { resolveFix } from './data/fixes.js';
 import { fetchWindsAloft } from './data/windsaloft.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
