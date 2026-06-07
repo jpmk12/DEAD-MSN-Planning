@@ -395,7 +395,11 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 /* ---- Map ----------------------------------------------------------------- */
 .map-section { margin-bottom: 22px; }
 .map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
-.map-viewport { position: relative; width: 100%; height: clamp(260px, 42vh, 460px); overflow: hidden; background: #0c121a; cursor: grab; touch-action: none; }
+.map-viewport { position: relative; width: 100%; height: clamp(260px, 42vh, 460px); overflow: hidden; background: #0c121a; cursor: grab; touch-action: none; resize: vertical; min-height: 200px; max-height: 88vh; }
+/* Visible drag-grip over the native resizer (pointer-events:none so the drag
+   still reaches the browser's resize handle underneath). */
+.map-viewport::after { content: ""; position: absolute; right: 3px; bottom: 3px; width: 13px; height: 13px; z-index: 7; pointer-events: none; opacity: 0.65; background: repeating-linear-gradient(135deg, var(--text-faint) 0 1px, transparent 1px 3px); }
+.map-viewport::-webkit-resizer { background: transparent; }
 .map-viewport.dragging { cursor: grabbing; }
 .map-tiles { position: absolute; inset: 0; }
 .map-tiles.radar { pointer-events: none; mix-blend-mode: screen; }
@@ -406,7 +410,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .map-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .map-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .map-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
-.map-attrib { position: absolute; bottom: 4px; right: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
+.map-attrib { position: absolute; bottom: 4px; left: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
 
 /* Zoom + recenter cluster */
 .map-nav { position: absolute; right: 10px; bottom: 22px; z-index: 5; display: flex; flex-direction: column; gap: 4px; }

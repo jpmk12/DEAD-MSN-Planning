@@ -8,6 +8,9 @@
 import { project, tileXToLon, tileYToLat, fitView, TILE } from './projection.js';
 import { zuluLocal } from './timefmt.js';
 
+// localStorage key for the user-dragged map height (persists across reloads).
+const MAP_HEIGHT_KEY = 'dead-map-height';
+
 // RainViewer publishes the timestamp of each radar frame. We keep IEM NEXRAD
 // for the imagery (best US resolution) but read RainViewer's latest frame time
 // to label the radar with an actual valid time (the two sources are within a
@@ -49,6 +52,10 @@ export function initMap(container, data) {
 
   const viewport = document.createElement('div');
   viewport.className = 'map-viewport';
+  viewport.title = 'Drag the bottom-right corner to resize the map';
+  // Restore a previously dragged map height so the size sticks across reloads
+  // and across re-renders (the map is rebuilt on each brief).
+  try { const h = localStorage.getItem(MAP_HEIGHT_KEY); if (h) viewport.style.height = h; } catch { /* storage blocked */ }
   const baseLayer = document.createElement('div');
   baseLayer.className = 'map-tiles';
   const radarLayer = document.createElement('div');
@@ -407,7 +414,12 @@ export function initMap(container, data) {
     let lastW = 0, lastH = 0;
     const ro = new ResizeObserver(() => {
       const cw = viewport.clientWidth, ch = viewport.clientHeight;
-      if (cw && ch && (cw !== lastW || ch !== lastH)) { lastW = cw; lastH = ch; render(); }
+      if (cw && ch && (cw !== lastW || ch !== lastH)) {
+        lastW = cw; lastH = ch; render();
+        // Persist a user-dragged height (the browser sets an explicit inline
+        // style.height when the native resize handle is used).
+        if (viewport.style.height) { try { localStorage.setItem(MAP_HEIGHT_KEY, viewport.style.height); } catch { /* storage blocked */ } }
+      }
     });
     ro.observe(viewport);
   }
