@@ -119,8 +119,9 @@ export async function fetchNotams(icaos, offline, signal) {
       console.log(`[NOTAM] DAIP unavailable, falling back: ${e && e.message ? e.message : e}`);
     }
   }
-  // Then FAA NMS-API (bearer token), then legacy FAA NOTAM API.
-  if (!offline && nmsConfigured()) {
+  // FAA NMS-API fallback is DISABLED by default (DAIP is the authoritative
+  // source). Opt in with NMS_ENABLED=1 only if you have a need for it.
+  if (!offline && process.env.NMS_ENABLED === '1' && nmsConfigured()) {
     try {
       const raw = await fetchNmsRaw(icaos, signal);
       const staging = /staging|test/i.test(process.env.NMS_API_BASE || '');

@@ -156,6 +156,21 @@ const STYLE = `
 export async function buildRefCard(fields, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
   const want = (k) => only === 'all' || only === k;
 
+  // Dedupe bases that are the SAME location AND time (e.g. an out-and-back where
+  // departure and recovery are the same field at the same time) — fetch + show
+  // once, merging the labels ("Departure / Recovery").
+  const seen = new Map();
+  const uniqueFields = [];
+  for (const f of fields) {
+    const key = `${f.icao}|${f.when || ''}`;
+    const dup = seen.get(key);
+    if (dup) { if (f.label && !dup.label.split(' / ').includes(f.label)) dup.label += ` / ${f.label}`; continue; }
+    const e = { ...f };
+    seen.set(key, e);
+    uniqueFields.push(e);
+  }
+  fields = uniqueFields;
+
   // Per-field live data (each base at its own time), all in parallel.
   const data = await Promise.all(fields.map(async (f) => {
     const area = ahasAreaForIcao(f.icao);

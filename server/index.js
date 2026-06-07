@@ -7,6 +7,7 @@
 //   GET /api/airfields
 
 import { createServer } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +35,41 @@ const HEALTH_PATHS = new Set([
   '/healthz', '/health', '/healthcheck', '/api/health', '/api/healthz',
   '/ping', '/status', '/_health', '/_healthz', '/livez', '/readyz',
 ]);
+
+// Simple per-IP fixed-window rate limit for /api/* (health checks exempt).
+// Tune with RATE_LIMIT_MAX (default 120) / RATE_LIMIT_WINDOW_MS (default 60000);
+// RATE_LIMIT_MAX=0 disables it.
+const RL_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60000);
+const RL_MAX = Number(process.env.RATE_LIMIT_MAX ?? 120);
+const rlBuckets = new Map(); // ip -> { count, reset }
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  return (xff ? String(xff).split(',')[0].trim() : '') || req.socket?.remoteAddress || 'unknown';
+}
+// Optional whole-app access gate (HTTP Basic auth). Set APP_BASIC_AUTH="user:pass"
+// to require it for the site + API; leave unset to keep the app open. Health
+// probes are always exempt so the platform can still mark the app healthy.
+const BASIC_AUTH = process.env.APP_BASIC_AUTH || '';
+function authzOk(req) {
+  if (!BASIC_AUTH) return true; // gate disabled
+  const expected = `Basic ${Buffer.from(BASIC_AUTH).toString('base64')}`;
+  const got = req.headers.authorization || '';
+  const a = Buffer.from(got);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** @returns {number} seconds to wait if over the limit, else 0. */
+function rateRetryAfter(req) {
+  if (!(RL_MAX > 0)) return 0;
+  const now = Date.now();
+  const ip = clientIp(req);
+  let b = rlBuckets.get(ip);
+  if (!b || now >= b.reset) { b = { count: 0, reset: now + RL_WINDOW_MS }; rlBuckets.set(ip, b); }
+  b.count += 1;
+  if (rlBuckets.size > 5000) for (const [k, v] of rlBuckets) if (now >= v.reset) rlBuckets.delete(k);
+  return b.count > RL_MAX ? Math.max(1, Math.ceil((b.reset - now) / 1000)) : 0;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -172,6 +208,24 @@ const server = createServer(async (req, res) => {
           ` proto="${h['x-forwarded-proto'] || ''}" host="${h['host'] || ''}"`,
         );
       });
+    }
+
+    // Optional access gate for the whole app (health probes exempt).
+    if (!HEALTH_PATHS.has(url.pathname) && !authzOk(req)) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="C-17 Mission Planner", charset="UTF-8"', 'Content-Type': 'text/plain' });
+      res.end('Authentication required');
+      return;
+    }
+
+    // Rate-limit the API (health probes exempt) to prevent abuse / outbound
+    // amplification via the brief/refcard fan-out.
+    if (url.pathname.startsWith('/api/') && !HEALTH_PATHS.has(url.pathname)) {
+      const retry = rateRetryAfter(req);
+      if (retry) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': String(retry) });
+        res.end(JSON.stringify({ error: 'rate limit exceeded', retryAfterSeconds: retry }));
+        return;
+      }
     }
 
     if (url.pathname === '/api/airfields') {
@@ -485,7 +539,7 @@ server.listen(PORT, HOST, () => {
     (t) => console.log(`[boot] TFR cache warmed (${t.length} records)`),
     () => console.log('[boot] TFR warm skipped (source unreachable)'),
   );
-  if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
-    console.log('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
+  if (process.env.NMS_ENABLED === '1' && nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
+    console.log('[NOTAM] FAA NMS fallback is ENABLED and pointed at a STAGING endpoint (non-operational test data). Set NMS_API_BASE to production, or unset NMS_ENABLED to disable the fallback.');
   }
 });
