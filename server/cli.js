@@ -70,7 +70,7 @@ async function main() {
   const ids = args.filter((a) => !a.startsWith('--')).map((s) => s.toUpperCase());
   const fields = ids.length ? ids : ['KCHS', 'KSUU', 'KWRI', 'PHIK', 'KEDW'];
 
-  console.log('C-17 Mission Planner — demo');
+  console.log('DEAD Planning — demo');
   console.log(`Limits (placeholder): xwind ${DEFAULT_LIMITS.crosswindKt} kt, tailwind ${DEFAULT_LIMITS.tailwindKt} kt, high-DA ${DEFAULT_LIMITS.highDensityAltitudeFt} ft`);
   const brief = await buildBrief(fields, offline);
   if (!brief.live.weather) console.log('(weather: bundled fixture — live AWC unavailable)');

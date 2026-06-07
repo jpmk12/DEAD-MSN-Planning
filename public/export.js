@@ -131,7 +131,7 @@ function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0a0e14">
-<title>C-17 Mission Brief</title>
+<title>DEAD Planning — Mission Brief</title>
 <style>${themeCss}</style>
 <style>${EXPORT_CSS}</style>
 </head>
@@ -139,7 +139,7 @@ function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
 <div class="app">
   <header class="topbar">
     <div>
-      <h1>C-17 MISSION BRIEF</h1>
+      <h1>DEAD PLANNING — MISSION BRIEF</h1>
       <div class="subtitle">Exported brief · theme, collapsible sections &amp; radar snapshot preserved</div>
     </div>
   </header>

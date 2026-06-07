@@ -235,7 +235,7 @@ const server = createServer(async (req, res) => {
 
     // Optional access gate for the whole app (health probes exempt).
     if (!HEALTH_PATHS.has(url.pathname) && !authzOk(req)) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="C-17 Mission Planner", charset="UTF-8"', 'Content-Type': 'text/plain' });
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="DEAD Planning", charset="UTF-8"', 'Content-Type': 'text/plain' });
       res.end('Authentication required');
       return;
     }
@@ -547,7 +547,7 @@ const server = createServer(async (req, res) => {
 // proxy still works. (GoDaddy guidance: bind 0.0.0.0, not localhost.)
 const HOST = '0.0.0.0';
 server.listen(PORT, HOST, () => {
-  console.log(`C-17 Mission Planner listening on http://${HOST}:${PORT}`);
+  console.log(`DEAD Planning listening on http://${HOST}:${PORT}`);
   // Startup diagnostics (stdout): how the platform configured us, and the NAMES
   // of every injected env var (names only — no values, so no secrets). A
   // platform-specific health-check path/port often shows up here.

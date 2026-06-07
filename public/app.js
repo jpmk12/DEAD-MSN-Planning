@@ -1,4 +1,4 @@
-// C-17 Mission Planner — static frontend (no framework, no build).
+// DEAD Planning — static frontend (no framework, no build).
 // Talks to the zero-dependency Node API and renders the EFB-style brief.
 
 import { initMap } from './map.js';
@@ -1042,7 +1042,7 @@ function updatePrintHead(data, ids, limits) {
     takeoff = `<div class="ph-meta">Planned takeoff ${esc(zuluLocal(data.targetTime, { date: true }))} — winds &amp; AHAS tailored to this time</div>`;
   }
   $('print-head').innerHTML =
-    `<div class="ph-title">C-17 MISSION BRIEF</div>
+    `<div class="ph-title">DEAD PLANNING — MISSION BRIEF</div>
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
      <div class="ph-meta">Generated ${esc(zuluLocal(data.generatedAt, { date: true }))} · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
      ${takeoff}

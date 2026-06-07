@@ -1,7 +1,7 @@
 {
-  "name": "C-17 Mission Planner",
-  "short_name": "MSN Planner",
-  "description": "One-stop C-17 sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
+  "name": "DEAD Planning",
+  "short_name": "DEAD Planning",
+  "description": "One-stop air mobility sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
