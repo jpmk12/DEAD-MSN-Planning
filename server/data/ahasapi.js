@@ -74,6 +74,7 @@ export async function ahasRaw(method, type, area, when, signal) {
     if (!res.ok) throw new Error(`AHAS ${res.status}`);
     const text = await res.text();
     cache.set(key, { at: Date.now(), text });
+    if (cache.size > 300) cache.delete(cache.keys().next().value); // bound growth (oldest out)
     return text;
   } catch (e) {
     // Transient failure → serve the last good answer, but not indefinitely.

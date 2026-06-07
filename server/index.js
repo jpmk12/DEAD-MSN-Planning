@@ -152,7 +152,11 @@ async function serveStatic(req, res, pathname) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // The frontend is served from this same origin, so no cross-origin access is
+    // needed. Omitting Access-Control-Allow-Origin keeps other sites from reading
+    // brief data or making cross-origin writes to /api/sorties (the JSON POST
+    // preflight will fail). nosniff is cheap defense-in-depth.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     // Request log (stdout, on by default; set REQUEST_LOG=off to silence). This
     // exists so the platform's health probe is VISIBLE in the deploy log: its

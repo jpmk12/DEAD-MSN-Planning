@@ -111,6 +111,7 @@ async function fetchGeoJson(url, signal) {
     if (!res.ok) throw new Error(`GeoJSON ${res.status} for ${url}`);
     const data = await res.json();
     geojsonCache.set(url, { at: Date.now(), data });
+    if (geojsonCache.size > 64) geojsonCache.delete(geojsonCache.keys().next().value); // bound growth (distinct bboxes)
     return data;
   } catch (e) {
     // Transient timeout/error: serve a slightly-stale cached copy (these feeds
