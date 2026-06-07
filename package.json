@@ -15,6 +15,7 @@
     "ingest": "node scripts/ingest-ourairports.js",
     "ingest:fixes": "node scripts/ingest-faa-fixes.js",
     "test": "node --test",
-    "ingest:airways": "node scripts/ingest-faa-airways.js"
+    "ingest:airways": "node scripts/ingest-faa-airways.js",
+    "ingest:cifp": "node scripts/ingest-faa-cifp.js"
   }
 }

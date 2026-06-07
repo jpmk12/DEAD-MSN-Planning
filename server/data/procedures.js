@@ -28,19 +28,32 @@ export function proceduresAvailable() {
 }
 
 /**
- * Expand a procedure to ordered points. `name` is the SID/STAR id (e.g. HHOTT5),
+ * Expand a procedure to ordered points. `name` is the SID/STAR id (e.g. LGRHD3),
  * `airport` the ICAO it belongs to, `transition` optional. Returns
- * [{id,lat,lon,kind:'fix'}] or null when unknown.
+ * [{name, lat, lon}] where lat/lon may be null (enroute fixes/navaids the route
+ * engine resolves at runtime), or null when the procedure is unknown.
  */
 export function expandProcedure(name, airport, transition) {
   const p = load();
-  if (!p || !name) return null;
-  const ap = airport && p[airport.toUpperCase()];
+  if (!p || !name || !airport) return null;
+  const ap = p[airport.toUpperCase()];
   const proc = ap && ap[name.toUpperCase()];
   if (!proc) return null;
   const common = proc._ || [];
-  const trans = transition && proc[transition.toUpperCase()] ? proc[transition.toUpperCase()] : [];
+  let trans = [];
+  if (transition && proc[transition.toUpperCase()]) {
+    trans = proc[transition.toUpperCase()];
+  } else if (!transition) {
+    const keys = Object.keys(proc).filter((k) => k !== '_');
+    if (keys.length === 1) trans = proc[keys[0]]; // unambiguous single transition
+  }
   const seq = [...common, ...trans];
   if (!seq.length) return null;
-  return seq.map((c) => ({ id: c[2] || name, lat: c[0], lon: c[1], kind: 'fix' }));
+  const out = [];
+  for (const c of seq) {
+    const last = out[out.length - 1];
+    if (last && last.name === c[2]) continue; // dedupe the joining fix
+    out.push({ name: c[2], lat: c[0], lon: c[1] });
+  }
+  return out;
 }

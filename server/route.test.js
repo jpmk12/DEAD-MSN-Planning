@@ -20,8 +20,16 @@ test('buildRoute parses lat/long and ignores DCT connectors', async () => {
   assert.equal(r.geometry.kind, 'line');
 });
 
-test('buildRoute resolves a bundled fix and flags airways with no data', async () => {
+test('buildRoute resolves a bundled fix and flags airway with bad anchors', async () => {
   const r = await buildRoute('FLOYD J78 FLOYD', true, { lat: 34, lon: -100 });
   assert.ok(r.points.length >= 2, 'FLOYD resolves from bundled NASR fixes');
-  assert.ok(r.unresolved.some((u) => u.token === 'J78'), 'airway flagged unresolved without data');
+  // J78 is a known airway, but FLOYD isn't on it -> segment not found.
+  assert.ok(r.unresolved.some((u) => u.token === 'J78'));
+});
+
+test('buildRoute expands a SID anchored to its departure airport', async () => {
+  const r = await buildRoute('KCHS LGRHD3.GIPPL', true, { lat: 32.9, lon: -80 });
+  const ids = r.points.map((p) => p.id);
+  assert.ok(ids.includes('KCHS') && ids.includes('GIPPL'), 'airport + transition fix drawn');
+  assert.equal(r.unresolved.length, 0);
 });

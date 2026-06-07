@@ -80,6 +80,9 @@ const nextPoint = (arr, start) => { for (let i = start; i < arr.length; i++) if 
  */
 export async function buildRoute(routeStr, offline, near) {
   const tokens = String(routeStr || '').trim().toUpperCase().split(/\s+/).filter(Boolean).slice(0, 200);
+
+  // Pass 1: classify each token. Airways and SID/STAR procedures are deferred to
+  // pass 2 (they need their surrounding anchors / airport context).
   const entries = [];
   for (const tok of tokens) {
     if (CONNECTORS.has(tok)) continue;
@@ -88,17 +91,18 @@ export async function buildRoute(routeStr, offline, near) {
     if (hasAirway(tok)) { entries.push({ airway: tok }); continue; }
     const np = await resolveNamed(tok, offline, near); if (np) { entries.push(np); continue; }
     if (AIRWAY_LIKE.test(tok)) { entries.push({ unresolved: true, raw: tok, note: airwaysAvailable() ? 'unknown airway' : 'airway data not loaded' }); continue; }
-    // SID/STAR: NAME or NAME.TRANSITION, anchored to the first airport in the route.
-    const [pname, ptrans] = tok.split('.');
-    const depAp = entries.find((e) => e.kind === 'airport');
-    const proc = expandProcedure(pname, depAp?.id, ptrans || null);
-    if (proc && proc.length) { entries.push(...proc); continue; }
-    entries.push({ unresolved: true, raw: tok, note: proceduresAvailable() ? 'unknown point/procedure' : 'not found' });
+    entries.push({ proc: tok }); // possible SID/STAR — resolve in pass 2 with airport context
   }
 
-  // Expand airways between their surrounding anchor points: look up the ordered
-  // point NAMES for the segment, then resolve each at runtime (biased to the
-  // entry anchor so navaid/fix idents pick the nearby one).
+  // Nearest airport to an entry index: prefer the preceding airport (SID/departure),
+  // otherwise the following one (STAR/arrival).
+  const airportNear = (idx) => {
+    for (let i = idx - 1; i >= 0; i--) if (entries[i].kind === 'airport') return entries[i];
+    for (let i = idx + 1; i < entries.length; i++) if (entries[i].kind === 'airport') return entries[i];
+    return null;
+  };
+
+  // Pass 2: expand airways and procedures, resolving runtime coords.
   const expanded = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
@@ -115,6 +119,23 @@ export async function buildRoute(routeStr, offline, near) {
         }
       } else {
         expanded.push({ unresolved: true, raw: e.airway, note: airwaysAvailable() ? 'airway segment not found — check entry/exit fixes' : 'airway data not loaded' });
+      }
+      continue;
+    }
+    if (e.proc) {
+      const [pname, ptrans] = e.proc.split('.');
+      const apt = airportNear(i);
+      const proc = apt ? expandProcedure(pname, apt.id, ptrans || null) : null;
+      if (proc && proc.length) {
+        const bias = apt ? { lat: apt.lat, lon: apt.lon } : near;
+        for (const pt of proc) {
+          if (Number.isFinite(pt.lat) && Number.isFinite(pt.lon)) expanded.push({ id: pt.name, kind: 'fix', lat: pt.lat, lon: pt.lon });
+          else { const r = await resolveNamed(pt.name, offline, bias); expanded.push(r || { unresolved: true, raw: `${pname}:${pt.name}`, note: 'procedure point not found' }); }
+        }
+      } else {
+        const note = !proceduresAvailable() ? 'not found (no procedure data)'
+          : (apt ? 'unknown procedure — or specify a transition (e.g. NAME.TRANS)' : 'procedure needs an airport in the route');
+        expanded.push({ unresolved: true, raw: e.proc, note });
       }
       continue;
     }
