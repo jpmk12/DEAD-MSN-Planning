@@ -44,6 +44,7 @@ export function initMap(container, data) {
   const pireps = data.pireps || [];
   const convective = data.convective || [];
   const mtrs = data.mtrs || [];
+  const routeOfFlight = data.routeOfFlight || null;
   const validity = data.validity || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
   const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff', AR: '#46c6a0' };
@@ -99,6 +100,7 @@ export function initMap(container, data) {
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.12)"></span> SIGMET &nbsp; <span class="lg-poly" style="border-color:#8a7bd8;background:rgba(138,123,216,.12)"></span> AIRMET</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.18)"></span> Convective outlook (TSTM→HIGH)</div>
     <div class="lg-row"><span class="lg-line" style="background:#4aa3df"></span> IR &nbsp; <span class="lg-line" style="background:#c77dff"></span> VR &nbsp; <span class="lg-line" style="background:#46c6a0"></span> AR track</div>
+    <div class="lg-row"><span class="lg-line" style="background:#f0b429"></span> Route of flight</div>
     <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
 
   const times = document.createElement('div');
@@ -227,6 +229,24 @@ export function initMap(container, data) {
         overlay.appendChild(path);
         const sp = scr(pts[0][0], pts[0][1]);
         overlay.appendChild(label(sp.x + 6, sp.y - 4, m.id, color));
+      }
+    }
+
+    // Route of flight (user-entered) — gold polyline + waypoint dots/labels.
+    const rofPts = routeOfFlight?.geometry?.points;
+    if (rofPts && rofPts.length >= 2) {
+      const d = rofPts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#f0b429');
+      path.setAttribute('stroke-width', '3');
+      path.setAttribute('stroke-linejoin', 'round');
+      overlay.appendChild(path);
+      for (const wp of (routeOfFlight.points || [])) {
+        const p = scr(wp.lat, wp.lon);
+        overlay.appendChild(ring(p.x, p.y, 3, '#0a0e14', { fill: '#f0b429', width: 1.5 }));
+        overlay.appendChild(label(p.x + 6, p.y - 4, wp.id, '#ffd479'));
       }
     }
 

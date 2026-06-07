@@ -869,6 +869,39 @@ async function getRouteWinds() {
   }
 }
 
+// ---- Route of flight (planning section) ------------------------------------
+async function drawRouteOfFlight() {
+  const routeStr = ($('rof').value || '').trim();
+  const status = $('rof-status');
+  if (!routeStr) { routeOfFlight = null; if (status) status.innerHTML = ''; paintMap(); return; }
+  if (status) status.innerHTML = '<span class="rof-load">Resolving route…</span>';
+  try {
+    const params = new URLSearchParams({ route: routeStr });
+    const ref = (lastBriefData?.airfields || []).find((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon));
+    if (ref) params.set('near', `${ref.lat},${ref.lon}`);
+    const res = await fetch(`/api/route?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    routeOfFlight = (data.points && data.points.length) ? data : null;
+    paintMap();
+    if (status) {
+      const n = data.points?.length || 0;
+      const unres = (data.unresolved || []);
+      let msg = n ? `<span class="rof-ok">${n} point${n === 1 ? '' : 's'} · ${data.totalNm} NM</span>` : '<span class="rof-warn">No points resolved.</span>';
+      if (unres.length) msg += ` <span class="rof-warn">Unresolved: ${unres.map((u) => `${esc(u.token)}${u.note ? ` (${esc(u.note)})` : ''}`).join(', ')}</span>`;
+      status.innerHTML = msg;
+    }
+  } catch (err) {
+    if (status) status.innerHTML = `<span class="rof-warn">Failed: ${esc(err.message)}</span>`;
+  }
+}
+function clearRouteOfFlight() {
+  routeOfFlight = null;
+  const el = $('rof'); if (el) el.value = '';
+  const status = $('rof-status'); if (status) status.innerHTML = '';
+  paintMap();
+}
+
 // ---- MTR (low-level route) lookup tool -------------------------------------
 function mtrDetailCard(d) {
   const segs = d.segments.map((s) => {
@@ -996,6 +1029,7 @@ function wxValidity(data) {
 let lastBriefData = null;
 let activeRoutes = [];
 let windsPoints = []; // Climb-Winds navaids/airfields overlaid on the map ({icao,lat,lon,status})
+let routeOfFlight = null; // { geometry:{kind:'line',points}, points:[{id,kind,lat,lon}] } | null
 const normId = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 function renderMap(data) {
@@ -1025,15 +1059,17 @@ function paintMap() {
   const mtrs = activeRoutes.length
     ? activeRoutes.map((d) => ({ id: d.id, type: d.type, geometry: d.geometry }))
     : (data?.mtrs || []);
-  if (!airfields.length && !navaids.length && !mtrs.length) { mapEl.style.display = 'none'; return; }
+  const hasRof = !!(routeOfFlight?.geometry?.points?.length);
+  if (!airfields.length && !navaids.length && !mtrs.length && !hasRof) { mapEl.style.display = 'none'; return; }
   mapEl.style.display = '';
   const as = data?.airspace || { tfrs: [], sua: [] };
   // Fit to the airfields plus any looked-up route points (auto nearby routes
   // don't drag the default view out).
   const routePts = activeRoutes.flatMap((d) => (d.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
-  const focus = (activeRoutes.length || windPts.length) ? [...airfields, ...navaids, ...routePts] : briefAirfields;
+  const rofPts = (routeOfFlight?.geometry?.points || []).map(([lat, lon]) => ({ lat, lon }));
+  const focus = (activeRoutes.length || windPts.length || rofPts.length) ? [...airfields, ...navaids, ...routePts, ...rofPts] : briefAirfields;
   currentMap = initMap(mapEl, {
-    airfields, navaids, home: briefAirfields.length ? briefAirfields : airfields, tfrs: as.tfrs, sua: as.sua,
+    airfields, navaids, routeOfFlight, home: briefAirfields.length ? briefAirfields : airfields, tfrs: as.tfrs, sua: as.sua,
     sigmets: data?.airsigmets || [], pireps: data?.pireps || [], convective: data?.convective || [],
     mtrs, validity: data ? wxValidity(data) : [], focus,
   });
@@ -1073,7 +1109,7 @@ let sortieCache = {};       // name -> { <input id>: value, ... }
 const SORTIE_FIELDS = [
   'sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt',
   'xwind', 'tailwind', 'highda', 'agls',
-  'winds-points',
+  'winds-points', 'rof',
 ];
 
 function loadLocal() {
@@ -1148,6 +1184,9 @@ async function loadSelectedSortie() {
   // The Route/Climb Winds input is restored; re-run it if it was populated so
   // its profiles come back too, but leave the brief's map in place.
   if ((s['winds-points'] || '').trim()) getRouteWinds();
+  // Re-draw a saved route of flight (resolves + overlays on the map).
+  routeOfFlight = null;
+  if ((s.rof || '').trim()) drawRouteOfFlight();
 }
 
 async function deleteSelectedSortie() {
@@ -1311,6 +1350,9 @@ window.addEventListener('afterprint', () => {
   });
   // Enter in any phase field builds the brief.
   ['sp-dep', 'sp-ll', 'sp-rec', 'sp-alt'].forEach((id) => on(id, 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); }));
+  on('rof-go', 'click', drawRouteOfFlight);
+  on('rof-clear', 'click', clearRouteOfFlight);
+  on('rof', 'keydown', (e) => { if (e.key === 'Enter') drawRouteOfFlight(); });
   on('export-html', 'click', () => runExport('html'));
   on('export-pdf', 'click', () => runExport('pdf'));
   on('sortie-save', 'click', saveCurrentSortie);

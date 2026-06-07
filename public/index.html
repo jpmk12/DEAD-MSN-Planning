@@ -104,6 +104,15 @@
             <input id="agls" type="text" value="1500,2500,6000" autocomplete="off" spellcheck="false" title="Comma-separated AGL altitudes for pattern winds" />
           </div>
         </div>
+        <div class="row rof-row" style="margin-top: 12px;">
+          <div class="field grow">
+            <label for="rof">Route of flight <span class="rof-hint">points · ICAO routing · airways · radial/DME (e.g. <code>KLTS DCT FLOYD LRP270015 J78 KAMA</code>)</span></label>
+            <input id="rof" type="text" placeholder="KLTS DCT FLOYD J78 ABI KAMA" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+          </div>
+          <button id="rof-go" class="go secondary" title="Resolve and draw the route on the map">Draw Route</button>
+          <button id="rof-clear" class="go secondary" title="Remove the drawn route">Clear</button>
+        </div>
+        <div id="rof-status" class="rof-status"></div>
         <div class="row" style="margin-top: 12px;">
           <button id="go" class="go">Build Brief</button>
           <button id="sp-clear" class="go secondary" title="Clear the phase fields">Clear</button>

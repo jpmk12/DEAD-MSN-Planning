@@ -136,6 +136,9 @@ export function indexNavaids(navaidObjs) {
       lat,
       lon,
       elevationFt: num(n.elevation_ft) ?? 0,
+      // Station declination (the variation VOR radials are aligned to); fall back
+      // to the geographic magnetic variation. East positive. Used for radial/DME.
+      magVar: num(n.slaved_variation_deg) ?? num(n.magnetic_variation_deg) ?? null,
     };
     const list = navaids.get(ident);
     if (list) list.push(rec); else navaids.set(ident, [rec]);

@@ -40,3 +40,19 @@ export function bearingDeg(lat1, lon1, lat2, lon2) {
   const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
   return normalize360(toDeg(Math.atan2(y, x)));
 }
+
+/** Destination point given a start, an initial TRUE bearing (deg) and a distance
+ *  (NM), along a great circle. Returns { lat, lon }. Used for radial/DME fixes. */
+export function destinationPoint(lat, lon, bearingTrue, distNm) {
+  const d = distNm / EARTH_NM; // angular distance
+  const br = toRad(bearingTrue);
+  const p1 = toRad(lat);
+  const l1 = toRad(lon);
+  const sinP2 = Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(br);
+  const p2 = Math.asin(Math.min(1, Math.max(-1, sinP2)));
+  const l2 = l1 + Math.atan2(
+    Math.sin(br) * Math.sin(d) * Math.cos(p1),
+    Math.cos(d) - Math.sin(p1) * sinP2,
+  );
+  return { lat: toDeg(p2), lon: ((toDeg(l2) + 540) % 360) - 180 };
+}

@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
+import { buildRoute } from './route.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
@@ -328,6 +329,16 @@ const server = createServer(async (req, res) => {
       const nm = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(url.searchParams.get('near') || '');
       const near = nm ? { lat: Number(nm[1]), lon: Number(nm[2]) } : null;
       sendJson(res, 200, await buildRouteWinds(ids, offline, undefined, near));
+      return;
+    }
+
+    if (url.pathname === '/api/route') {
+      const routeStr = (url.searchParams.get('route') ?? '').trim();
+      if (!routeStr) { sendJson(res, 400, { error: 'provide ?route=KLTS DCT FLOYD J78 ...' }); return; }
+      const offline = url.searchParams.get('offline') === '1';
+      const nm = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(url.searchParams.get('near') || '');
+      const near = nm ? { lat: Number(nm[1]), lon: Number(nm[2]) } : null;
+      sendJson(res, 200, await buildRoute(routeStr, offline, near));
       return;
     }
 
