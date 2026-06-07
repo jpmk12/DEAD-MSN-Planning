@@ -323,7 +323,11 @@ const server = createServer(async (req, res) => {
         return;
       }
       const offline = url.searchParams.get('offline') === '1';
-      sendJson(res, 200, await buildRouteWinds(ids, offline));
+      // Optional reference point (briefed field) to disambiguate non-unique
+      // navaid idents by proximity, e.g. ?near=34.67,-99.27
+      const nm = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(url.searchParams.get('near') || '');
+      const near = nm ? { lat: Number(nm[1]), lon: Number(nm[2]) } : null;
+      sendJson(res, 200, await buildRouteWinds(ids, offline, undefined, near));
       return;
     }
 

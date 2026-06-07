@@ -132,6 +132,9 @@ export function initMap(container, data) {
   const focusPts = (data.focus && data.focus.length) ? data.focus
     : airfields.length ? airfields
     : mtrs.flatMap((m) => (m.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
+  // Recenter target: the briefed airfields ("home"), so ⌂ returns to the fields
+  // and zooms in on them rather than being dragged out by winds navaids/routes.
+  const homePts = (data.home && data.home.length) ? data.home : focusPts;
   const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65 };
 
   function unproject(px, py, z) {
@@ -333,7 +336,7 @@ export function initMap(container, data) {
     const act = e.target.dataset?.act;
     if (act === 'in') { state.zoom = Math.min(12, state.zoom + 1); render(); }
     if (act === 'out') { state.zoom = Math.max(2, state.zoom - 1); render(); }
-    if (act === 'recenter') { Object.assign(state, fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 })); render(); }
+    if (act === 'recenter') { Object.assign(state, fitView(homePts, w(), h(), { singleZoom: 9, maxZoom: 10 })); render(); }
     if (act === 'legend') { legend.style.display = legend.style.display === 'none' ? 'block' : 'none'; }
     if (act === 'times') { times.style.display = times.style.display === 'none' ? 'block' : 'none'; }
   };

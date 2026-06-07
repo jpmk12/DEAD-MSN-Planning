@@ -8,6 +8,8 @@
 
 const BASE = 'https://davidmegginson.github.io/ourairports-data';
 
+import { haversineNm } from '../core/geo.js';
+
 // ---- shared CSV helpers (also re-exported by the ingest script) -------------
 export function parseCsv(text) {
   const rows = [];
@@ -88,7 +90,10 @@ export function indexRunways(runwayObjs) {
   return byApt;
 }
 
-/** Build the airport lookup Map (keyed by ICAO + common aliases). */
+/** Build the airport lookup Map (keyed by ICAO only). We deliberately do NOT key
+ *  by IATA or local code: 3-letter IATA codes collide with navaid identifiers
+ *  (e.g. "BFV" is both a US navaid and Buri Ram's IATA), which would resolve an
+ *  airfield when the user meant the navaid. Airfields are looked up by ICAO. */
 export function indexAirports(airportObjs, runwaysByApt) {
   const airports = new Map();
   for (const a of airportObjs) {
@@ -105,7 +110,8 @@ export function indexAirports(airportObjs, runwaysByApt) {
       source: 'ourairports',
       runways: runwaysByApt.get(ident) || [],
     };
-    for (const key of [ident, a.gps_code, a.local_code, a.iata_code]) {
+    // ICAO only: `ident` plus `gps_code` (the ICAO-style code). No IATA/local.
+    for (const key of [ident, a.gps_code]) {
       const ku = (key || '').toUpperCase();
       if (ku && !airports.has(ku)) airports.set(ku, rec);
     }
@@ -113,26 +119,40 @@ export function indexAirports(airportObjs, runwaysByApt) {
   return airports;
 }
 
-/** Build the navaid lookup Map (keyed by ident). */
+/** Build the navaid lookup Map (keyed by ident → ALL candidates with that
+ *  ident). Navaid identifiers are NOT globally unique (e.g. several "BFV" exist),
+ *  so we keep every match and let resolveNavaid pick the nearest to a reference. */
 export function indexNavaids(navaidObjs) {
-  const navaids = new Map();
+  const navaids = new Map(); // ident -> Navaid[]
   for (const n of navaidObjs) {
     const ident = (n.ident || '').toUpperCase();
     const lat = num(n.latitude_deg);
     const lon = num(n.longitude_deg);
     if (!ident || lat == null || lon == null) continue;
-    if (!navaids.has(ident)) {
-      navaids.set(ident, {
-        ident,
-        name: n.name || ident,
-        type: n.type || 'NAVAID',
-        lat,
-        lon,
-        elevationFt: num(n.elevation_ft) ?? 0,
-      });
-    }
+    const rec = {
+      ident,
+      name: n.name || ident,
+      type: n.type || 'NAVAID',
+      lat,
+      lon,
+      elevationFt: num(n.elevation_ft) ?? 0,
+    };
+    const list = navaids.get(ident);
+    if (list) list.push(rec); else navaids.set(ident, [rec]);
   }
   return navaids;
+}
+
+/** Choose the navaid candidate nearest to `near` ({lat,lon}); first if no ref
+ *  or only one candidate. Disambiguates non-unique navaid idents by proximity. */
+export function pickNavaid(list, near) {
+  if (!list || !list.length) return undefined;
+  if (near && Number.isFinite(near.lat) && Number.isFinite(near.lon) && list.length > 1) {
+    return [...list].sort(
+      (a, b) => haversineNm(near.lat, near.lon, a.lat, a.lon) - haversineNm(near.lat, near.lon, b.lat, b.lon),
+    )[0];
+  }
+  return list[0];
 }
 
 // ---- network load + cache ---------------------------------------------------
@@ -182,11 +202,12 @@ export async function resolveAirport(id, offline) {
   }
 }
 
-/** Resolve a navaid by identifier. Returns undefined when offline or unknown. */
-export async function resolveNavaid(id, offline) {
+/** Resolve a navaid by identifier, picking the candidate nearest `near`
+ *  ({lat,lon}) when the ident isn't unique. Returns undefined when offline/unknown. */
+export async function resolveNavaid(id, offline, near) {
   if (offline || !id) return undefined;
   try {
-    return (await ensureLoaded()).navaids.get(id.toUpperCase());
+    return pickNavaid((await ensureLoaded()).navaids.get(id.toUpperCase()), near);
   } catch {
     return undefined;
   }

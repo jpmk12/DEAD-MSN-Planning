@@ -843,6 +843,10 @@ async function getRouteWinds() {
   const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!pts.length) return;
   const params = new URLSearchParams({ points: pts.join(',') });
+  // Bias navaid resolution toward the briefed field so non-unique navaid idents
+  // resolve to the nearby one (not a far IATA/foreign duplicate).
+  const ref = (lastBriefData?.airfields || []).find((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon));
+  if (ref) params.set('near', `${ref.lat},${ref.lon}`);
   $('winds-go').disabled = true;
   $('winds-results').innerHTML = `<div class="loading"><div class="spinner"></div>Fetching winds aloft…</div>`;
   try {
@@ -1029,7 +1033,7 @@ function paintMap() {
   const routePts = activeRoutes.flatMap((d) => (d.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
   const focus = (activeRoutes.length || windPts.length) ? [...airfields, ...navaids, ...routePts] : briefAirfields;
   currentMap = initMap(mapEl, {
-    airfields, navaids, tfrs: as.tfrs, sua: as.sua,
+    airfields, navaids, home: briefAirfields.length ? briefAirfields : airfields, tfrs: as.tfrs, sua: as.sua,
     sigmets: data?.airsigmets || [], pireps: data?.pireps || [], convective: data?.convective || [],
     mtrs, validity: data ? wxValidity(data) : [], focus,
   });
