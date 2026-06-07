@@ -697,6 +697,25 @@ function zuluToIso(id) {
 }
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 
+// Quick-links toolbar: external references for the current departure airfield.
+// AWC deep-links to the field's METAR/TAF; DAIP and AHAS open their tools (they
+// don't expose a public per-ICAO URL), with the field shown in the label.
+function quickLinkUrls(icao) {
+  const id = encodeURIComponent(icao);
+  return {
+    'ql-daip': { href: 'https://www.daip.jcs.mil/', text: `DAIP · ${icao}` },
+    'ql-awc': { href: `https://aviationweather.gov/data/metar/?ids=${id}&taf=true`, text: `Aviation Weather · ${icao}` },
+    'ql-ahas': { href: 'https://www.usahas.com/', text: `AHAS · ${icao}` },
+  };
+}
+function updateQuickLinks() {
+  const icao = splitIds(val('sp-dep'))[0] || 'KLTS';
+  for (const [linkId, { href, text }] of Object.entries(quickLinkUrls(icao))) {
+    const el = $(linkId);
+    if (el) { el.href = href; el.textContent = text; }
+  }
+}
+
 // Build the brief from the single sortie panel: each phase (departure /
 // low-level / recovery / alternates) is evaluated at its own time, and any
 // low-level routes are looked up at the entry time and overlaid. Departure-only
@@ -1236,6 +1255,8 @@ window.addEventListener('afterprint', () => {
 
   prefillDatetimes();
   trackChipTarget();
+  updateQuickLinks();
+  on('sp-dep', 'input', updateQuickLinks); // keep the toolbar in sync with the field
   on('go', 'click', buildBrief);
   on('sp-clear', 'click', () => {
     ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
