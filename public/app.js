@@ -697,31 +697,38 @@ function zuluToIso(id) {
 }
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 
-// Quick-links toolbar for the current departure field. DAIP/Aviation Weather
-// open our server-rendered views (the official SPAs can't be deep-linked, and
-// this guarantees the NOTAMs + decoded TAF actually show); AHAS opens its web
-// page; Build PDF opens the combined, print-ready reference for the field.
-function quickLinkUrls(icao) {
-  const id = encodeURIComponent(icao);
-  const whenIso = zuluToIso('sp-dep-t');
-  const when = whenIso ? `&when=${encodeURIComponent(whenIso)}` : '';
-  // Low-level/AR routes from the sortie plan, evaluated at the entry time — added
-  // to the AHAS view and the Build PDF so route bird-risk is included.
+// All sortie bases (departure, recovery, alternates) as the refcard `fields`
+// param: "ICAO@ISO@Label" pipe-separated, each at its own Zulu time (alternates
+// inherit the landing time).
+function refFieldsParam() {
+  const depT = zuluToIso('sp-dep-t');
+  const recT = zuluToIso('sp-rec-t');
+  const out = [];
+  const dep = splitIds(val('sp-dep'))[0]; if (dep) out.push(`${dep}@${depT}@Departure`);
+  const rec = splitIds(val('sp-rec'))[0]; if (rec) out.push(`${rec}@${recT}@Recovery`);
+  for (const a of splitIds(val('sp-alt'))) out.push(`${a}@${recT}@Alternate`);
+  return out.join('|');
+}
+
+// Quick-links toolbar: server-rendered references for EVERY sortie base
+// (departure + recovery + alternates) plus the low-level/AR routes. The official
+// SPAs can't be deep-linked, so rendering ourselves guarantees the NOTAMs +
+// decoded TAF + 12-hr AHAS actually show. Build PDF combines all of it.
+function quickLinkUrls() {
+  const fields = encodeURIComponent(refFieldsParam());
   const routeIds = splitIds(val('sp-ll'));
   const routes = routeIds.length ? `&routes=${encodeURIComponent(routeIds.join(','))}` : '';
   const rwhenIso = zuluToIso('sp-ll-t');
   const rwhen = rwhenIso ? `&rwhen=${encodeURIComponent(rwhenIso)}` : '';
   return {
-    'ql-daip': { href: `/api/refcard?icao=${id}&only=notams`, title: `DAIP NOTAMs for ${icao}` },
-    'ql-awc': { href: `/api/refcard?icao=${id}&only=wx`, title: `${icao} METAR + decoded TAF (AWC)` },
-    'ql-ahas': { href: `/api/refcard?icao=${id}&only=ahas${when}${routes}${rwhen}`, title: `${icao} + route AHAS bird/wildlife risk` },
-    'ql-build': { href: `/api/refcard?icao=${id}${when}${routes}${rwhen}&print=1`, title: `Combined NOTAMs + weather + AHAS (incl. routes) for ${icao}, ready to save as PDF` },
+    'ql-daip': { href: `/api/refcard?fields=${fields}&only=notams`, title: 'DAIP NOTAMs - all sortie bases' },
+    'ql-awc': { href: `/api/refcard?fields=${fields}&only=wx`, title: 'METAR + decoded TAF - all sortie bases' },
+    'ql-ahas': { href: `/api/refcard?fields=${fields}&only=ahas${routes}${rwhen}`, title: 'AHAS 12-hr - all sortie bases + routes' },
+    'ql-build': { href: `/api/refcard?fields=${fields}${routes}${rwhen}&print=1`, title: 'Combined NOTAMs + weather + AHAS for all bases + routes - save as PDF' },
   };
 }
-
 function updateQuickLinks() {
-  const icao = splitIds(val('sp-dep'))[0] || 'KLTS';
-  for (const [linkId, { href, title }] of Object.entries(quickLinkUrls(icao))) {
+  for (const [linkId, { href, title }] of Object.entries(quickLinkUrls())) {
     const el = $(linkId);
     if (el) { el.href = href; el.title = title; } // label text left as-is (short)
   }

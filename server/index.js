@@ -80,6 +80,22 @@ function parseStops(raw) {
   return stops.length ? stops : null;
 }
 
+// Parse the refcard `fields` param: pipe-separated "ICAO@ISO@Label" (time/label
+// optional). Falls back to a single { icao, when } when only ?icao= is given.
+function parseRefFields(raw, fallbackIcao, fallbackWhen) {
+  if (raw) {
+    const out = raw.split('|').map((tok) => {
+      const [icao, when, label] = tok.split('@');
+      const id = String(icao || '').trim().toUpperCase();
+      if (!id) return null;
+      const iso = when && !Number.isNaN(Date.parse(when)) ? new Date(when).toISOString() : null;
+      return { icao: id, when: iso, label: (label || '').trim() };
+    }).filter(Boolean).slice(0, 12);
+    if (out.length) return out;
+  }
+  return fallbackIcao ? [{ icao: fallbackIcao, when: fallbackWhen, label: '' }] : [];
+}
+
 function parseLimits(url) {
   const num = (key, fallback) => {
     const v = Number(url.searchParams.get(key));
@@ -167,20 +183,21 @@ const server = createServer(async (req, res) => {
     }
 
     // Combined printable reference page (DAIP NOTAMs + AWC METAR/decoded TAF +
-    // AHAS) for one field. `only` filters sections; `print=1` auto-opens print.
+    // AHAS) for ALL the sortie bases. `fields` is pipe-separated "ICAO@ISO@Label"
+    // (falls back to single ?icao=). `only` filters sections; `print=1` auto-prints.
     if (url.pathname === '/api/refcard') {
-      const icao = (url.searchParams.get('icao') || '').trim().toUpperCase();
-      if (!icao) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('provide ?icao='); return; }
       const onlyRaw = (url.searchParams.get('only') || 'all').toLowerCase();
       const only = ['all', 'notams', 'wx', 'ahas'].includes(onlyRaw) ? onlyRaw : 'all';
       const whenRaw = url.searchParams.get('when');
       const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
+      const fields = parseRefFields(url.searchParams.get('fields'), (url.searchParams.get('icao') || '').trim().toUpperCase(), whenIso);
+      if (!fields.length) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('provide ?fields= or ?icao='); return; }
       const rwhenRaw = url.searchParams.get('rwhen');
       const routeWhen = rwhenRaw && !Number.isNaN(Date.parse(rwhenRaw)) ? new Date(rwhenRaw).toISOString() : null;
       const routes = (url.searchParams.get('routes') || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 8);
       const autoPrint = url.searchParams.get('print') === '1';
       try {
-        const html = await buildRefCard(icao, whenIso, only, autoPrint, routes, routeWhen);
+        const html = await buildRefCard(fields, only, autoPrint, routes, routeWhen);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(html);
       } catch (e) {

@@ -1,8 +1,9 @@
-// Server-rendered "reference card": a single printable page that combines the
-// three external references for one field — DAIP NOTAMs, AWC METAR + decoded
-// TAF, and AHAS bird risk — using the same live fetchers the brief uses (so the
-// data shows even though the external SPAs can't be deep-linked). Returned as a
-// self-contained, print-friendly HTML document (Build PDF → window.print()).
+// Server-rendered "reference card": a single printable page combining the
+// external references — DAIP NOTAMs, AWC METAR + decoded TAF, and AHAS 12-hour
+// bird risk — for ALL of the sortie's bases (departure, recovery, alternates,
+// each at its own time) plus the low-level/AR routes, using the same live
+// fetchers the brief uses (so the data shows even though the external SPAs can't
+// be deep-linked). Returned as a self-contained, print-friendly HTML document.
 
 import { getAirport } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
@@ -18,7 +19,6 @@ const nowZ = () => {
   const p = (n) => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())} ${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z`;
 };
-// Official source citation line shown under each section.
 const cite = (label, url) => `<div class="src">Source: ${esc(label)} — <span class="url">${esc(url)}</span> · retrieved ${nowZ()}</div>`;
 
 function zulu(iso) {
@@ -29,48 +29,26 @@ function zulu(iso) {
   return `${p(d.getUTCDate())} ${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z`;
 }
 
-function wxSection(icao, obs, tafRaw, decoded) {
-  const metar = obs?.rawText ? `<pre class="raw">${esc(obs.rawText)}</pre>` : '<div class="none">METAR unavailable.</div>';
-  let taf = '<div class="none">No TAF issued for this field.</div>';
-  if (tafRaw) {
-    const periods = (decoded?.periods || []).map((p) => {
-      const items = [...(p.items || []), ...(p.extra || [])].map((it) => `<li>${esc(it)}</li>`).join('');
-      return `<div class="taf-p"><div class="taf-l">${esc(p.label)}${p.when ? ` · ${esc(p.when)}` : ''}</div><ul>${items}</ul></div>`;
-    }).join('');
-    taf = `<pre class="raw">${esc(tafRaw)}</pre>${periods}`;
-  }
-  return `<section><h2>Aviation Weather — ${esc(icao)}</h2>
-    <h3>METAR</h3>${metar}
-    <h3>TAF (decoded)</h3>${taf}
-    ${cite('FAA / NWS Aviation Weather Center', 'aviationweather.gov')}</section>`;
-}
-
 const riskColor = (lvl) => (lvl === 'SEVERE' ? '#b3231b' : lvl === 'MODERATE' ? '#b5840a' : '#1a7f37');
 const RANK = { LOW: 0, MODERATE: 1, SEVERE: 2 };
 const normRoute = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
-// Hour label from an AHAS DateTime ("2026-06-07 16:00:00.000" -> "16Z").
 const hhz = (s) => { const m = /\d{4}-\d{2}-\d{2}[ T](\d{2})/.exec(String(s || '')); return m ? `${m[1]}Z` : ''; };
 
-// Fetch the 12-hour AHAS outlook (GetAHASRisk12): the per-hour worst level
-// series (with real times), starting at whenIso. Returns null on failure.
+// 12-hour AHAS outlook (GetAHASRisk12): per-hour worst level + real times.
 async function ahas12(type, area, whenIso) {
   try {
     const xml = await ahasRaw('GetAHASRisk12', type, area, whenIso);
-    let series = parseAhasHourly(xml); // [{ time, level }] — worst AHASRISK per hour
-    if (!series.length) series = parseAhasSeries(xml).map((level) => ({ time: null, level })); // fallback shape
+    let series = parseAhasHourly(xml);
+    if (!series.length) series = parseAhasSeries(xml).map((level) => ({ time: null, level }));
     if (!series.length) { const lv = parseAhasLevel(xml); return lv ? { level: lv, series: [], runAt: ahasRunAtIso(whenIso) } : null; }
     const level = series.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), 'LOW');
     return { level, series, runAt: ahasRunAtIso(whenIso) };
   } catch { return null; }
 }
 
-// 12-hour hourly strip: one cell per forecast hour (Zulu), color-coded.
 function hourlyStrip(series) {
   if (!series || series.length < 2) return '';
-  const cells = series.map((s) => {
-    const t = hhz(s.time);
-    return `<div class="hr"><div class="hr-t">${esc(t)}</div><div class="hr-l" title="${esc(s.level)}" style="background:${riskColor(s.level)}">${esc(s.level[0])}</div></div>`;
-  }).join('');
+  const cells = series.map((s) => `<div class="hr"><div class="hr-t">${esc(hhz(s.time))}</div><div class="hr-l" title="${esc(s.level)}" style="background:${riskColor(s.level)}">${esc(s.level[0])}</div></div>`).join('');
   return `<div class="strip">${cells}</div>`;
 }
 
@@ -83,27 +61,49 @@ function ahasBlock(a) {
   return `${head}${when}${hourlyStrip(a.series)}`;
 }
 
-function ahasSection(icao, airfield, routes = []) {
-  const routeRows = routes.length ? `<h3>Low-Level / AR routes (12-hr)</h3>${routes.map((r) => {
+// ---- per-field sections ----------------------------------------------------
+function wxSection(label, obs, tafRaw, decoded) {
+  const metar = obs?.rawText ? `<pre class="raw">${esc(obs.rawText)}</pre>` : '<div class="none">METAR unavailable.</div>';
+  let taf = '<div class="none">No TAF issued for this field.</div>';
+  if (tafRaw) {
+    const periods = (decoded?.periods || []).map((p) => {
+      const items = [...(p.items || []), ...(p.extra || [])].map((it) => `<li>${esc(it)}</li>`).join('');
+      return `<div class="taf-p"><div class="taf-l">${esc(p.label)}${p.when ? ` · ${esc(p.when)}` : ''}</div><ul>${items}</ul></div>`;
+    }).join('');
+    taf = `<pre class="raw">${esc(tafRaw)}</pre>${periods}`;
+  }
+  return `<section><h2>Aviation Weather — ${esc(label)}</h2>
+    <h3>METAR</h3>${metar}
+    <h3>TAF (decoded)</h3>${taf}
+    ${cite('FAA / NWS Aviation Weather Center', 'aviationweather.gov')}</section>`;
+}
+
+function ahasFieldSection(label, a) {
+  return `<section><h2>AHAS Bird Risk (12-hour) — ${esc(label)}</h2>
+    ${ahasBlock(a)}
+    ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
+}
+
+function routeAhasSection(routeAhas) {
+  if (!routeAhas.length) return '';
+  const rows = routeAhas.map((r) => {
     if (!r.ahas) return `<div class="notam"><span class="cat">${esc(r.id)}</span><div><div class="txt none">No AHAS data (route not covered by AHAS — e.g. AR tracks — or unavailable).</div></div></div>`;
     const worst = r.ahas.level || (r.ahas.series && r.ahas.series[0] && r.ahas.series[0].level) || 'LOW';
     return `<div class="route-ahas"><div class="notam"><span class="cat" style="color:${riskColor(worst)};background:#fff;border:1px solid ${riskColor(worst)}">${esc(r.id)}</span>
       <div><div class="txt"><b style="color:${riskColor(worst)}">${esc(worst)}</b> 12-hr worst${r.ahas.runAt ? ` · from ${esc(zulu(r.ahas.runAt))}` : ''}</div></div></div>
       ${hourlyStrip(r.ahas.series)}</div>`;
-  }).join('')}` : '';
-  return `<section><h2>AHAS Bird Risk (12-hour) — ${esc(icao)}</h2>
-    <h3>Airfield</h3>${ahasBlock(airfield)}
-    ${routeRows}
+  }).join('');
+  return `<section><h2>AHAS Bird Risk (12-hour) — Low-Level / AR routes</h2>${rows}
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
-function notamSection(icao, notams, source) {
-  if (!notams.length) return `<section><h2>NOTAMs — ${esc(icao)}</h2><div class="none">No NOTAMs retrieved${source ? ` (${esc(source)})` : ''}.</div></section>`;
+function notamSection(label, notams, source) {
+  if (!notams.length) return `<section><h2>NOTAMs — ${esc(label)}</h2><div class="none">No NOTAMs retrieved${source ? ` (${esc(source)})` : ''}.</div></section>`;
   const rows = notams.map((n) => {
     const end = n.effectiveEnd ? `<div class="when">until ${esc(zulu(n.effectiveEnd))}</div>` : '';
     return `<div class="notam"><span class="cat">${esc(n.category || 'OTHER')}</span><div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
   }).join('');
-  return `<section><h2>NOTAMs — ${esc(icao)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${rows}
+  return `<section><h2>NOTAMs — ${esc(label)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${rows}
     ${cite(source === 'DAIP' ? 'DoD Aeronautical Information (DAIP)' : `NOTAMs (${source || 'source'})`, 'daip.jcs.mil')}</section>`;
 }
 
@@ -118,6 +118,7 @@ const STYLE = `
   .foot-src { color: #777; font-size: 10.5px; margin-top: 4px; }
   .toolbar { margin: 8px 0 18px; }
   .toolbar button { font: 13px sans-serif; padding: 8px 16px; border: 1px solid #0a66c2; background: #0a66c2; color: #fff; border-radius: 6px; cursor: pointer; }
+  .field-group-h { font-family: Georgia, serif; font-size: 16px; font-weight: 700; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #888; }
   section { border: 1px solid #ddd; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; break-inside: avoid; }
   h2 { font-size: 15px; margin: 0 0 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
   h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #666; margin: 10px 0 4px; }
@@ -145,53 +146,64 @@ const STYLE = `
 `;
 
 /**
- * Build the combined reference page HTML for one field.
- * @param {string} icao
- * @param {string|null} whenIso  time for AHAS (departure time); defaults to now
+ * Build the combined reference page for one or more sortie bases.
+ * @param {Array<{icao:string, when:?string, label:string}>} fields  bases (dep/rec/alt) + times
  * @param {('all'|'notams'|'wx'|'ahas')} only  which sections to include
  * @param {boolean} autoPrint  open the print dialog on load (Build PDF)
+ * @param {string[]} routes  low-level/AR route ids (for the AHAS section)
+ * @param {?string} routeWhen  route entry time
  */
-export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
+export async function buildRefCard(fields, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
   const want = (k) => only === 'all' || only === k;
-  // 12-hour airfield AHAS (GetAHASRisk12) at the departure time.
-  const airfieldArea = ahasAreaForIcao(icao);
-  const airfieldAhasP = (want('ahas') && airfieldArea) ? ahas12('MILAIR', airfieldArea, whenIso) : Promise.resolve(null);
-  // 12-hour AHAS per low-level/AR route at the entry time (AR tracks aren't
-  // covered by AHAS, so they resolve to no data).
-  const routeAhasP = want('ahas')
-    ? Promise.all(routes.map(async (id) => {
+
+  // Per-field live data (each base at its own time), all in parallel.
+  const data = await Promise.all(fields.map(async (f) => {
+    const area = ahasAreaForIcao(f.icao);
+    const [airport, wx, notamRes, ahas] = await Promise.all([
+      getAirport(f.icao, false).catch(() => null),
+      want('wx') ? loadWeather([f.icao], false).catch(() => ({ obs: [], tafs: new Map() })) : Promise.resolve({ obs: [], tafs: new Map() }),
+      want('notams') ? fetchNotams([f.icao], false).catch(() => ({ notams: [], source: null })) : Promise.resolve({ notams: [], source: null }),
+      (want('ahas') && area) ? ahas12('MILAIR', area, f.when).catch(() => null) : Promise.resolve(null),
+    ]);
+    return { f, airport, wx, notamRes, ahas };
+  }));
+
+  // Route AHAS once (shared low-level phase).
+  const routeAhas = want('ahas')
+    ? await Promise.all(routes.map(async (id) => {
         const type = ahasRouteType(id);
         if (!type || !ahasHasRoute(id)) return { id, ahas: null };
-        return { id, ahas: await ahas12(type, normRoute(id), routeWhen || whenIso) };
+        return { id, ahas: await ahas12(type, normRoute(id), routeWhen).catch(() => null) };
       }))
-    : Promise.resolve([]);
+    : [];
 
-  const [airport, wx, notamRes, airfieldAhas, routeAhas] = await Promise.all([
-    getAirport(icao, false).catch(() => null),
-    want('wx') ? loadWeather([icao], false).catch(() => ({ obs: [], tafs: new Map() })) : Promise.resolve({ obs: [], tafs: new Map() }),
-    want('notams') ? fetchNotams([icao], false).catch(() => ({ notams: [], source: null })) : Promise.resolve({ notams: [], source: null }),
-    airfieldAhasP.catch(() => null),
-    routeAhasP.catch(() => []),
-  ]);
-
-  const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === icao);
-  const tafRaw = wx.tafs?.get(icao);
-  const notams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === icao);
-
-  const titleMap = { all: 'Field Reference', notams: 'NOTAMs', wx: 'Aviation Weather', ahas: 'AHAS Bird Risk' };
   let body = '';
-  if (want('notams')) body += notamSection(icao, notams, notamRes.source);
-  if (want('wx')) body += wxSection(icao, obs, tafRaw, decodeTaf(tafRaw));
-  if (want('ahas')) body += ahasSection(icao, airfieldAhas, routeAhas);
+  for (const { f, wx, notamRes, ahas } of data) {
+    const label = f.label ? `${f.icao} (${f.label})` : f.icao;
+    // For the combined view, group a base's sections under a heading.
+    if (only === 'all') body += `<div class="field-group-h">${esc(label)}</div>`;
+    if (want('notams')) body += notamSection(label, (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao), notamRes.source);
+    if (want('wx')) {
+      const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
+      const tafRaw = wx.tafs?.get(f.icao);
+      body += wxSection(label, obs, tafRaw, decodeTaf(tafRaw));
+    }
+    if (want('ahas')) body += ahasFieldSection(label, ahas);
+  }
+  if (want('ahas') && routeAhas.length) {
+    if (only === 'all') body += '<div class="field-group-h">Low-Level / AR</div>';
+    body += routeAhasSection(routeAhas);
+  }
 
-  const name = airport?.name ? ` — ${esc(airport.name)}` : '';
+  const titleMap = { all: 'Field Reference', notams: 'NOTAMs', wx: 'Aviation Weather', ahas: 'AHAS Bird Risk (12-hr)' };
+  const fieldList = fields.map((f) => `${esc(f.label || '')} ${esc(f.icao)}`.trim()).join(' · ');
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(icao)} ${esc(titleMap[only] || 'Reference')}</title><style>${STYLE}</style></head>
+<title>${esc(fieldList)} ${esc(titleMap[only] || 'Reference')}</title><style>${STYLE}</style></head>
 <body>
   <header class="doc-head">
-    <div class="doc-title">MISSION REFERENCE — ${esc(icao)}${name}</div>
-    <div class="doc-meta">${esc(titleMap[only] || 'Reference')} · Generated ${esc(nowZ())}${whenIso ? ` · Valid for ${esc(zulu(whenIso))}` : ''}</div>
+    <div class="doc-title">MISSION REFERENCE — ${esc(titleMap[only] || 'Reference')}</div>
+    <div class="doc-meta">${esc(fieldList)}${routeAhas.length ? ` · routes ${esc(routes.join(', '))}` : ''} · Generated ${esc(nowZ())}</div>
   </header>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   ${body}
