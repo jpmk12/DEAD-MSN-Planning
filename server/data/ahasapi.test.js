@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhasLevel, parseAhasSeries, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
+import { parseAhasLevel, parseAhasSeries, parseAhasHourly, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
 
 test('ahasRunAtIso floors to the requested Zulu hour', () => {
   assert.equal(ahasRunAtIso('2026-06-06T18:42:30Z'), '2026-06-06T18:00:00.000Z');
@@ -26,6 +26,20 @@ test('parseAhasSeries reads the hourly levels in order, from the data rows only'
   // Caps at 12 (the 12-hour product).
   const many = '</xs:schema>' + Array(20).fill('<r>LOW</r>').join('');
   assert.equal(parseAhasSeries(many).length, 12);
+});
+
+test('parseAhasHourly takes the worst AHASRISK per forecast hour, time-ordered', () => {
+  // Two hours, two segments each; the worst segment risk wins per hour.
+  const row = (dt, ahas) => `<Table><Segment>X</Segment><DateTime>${dt}</DateTime><NEXRADRISK>NO DATA</NEXRADRISK><AHASRISK>${ahas}</AHASRISK></Table>`;
+  const xml = '</xs:schema><NewDataSet>'
+    + row('2026-06-07 16:00:00.000', 'LOW') + row('2026-06-07 16:00:00.000', 'SEVERE')
+    + row('2026-06-07 17:00:00.000', 'MODERATE') + row('2026-06-07 17:00:00.000', 'LOW')
+    + '</NewDataSet>';
+  const h = parseAhasHourly(xml);
+  assert.equal(h.length, 2);
+  assert.deepEqual(h.map((x) => x.level), ['SEVERE', 'MODERATE']);
+  assert.equal(h[0].time, '2026-06-07 16:00:00.000');
+  assert.deepEqual(parseAhasHourly(''), []);
 });
 
 test('ahasRouteType maps IR/VR/SR, skips AR', () => {

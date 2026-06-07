@@ -9,7 +9,7 @@ import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
 import { fetchNotams } from './data/notams.js';
 import { advisoryFor } from './data/birds.js';
-import { ahasRaw, parseAhasLevel, parseAhasSeries, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
+import { ahasRaw, parseAhasLevel, parseAhasSeries, parseAhasHourly, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -46,48 +46,50 @@ function wxSection(icao, obs, tafRaw, decoded) {
 }
 
 const riskColor = (lvl) => (lvl === 'SEVERE' ? '#b3231b' : lvl === 'MODERATE' ? '#b5840a' : '#1a7f37');
+const RANK = { LOW: 0, MODERATE: 1, SEVERE: 2 };
 const normRoute = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+// Hour label from an AHAS DateTime ("2026-06-07 16:00:00.000" -> "16Z").
+const hhz = (s) => { const m = /\d{4}-\d{2}-\d{2}[ T](\d{2})/.exec(String(s || '')); return m ? `${m[1]}Z` : ''; };
 
-// Fetch the 12-hour AHAS outlook (GetAHASRisk12): worst level + the hourly
-// series, starting at whenIso (or now). Returns null on failure/unmapped.
+// Fetch the 12-hour AHAS outlook (GetAHASRisk12): the per-hour worst level
+// series (with real times), starting at whenIso. Returns null on failure.
 async function ahas12(type, area, whenIso) {
   try {
     const xml = await ahasRaw('GetAHASRisk12', type, area, whenIso);
-    const series = parseAhasSeries(xml);
-    const level = parseAhasLevel(xml);
-    if (!level && !series.length) return null;
+    let series = parseAhasHourly(xml); // [{ time, level }] — worst AHASRISK per hour
+    if (!series.length) series = parseAhasSeries(xml).map((level) => ({ time: null, level })); // fallback shape
+    if (!series.length) { const lv = parseAhasLevel(xml); return lv ? { level: lv, series: [], runAt: ahasRunAtIso(whenIso) } : null; }
+    const level = series.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), 'LOW');
     return { level, series, runAt: ahasRunAtIso(whenIso) };
   } catch { return null; }
 }
 
 // 12-hour hourly strip: one cell per forecast hour (Zulu), color-coded.
-function hourlyStrip(series, startIso) {
+function hourlyStrip(series) {
   if (!series || series.length < 2) return '';
-  const start = startIso ? new Date(startIso) : new Date();
-  const h0 = Number.isNaN(start.getTime()) ? new Date().getUTCHours() : start.getUTCHours();
-  const cells = series.map((lvl, i) => {
-    const h = String((h0 + i) % 24).padStart(2, '0');
-    return `<div class="hr"><div class="hr-t">${h}Z</div><div class="hr-l" title="${esc(lvl)}" style="background:${riskColor(lvl)}">${esc(lvl[0])}</div></div>`;
+  const cells = series.map((s) => {
+    const t = hhz(s.time);
+    return `<div class="hr"><div class="hr-t">${esc(t)}</div><div class="hr-l" title="${esc(s.level)}" style="background:${riskColor(s.level)}">${esc(s.level[0])}</div></div>`;
   }).join('');
   return `<div class="strip">${cells}</div>`;
 }
 
 function ahasBlock(a) {
   if (!a || (!a.level && !(a.series || []).length)) return '<div class="none">No AHAS risk available.</div>';
-  const worst = a.level || (a.series || [])[0];
+  const worst = a.level || (a.series && a.series[0] && a.series[0].level) || 'LOW';
   const head = `<div class="ahas"><span class="lvl" style="color:${riskColor(worst)};border-color:${riskColor(worst)}">${esc(worst)}</span>
     <span class="ahas-note">12-hr worst case — ${esc(advisoryFor(worst))}</span></div>`;
   const when = a.runAt ? `<div class="when">12-hr outlook from ${esc(zulu(a.runAt))}</div>` : '';
-  return `${head}${when}${hourlyStrip(a.series, a.runAt)}`;
+  return `${head}${when}${hourlyStrip(a.series)}`;
 }
 
 function ahasSection(icao, airfield, routes = []) {
   const routeRows = routes.length ? `<h3>Low-Level / AR routes (12-hr)</h3>${routes.map((r) => {
     if (!r.ahas) return `<div class="notam"><span class="cat">${esc(r.id)}</span><div><div class="txt none">No AHAS data (route not covered by AHAS — e.g. AR tracks — or unavailable).</div></div></div>`;
-    const worst = r.ahas.level || (r.ahas.series || [])[0];
+    const worst = r.ahas.level || (r.ahas.series && r.ahas.series[0] && r.ahas.series[0].level) || 'LOW';
     return `<div class="route-ahas"><div class="notam"><span class="cat" style="color:${riskColor(worst)};background:#fff;border:1px solid ${riskColor(worst)}">${esc(r.id)}</span>
       <div><div class="txt"><b style="color:${riskColor(worst)}">${esc(worst)}</b> 12-hr worst${r.ahas.runAt ? ` · from ${esc(zulu(r.ahas.runAt))}` : ''}</div></div></div>
-      ${hourlyStrip(r.ahas.series, r.ahas.runAt)}</div>`;
+      ${hourlyStrip(r.ahas.series)}</div>`;
   }).join('')}` : '';
   return `<section><h2>AHAS Bird Risk (12-hour) — ${esc(icao)}</h2>
     <h3>Airfield</h3>${ahasBlock(airfield)}

@@ -108,6 +108,34 @@ export function parseAhasSeries(text) {
   return out.slice(0, 12);
 }
 
+const AHAS_RANK = { LOW: 0, MODERATE: 1, SEVERE: 2 };
+
+/** Hourly AHAS outlook from a GetAHASRisk12 response. The response groups rows
+ *  into 12 forecast hours (each hour can have many route-segment rows); the
+ *  combined risk is <AHASRISK> and the time is <DateTime>. Returns one entry per
+ *  hour with the WORST AHASRISK across that hour's segments, time-ordered:
+ *  [{ time: "2026-06-07 16:00:00.000", level: "MODERATE" }]. Non-risk values
+ *  (e.g. "NO DATA") are ignored. Falls back to [] if the shape isn't present. */
+export function parseAhasHourly(text) {
+  if (!text) return [];
+  const s = String(text);
+  const times = [...s.matchAll(/<DateTime>([^<]+)<\/DateTime>/gi)].map((m) => m[1].trim());
+  const risks = [...s.matchAll(/<AHASRISK>([^<]+)<\/AHASRISK>/gi)].map((m) => m[1].trim().toUpperCase());
+  const n = Math.min(times.length, risks.length);
+  const byHour = new Map(); // "YYYY-MM-DD HH" -> { time, level }
+  for (let i = 0; i < n; i++) {
+    const level = risks[i];
+    if (!(level in AHAS_RANK)) continue; // skip "NO DATA" etc.
+    const key = times[i].slice(0, 13);
+    const cur = byHour.get(key);
+    if (!cur || AHAS_RANK[level] > AHAS_RANK[cur.level]) byHour.set(key, { time: times[i], level });
+  }
+  return [...byHour.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map((e) => e[1])
+    .slice(0, 12);
+}
+
 /** AHAS route Type from an MTR id prefix; AR (refueling) has no bird route. */
 export function ahasRouteType(id) {
   const u = String(id || '').toUpperCase();
