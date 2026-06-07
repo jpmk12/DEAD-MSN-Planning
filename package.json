@@ -4,6 +4,9 @@
   "type": "module",
   "description": "One-stop C-17 training sortie planning: weather, NOTAMs, hazards, and wind/pattern analysis.",
   "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
     "build": "node scripts/build.mjs",
