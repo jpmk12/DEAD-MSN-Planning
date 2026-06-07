@@ -8,8 +8,8 @@ import { getAirport } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
 import { fetchNotams } from './data/notams.js';
-import { fetchBirdRisk } from './data/birds.js';
-import { fetchRouteRisk } from './data/ahas.js';
+import { advisoryFor } from './data/birds.js';
+import { ahasRaw, parseAhasLevel, parseAhasSeries, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -48,33 +48,50 @@ function wxSection(icao, obs, tafRaw, decoded) {
 const riskColor = (lvl) => (lvl === 'SEVERE' ? '#b3231b' : lvl === 'MODERATE' ? '#b5840a' : '#1a7f37');
 const normRoute = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-// Low-level / AR route bird risk rows (from the sortie's low-level field).
-function routeAhasRows(routeIds, riskMap) {
-  if (!routeIds.length) return '';
-  const rows = routeIds.map((id) => {
-    const r = riskMap.get(normRoute(id));
-    if (!r) return `<div class="notam"><span class="cat">${esc(id)}</span><div><div class="txt none">No AHAS data (route not covered, or unavailable).</div></div></div>`;
-    const when = r.runAt ? ` · valid ${zulu(r.runAt)}` : '';
-    return `<div class="notam"><span class="cat" style="color:${riskColor(r.level)};background:#fff;border:1px solid ${riskColor(r.level)}">${esc(id)}</span>
-      <div><div class="txt"><b style="color:${riskColor(r.level)}">${esc(r.level)}</b> — ${esc(r.note || '')}${esc(when)}</div></div></div>`;
-  }).join('');
-  return `<h3>Low-Level / AR routes</h3>${rows}`;
+// Fetch the 12-hour AHAS outlook (GetAHASRisk12): worst level + the hourly
+// series, starting at whenIso (or now). Returns null on failure/unmapped.
+async function ahas12(type, area, whenIso) {
+  try {
+    const xml = await ahasRaw('GetAHASRisk12', type, area, whenIso);
+    const series = parseAhasSeries(xml);
+    const level = parseAhasLevel(xml);
+    if (!level && !series.length) return null;
+    return { level, series, runAt: ahasRunAtIso(whenIso) };
+  } catch { return null; }
 }
 
-function ahasSection(icao, bird, routeIds = [], routeRisk = new Map()) {
-  const routes = routeAhasRows(routeIds, routeRisk);
-  let field;
-  if (!bird) {
-    field = '<div class="none">No AHAS risk available for this field.</div>';
-  } else {
-    const when = bird.runAt ? `${bird.windowHours ? `${bird.windowHours}-hr outlook from ` : 'valid '}${zulu(bird.runAt)}` : '';
-    field = `<div class="ahas"><span class="lvl" style="color:${riskColor(bird.level)};border-color:${riskColor(bird.level)}">${esc(bird.level)}</span>
-      <span class="ahas-note">${esc(bird.note || '')}</span></div>
-      ${when ? `<div class="when">${esc(when)}</div>` : ''}`;
-  }
-  return `<section><h2>AHAS Bird Risk — ${esc(icao)}</h2>
-    <h3>Airfield</h3>${field}
-    ${routes}
+// 12-hour hourly strip: one cell per forecast hour (Zulu), color-coded.
+function hourlyStrip(series, startIso) {
+  if (!series || series.length < 2) return '';
+  const start = startIso ? new Date(startIso) : new Date();
+  const h0 = Number.isNaN(start.getTime()) ? new Date().getUTCHours() : start.getUTCHours();
+  const cells = series.map((lvl, i) => {
+    const h = String((h0 + i) % 24).padStart(2, '0');
+    return `<div class="hr"><div class="hr-t">${h}Z</div><div class="hr-l" title="${esc(lvl)}" style="background:${riskColor(lvl)}">${esc(lvl[0])}</div></div>`;
+  }).join('');
+  return `<div class="strip">${cells}</div>`;
+}
+
+function ahasBlock(a) {
+  if (!a || (!a.level && !(a.series || []).length)) return '<div class="none">No AHAS risk available.</div>';
+  const worst = a.level || (a.series || [])[0];
+  const head = `<div class="ahas"><span class="lvl" style="color:${riskColor(worst)};border-color:${riskColor(worst)}">${esc(worst)}</span>
+    <span class="ahas-note">12-hr worst case — ${esc(advisoryFor(worst))}</span></div>`;
+  const when = a.runAt ? `<div class="when">12-hr outlook from ${esc(zulu(a.runAt))}</div>` : '';
+  return `${head}${when}${hourlyStrip(a.series, a.runAt)}`;
+}
+
+function ahasSection(icao, airfield, routes = []) {
+  const routeRows = routes.length ? `<h3>Low-Level / AR routes (12-hr)</h3>${routes.map((r) => {
+    if (!r.ahas) return `<div class="notam"><span class="cat">${esc(r.id)}</span><div><div class="txt none">No AHAS data (route not covered by AHAS — e.g. AR tracks — or unavailable).</div></div></div>`;
+    const worst = r.ahas.level || (r.ahas.series || [])[0];
+    return `<div class="route-ahas"><div class="notam"><span class="cat" style="color:${riskColor(worst)};background:#fff;border:1px solid ${riskColor(worst)}">${esc(r.id)}</span>
+      <div><div class="txt"><b style="color:${riskColor(worst)}">${esc(worst)}</b> 12-hr worst${r.ahas.runAt ? ` · from ${esc(zulu(r.ahas.runAt))}` : ''}</div></div></div>
+      ${hourlyStrip(r.ahas.series, r.ahas.runAt)}</div>`;
+  }).join('')}` : '';
+  return `<section><h2>AHAS Bird Risk (12-hour) — ${esc(icao)}</h2>
+    <h3>Airfield</h3>${ahasBlock(airfield)}
+    ${routeRows}
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
@@ -111,6 +128,11 @@ const STYLE = `
   .lvl { font-weight: 700; border: 1px solid; border-radius: 5px; padding: 2px 10px; }
   .ahas-note { color: #333; }
   .when { color: #666; font-size: 12px; margin-top: 4px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0 2px; }
+  .hr { text-align: center; }
+  .hr-t { font: 9px ui-monospace, monospace; color: #777; }
+  .hr-l { font: 700 11px ui-monospace, monospace; color: #fff; width: 26px; height: 22px; line-height: 22px; border-radius: 4px; }
+  .route-ahas { padding: 4px 0; border-top: 1px solid #f0f0f0; }
   .src { color: #999; font-size: 11px; margin-top: 4px; }
   .notam { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid #f0f0f0; }
   .notam .cat { font: 10px ui-monospace, monospace; font-weight: 700; background: #eef; color: #335; border-radius: 4px; padding: 2px 6px; height: fit-content; white-space: nowrap; }
@@ -129,25 +151,36 @@ const STYLE = `
  */
 export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
   const want = (k) => only === 'all' || only === k;
-  const wantRoutes = want('ahas') && routes.length > 0;
-  const [airport, wx, notamRes, birdRes, routeRes] = await Promise.all([
+  // 12-hour airfield AHAS (GetAHASRisk12) at the departure time.
+  const airfieldArea = ahasAreaForIcao(icao);
+  const airfieldAhasP = (want('ahas') && airfieldArea) ? ahas12('MILAIR', airfieldArea, whenIso) : Promise.resolve(null);
+  // 12-hour AHAS per low-level/AR route at the entry time (AR tracks aren't
+  // covered by AHAS, so they resolve to no data).
+  const routeAhasP = want('ahas')
+    ? Promise.all(routes.map(async (id) => {
+        const type = ahasRouteType(id);
+        if (!type || !ahasHasRoute(id)) return { id, ahas: null };
+        return { id, ahas: await ahas12(type, normRoute(id), routeWhen || whenIso) };
+      }))
+    : Promise.resolve([]);
+
+  const [airport, wx, notamRes, airfieldAhas, routeAhas] = await Promise.all([
     getAirport(icao, false).catch(() => null),
     want('wx') ? loadWeather([icao], false).catch(() => ({ obs: [], tafs: new Map() })) : Promise.resolve({ obs: [], tafs: new Map() }),
     want('notams') ? fetchNotams([icao], false).catch(() => ({ notams: [], source: null })) : Promise.resolve({ notams: [], source: null }),
-    want('ahas') ? fetchBirdRisk([icao], false, whenIso).catch(() => ({ risk: new Map() })) : Promise.resolve({ risk: new Map() }),
-    wantRoutes ? fetchRouteRisk(routes, false, routeWhen || whenIso).catch(() => ({ risk: new Map() })) : Promise.resolve({ risk: new Map() }),
+    airfieldAhasP.catch(() => null),
+    routeAhasP.catch(() => []),
   ]);
 
   const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === icao);
   const tafRaw = wx.tafs?.get(icao);
-  const bird = birdRes.risk?.get(icao) || null;
   const notams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === icao);
 
   const titleMap = { all: 'Field Reference', notams: 'NOTAMs', wx: 'Aviation Weather', ahas: 'AHAS Bird Risk' };
   let body = '';
   if (want('notams')) body += notamSection(icao, notams, notamRes.source);
   if (want('wx')) body += wxSection(icao, obs, tafRaw, decodeTaf(tafRaw));
-  if (want('ahas')) body += ahasSection(icao, bird, routes, routeRes.risk || new Map());
+  if (want('ahas')) body += ahasSection(icao, airfieldAhas, routeAhas);
 
   const name = airport?.name ? ` — ${esc(airport.name)}` : '';
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8">

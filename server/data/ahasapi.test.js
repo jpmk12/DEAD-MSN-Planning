@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhasLevel, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
+import { parseAhasLevel, parseAhasSeries, ahasRouteType, ahasUrl, ahasAreaForIcao, ahasHasRoute, ahasRunAtIso } from './ahasapi.js';
 
 test('ahasRunAtIso floors to the requested Zulu hour', () => {
   assert.equal(ahasRunAtIso('2026-06-06T18:42:30Z'), '2026-06-06T18:00:00.000Z');
@@ -15,6 +15,17 @@ test('parseAhasLevel extracts the worst level present', () => {
   assert.equal(parseAhasLevel('LOW LOW MODERATE LOW SEVERE LOW'), 'SEVERE');
   assert.equal(parseAhasLevel('no risk words'), null);
   assert.equal(parseAhasLevel(''), null);
+});
+
+test('parseAhasSeries reads the hourly levels in order, from the data rows only', () => {
+  const xml = '<DataSet><xs:schema><xs:element name="SEVERE_LABEL"/></xs:schema>'
+    + '<NewDataSet>' + ['LOW', 'LOW', 'MODERATE', 'SEVERE', 'MODERATE', 'LOW']
+      .map((l) => `<Table><RISK>${l}</RISK></Table>`).join('') + '</NewDataSet></DataSet>';
+  assert.deepEqual(parseAhasSeries(xml), ['LOW', 'LOW', 'MODERATE', 'SEVERE', 'MODERATE', 'LOW']);
+  assert.deepEqual(parseAhasSeries(''), []);
+  // Caps at 12 (the 12-hour product).
+  const many = '</xs:schema>' + Array(20).fill('<r>LOW</r>').join('');
+  assert.equal(parseAhasSeries(many).length, 12);
 });
 
 test('ahasRouteType maps IR/VR/SR, skips AR', () => {

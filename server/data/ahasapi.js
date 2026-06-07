@@ -92,6 +92,22 @@ export function parseAhasLevel(text) {
   return null;
 }
 
+/** Ordered hourly risk levels from a GetAHASRisk12 response (one per forecast
+ *  hour). The data rows follow the <xs:schema> block; we read the risk tokens in
+ *  document order from the data portion only (so column NAMES in the schema can't
+ *  pollute the series). Capped at 12 (the 12-hour product). */
+export function parseAhasSeries(text) {
+  if (!text) return [];
+  let s = String(text);
+  const i = s.search(/<\/xs:schema>/i);
+  if (i >= 0) s = s.slice(i);
+  const out = [];
+  const re = /\b(SEVERE|MODERATE|LOW)\b/gi;
+  let m;
+  while ((m = re.exec(s)) !== null) out.push(m[1].toUpperCase());
+  return out.slice(0, 12);
+}
+
 /** AHAS route Type from an MTR id prefix; AR (refueling) has no bird route. */
 export function ahasRouteType(id) {
   const u = String(id || '').toUpperCase();
