@@ -1,14 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="DEAD skull reticle with banner">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DEAD MP — mission planner">
   <defs>
-    <radialGradient id="bgC" cx="38%" cy="26%" r="95%">
+    <radialGradient id="bg" cx="38%" cy="26%" r="95%">
       <stop offset="0%" stop-color="#143b46"/><stop offset="55%" stop-color="#0a1c22"/><stop offset="100%" stop-color="#04090b"/>
     </radialGradient>
-    <linearGradient id="skullC" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="skull" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f04437"/><stop offset="100%" stop-color="#b3231b"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bgC)"/>
-  <!-- full targeting reticle -->
+  <!-- full-bleed background (maskable-safe) -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#bg)"/>
+  <!-- targeting reticle -->
   <circle cx="256" cy="244" r="194" fill="none" stroke="#22d3ee" stroke-width="6" stroke-dasharray="5 14" stroke-linecap="round" opacity="0.82"/>
   <circle cx="256" cy="244" r="166" fill="none" stroke="#1c6f80" stroke-width="3" opacity="0.5"/>
   <g stroke="#22d3ee" stroke-width="8" stroke-linecap="round" opacity="0.9">
@@ -18,15 +19,15 @@
   </g>
   <line x1="256" y1="40" x2="256" y2="80" stroke="#3ddc5a" stroke-width="8" stroke-linecap="round"/>
   <!-- skull, large, centered -->
-  <g transform="translate(256 232) scale(0.92) translate(-256 -240)">
-    <path d="M256 150 c-58 0 -100 40 -100 95 c0 32 15 57 38 71 l0 31 c0 10 8 18 18 18 l88 0 c10 0 18 -8 18 -18 l0 -31 c23 -14 38 -39 38 -71 c0 -55 -42 -95 -100 -95 z" fill="url(#skullC)"/>
+  <g transform="translate(256 232) scale(0.9) translate(-256 -240)">
+    <path d="M256 150 c-58 0 -100 40 -100 95 c0 32 15 57 38 71 l0 31 c0 10 8 18 18 18 l88 0 c10 0 18 -8 18 -18 l0 -31 c23 -14 38 -39 38 -71 c0 -55 -42 -95 -100 -95 z" fill="url(#skull)"/>
     <path d="M198 236 l50 -16 l0 38 l-34 9 c-13 -9 -18 -19 -16 -31 z" fill="#0a1418"/>
     <path d="M314 236 l-50 -16 l0 38 l34 9 c13 -9 18 -19 16 -31 z" fill="#0a1418"/>
     <path d="M256 270 l-10 20 l20 0 z" fill="#0a1418"/>
     <g fill="#0a1418"><rect x="234" y="300" width="5" height="30" rx="2"/><rect x="253" y="300" width="6" height="32" rx="2"/><rect x="273" y="300" width="5" height="30" rx="2"/></g>
   </g>
-  <!-- DEAD banner across the lower reticle -->
-  <rect x="104" y="392" width="304" height="62" rx="12" fill="#04090b" opacity="0.86"/>
-  <rect x="104" y="392" width="304" height="62" rx="12" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.85"/>
-  <text x="256" y="436" text-anchor="middle" font-family="'Arial Narrow','Helvetica Neue',Impact,sans-serif" font-weight="800" font-size="54" letter-spacing="14" fill="#f4f7fa" transform="scale(1,1.04)">DEAD</text>
+  <!-- DEAD MP banner, centered -->
+  <rect x="72" y="388" width="368" height="66" rx="13" fill="#04090b" opacity="0.86"/>
+  <rect x="72" y="388" width="368" height="66" rx="13" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.85"/>
+  <text x="251" y="421" text-anchor="middle" dominant-baseline="central" font-family="'Arial Narrow','Helvetica Neue',Impact,sans-serif" font-weight="800" font-size="50" letter-spacing="11" fill="#f4f7fa">DEAD MP</text>
 </svg>
