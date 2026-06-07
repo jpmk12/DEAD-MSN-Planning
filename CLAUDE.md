@@ -9,20 +9,20 @@ this app for deployment.
 ## How THIS app meets the requirements
 
 The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
-(one runtime dep, `mysql2`), which maps cleanly onto Node.js Hosting:
+(one runtime dep, `pg`), which maps cleanly onto Node.js Hosting:
 
 | Requirement | This app |
 |---|---|
 | Root `package.json` with `start` script | ✅ `"start": "node server/index.js"` |
 | Entry point exists | ✅ `server/index.js` (also `main`) |
 | Listens on `process.env.PORT` | ✅ `process.env.PORT ?? 8787`, binds `0.0.0.0` |
-| Prod deps in `dependencies` (not dev) | ✅ only `mysql2` (pure JS, no native build) |
-| `npm install --production` safe | ✅ installs `mysql2`; no native postinstall |
+| Prod deps in `dependencies` (not dev) | ✅ only `pg` (pure JS, no native build) |
+| `npm install --production` safe | ✅ installs `pg`; no native postinstall |
 | Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
 | No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
 | **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, FAA ArcGIS (SUA), FAA TFR (tfr.faa.gov), map tiles, RainViewer (radar time) |
-| **Managed MySQL** | ✅ used for cross-device **saved sorties** (`DB_*` env vars; falls back to browser-local when unset) |
+| **Managed Postgres** | ✅ used for cross-device **saved sorties** (`DATABASE_URL`; falls back to browser-local when unset) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
 | Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |
 
@@ -109,17 +109,18 @@ communicate over HTTP/HTTPS only.
 (`aviationweather.gov`), FAA NOTAMs (`external-api.faa.gov`), winds aloft
 (`api.open-meteo.com`), optional airspace GeoJSON URLs, and browser map tiles.
 
-## Database (Managed MySQL)
+## Database (Managed Postgres)
 
-Node.js Hosting includes a managed MySQL database for every app. Credentials are
-injected as env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
-Use the `mysql2` driver, read credentials from `process.env`, prefer short-lived
-connections and parameterized queries. Preview and production share the same
-database.
+The app deploys on **Render**, whose managed Postgres injects a single
+`DATABASE_URL` (discrete `DB_*`/`PG*` vars are also accepted for local dev).
+We use the `pg` driver (pure JS, no native build) with a small pooled client and
+parameterized queries; SSL is enabled automatically for non-local managed DBs.
+Preview and production share the same database.
 
-**This app does not use a database** — it is stateless over bundled/live data.
-If we later add saved sortie sets or multi-user sharing, wire `mysql2` against
-the `DB_*` env vars (add `mysql2` to `dependencies`).
+**Used only for cross-device saved sorties** (`server/data/db.js`): one
+`sorties` table (`name` PK, `data` JSONB, `updated_at`) with list/upsert/delete.
+When `DATABASE_URL` is unset, `dbConfigured()` is false and the app falls back to
+browser-local storage — so the DB is entirely optional.
 
 ## What the Platform Handles
 
@@ -133,7 +134,7 @@ infrastructure are all fully managed.
 - [x] All production dependencies are in `"dependencies"` (this app has none)
 - [x] App listens on `process.env.PORT`
 - [x] No hardcoded ports, secrets, database credentials, or local file paths
-- [x] (DB not used) — would add `mysql2` + read `DB_*` env vars if it were
+- [x] Managed Postgres via `pg` + `DATABASE_URL` (optional; browser-local fallback)
 - [x] App runs locally with `npm install && npm start`
 - [x] `"build"` script is defined (no-op here)
 - [x] All outbound connections use HTTP (80) or HTTPS (443)
@@ -158,7 +159,7 @@ infrastructure are all fully managed.
 
 ### Blocked outbound connections
 - Only ports 80/443 are allowed outbound. Use HTTPS endpoints only. External
-  databases must be reachable over HTTPS or use the managed MySQL instance.
+  databases must be reachable over HTTPS or use the managed Postgres instance.
 
 ## Getting Help
 
