@@ -708,7 +708,7 @@ function quickLinkUrls(icao) {
   return {
     'ql-daip': { href: `/api/refcard?icao=${id}&only=notams`, title: `DAIP NOTAMs for ${icao}` },
     'ql-awc': { href: `/api/refcard?icao=${id}&only=wx`, title: `${icao} METAR + decoded TAF (AWC)` },
-    'ql-ahas': { href: 'https://www.usahas.com/', title: `USAF AHAS — bird/wildlife risk (look up ${icao})` },
+    'ql-ahas': { href: `/api/refcard?icao=${id}&only=ahas${when}`, title: `${icao} AHAS bird/wildlife risk` },
     'ql-build': { href: `/api/refcard?icao=${id}${when}&print=1`, title: `Combined NOTAMs + weather + AHAS for ${icao}, ready to save as PDF` },
   };
 }

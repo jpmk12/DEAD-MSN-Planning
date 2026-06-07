@@ -12,6 +12,14 @@ import { fetchBirdRisk } from './data/birds.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+const nowZ = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())} ${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z`;
+};
+// Official source citation line shown under each section.
+const cite = (label, url) => `<div class="src">Source: ${esc(label)} — <span class="url">${esc(url)}</span> · retrieved ${nowZ()}</div>`;
+
 function zulu(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -32,7 +40,8 @@ function wxSection(icao, obs, tafRaw, decoded) {
   }
   return `<section><h2>Aviation Weather — ${esc(icao)}</h2>
     <h3>METAR</h3>${metar}
-    <h3>TAF (decoded)</h3>${taf}</section>`;
+    <h3>TAF (decoded)</h3>${taf}
+    ${cite('FAA / NWS Aviation Weather Center', 'aviationweather.gov')}</section>`;
 }
 
 function ahasSection(icao, bird) {
@@ -43,7 +52,7 @@ function ahasSection(icao, bird) {
     <div class="ahas"><span class="lvl" style="color:${color};border-color:${color}">${esc(bird.level)}</span>
       <span class="ahas-note">${esc(bird.note || '')}</span></div>
     ${when ? `<div class="when">${esc(when)}</div>` : ''}
-    <div class="src">Source: USAF AHAS (usahas.com)</div></section>`;
+    ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
 function notamSection(icao, notams, source) {
@@ -52,15 +61,19 @@ function notamSection(icao, notams, source) {
     const end = n.effectiveEnd ? `<div class="when">until ${esc(zulu(n.effectiveEnd))}</div>` : '';
     return `<div class="notam"><span class="cat">${esc(n.category || 'OTHER')}</span><div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
   }).join('');
-  return `<section><h2>NOTAMs — ${esc(icao)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${rows}</section>`;
+  return `<section><h2>NOTAMs — ${esc(icao)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${rows}
+    ${cite(source === 'DAIP' ? 'DoD Aeronautical Information (DAIP)' : `NOTAMs (${source || 'source'})`, 'daip.jcs.mil')}</section>`;
 }
 
 const STYLE = `
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { font: 13px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; color: #111; margin: 0; padding: 24px; max-width: 900px; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .sub { color: #555; margin-bottom: 6px; }
+  .doc-head { border-bottom: 3px double #222; padding-bottom: 8px; margin-bottom: 14px; }
+  .doc-title { font-family: Georgia, "Times New Roman", serif; font-size: 21px; font-weight: 700; letter-spacing: .3px; }
+  .doc-meta { color: #555; font-size: 12px; margin-top: 3px; font-family: ui-monospace, monospace; }
+  .url { font-family: ui-monospace, monospace; color: #0a66c2; }
+  .foot-src { color: #777; font-size: 10.5px; margin-top: 4px; }
   .toolbar { margin: 8px 0 18px; }
   .toolbar button { font: 13px sans-serif; padding: 8px 16px; border: 1px solid #0a66c2; background: #0a66c2; color: #fff; border-radius: 6px; cursor: pointer; }
   section { border: 1px solid #ddd; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; break-inside: avoid; }
@@ -116,11 +129,16 @@ export async function buildRefCard(icao, whenIso, only = 'all', autoPrint = fals
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(icao)} ${esc(titleMap[only] || 'Reference')}</title><style>${STYLE}</style></head>
 <body>
-  <h1>${esc(icao)}${name}</h1>
-  <div class="sub">${esc(titleMap[only] || 'Reference')} · generated ${esc(zulu(new Date().toISOString()))}${whenIso ? ` · for ${esc(zulu(whenIso))}` : ''}</div>
+  <header class="doc-head">
+    <div class="doc-title">MISSION REFERENCE — ${esc(icao)}${name}</div>
+    <div class="doc-meta">${esc(titleMap[only] || 'Reference')} · Generated ${esc(nowZ())}${whenIso ? ` · Valid for ${esc(zulu(whenIso))}` : ''}</div>
+  </header>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   ${body}
-  <div class="foot">Planning aid only — verify with official sources (DAIP, aviationweather.gov, usahas.com).</div>
+  <footer class="foot">
+    <div>PLANNING AID ONLY — verify with official sources.</div>
+    <div class="foot-src">Official sources: DoD DAIP (daip.jcs.mil) · FAA / NWS Aviation Weather Center (aviationweather.gov) · USAF AHAS (usahas.com)</div>
+  </footer>
   ${autoPrint ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});</script>' : ''}
 </body></html>`;
 }
