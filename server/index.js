@@ -19,7 +19,7 @@ import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.j
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
-import { tfrListItems, tfrIdOf, tfrRecordsFromXml } from './data/tfr.js';
+import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
 import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams } from './data/daip.js';
 import { ahasRaw, parseAhasLevel } from './data/ahasapi.js';
 
@@ -427,6 +427,12 @@ server.listen(PORT, HOST, () => {
   // where the publish step expects the production build output (DIST_DIR).
   console.log(`[boot] cwd=${process.cwd()} DIST_DIR=${process.env.DIST_DIR ?? '(unset)'} CUSTOMER_APP_DIR=${process.env.CUSTOMER_APP_DIR ?? '(unset)'} BASE_APP_DIR=${process.env.BASE_APP_DIR ?? '(unset)'} INIT_CWD=${process.env.INIT_CWD ?? '(unset)'}`);
   console.log(`[boot] env-names: ${Object.keys(process.env).sort().join(',')}`);
+  // Warm the TFR cache now (list + all detail XMLs) so the first brief isn't
+  // slowed by fetching them on demand. Fire-and-forget; failures are non-fatal.
+  fetchLiveTfrs().then(
+    (t) => console.log(`[boot] TFR cache warmed (${t.length} records)`),
+    () => console.log('[boot] TFR warm skipped (source unreachable)'),
+  );
   if (nmsConfigured() && /staging|test/i.test(process.env.NMS_API_BASE || '')) {
     console.log('[NOTAM] FAA NMS is pointed at a STAGING endpoint (non-operational test data). It is only a fallback behind DAIP; set NMS_API_BASE to production for operational FAA NOTAMs.');
   }

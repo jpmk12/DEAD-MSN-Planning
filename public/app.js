@@ -698,21 +698,23 @@ function zuluToIso(id) {
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 
 // Quick-links toolbar: external references for the current departure airfield.
-// AWC deep-links to the field's METAR/TAF; DAIP and AHAS open their tools (they
-// don't expose a public per-ICAO URL), with the field shown in the label.
+// The visible label stays short (just the tool name); the field is reflected in
+// the href and the hover title. AWC deep-links to the field's METAR/TAF.
+// TODO: wire DAIP and AHAS to their per-ICAO deep-link URLs once known (user to
+// provide the exact handler/URL format) so they jump straight to the field.
 function quickLinkUrls(icao) {
   const id = encodeURIComponent(icao);
   return {
-    'ql-daip': { href: 'https://www.daip.jcs.mil/', text: `DAIP · ${icao}` },
-    'ql-awc': { href: `https://aviationweather.gov/data/metar/?ids=${id}&taf=true`, text: `Aviation Weather · ${icao}` },
-    'ql-ahas': { href: 'https://www.usahas.com/', text: `AHAS · ${icao}` },
+    'ql-daip': { href: 'https://www.daip.jcs.mil/', title: `DoD DAIP — NOTAMs / flight info (look up ${icao})` },
+    'ql-awc': { href: `https://aviationweather.gov/data/metar/?ids=${id}&taf=true`, title: `Aviation Weather — ${icao} METAR/TAF` },
+    'ql-ahas': { href: 'https://www.usahas.com/', title: `USAF AHAS — bird/wildlife risk (look up ${icao})` },
   };
 }
 function updateQuickLinks() {
   const icao = splitIds(val('sp-dep'))[0] || 'KLTS';
-  for (const [linkId, { href, text }] of Object.entries(quickLinkUrls(icao))) {
+  for (const [linkId, { href, title }] of Object.entries(quickLinkUrls(icao))) {
     const el = $(linkId);
-    if (el) { el.href = href; el.textContent = text; }
+    if (el) { el.href = href; el.title = title; } // label text left as-is (short)
   }
 }
 

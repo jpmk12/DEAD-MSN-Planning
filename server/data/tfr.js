@@ -150,6 +150,15 @@ let cache = { at: 0, tfrs: null };
 let refreshing = null; // in-flight background refresh (stale-while-revalidate)
 const TTL_MS = 10 * 60 * 1000;
 
+// Per-NOTAM detail-XML cache. A TFR's geometry/altitudes are stable for its
+// life, so cache the parsed records by notam id and reuse them across list
+// refreshes — only newly-appeared TFRs are fetched. This makes the (otherwise
+// heavy) ~N detail-XML pull cheap after the first load. TTL is kept modest so a
+// same-id amendment is re-pulled within the window (the list itself, which
+// catches new/removed TFRs, still refreshes every TTL_MS = 10 min).
+const detailCache = new Map(); // notamId -> { at, recs }
+const DETAIL_TTL_MS = 60 * 60 * 1000; // 1h
+
 /** Extract detail ids (e.g. "4_3344") from the legacy TFR list HTML. */
 export function tfrIdsFromList(html) {
   const ids = new Set();
@@ -257,15 +266,23 @@ async function loadTfrs() {
 
   // Fetch geometry for ALL active TFRs (proximity is applied later, by the
   // brief — so we must not pre-truncate by list order), with bounded concurrency.
+  // Reuse cached per-NOTAM detail records; only fetch ids not already cached.
   let xmlRecs = [];
   if (ids.length) {
     const batches = await mapLimit(ids, 16, async (notamId) => {
+      const hit = detailCache.get(notamId);
+      if (hit && Date.now() - hit.at < DETAIL_TTL_MS) return hit.recs;
       const r = await fetch(DETAIL_URL(detailIdFromNotam(notamId)), { signal: sig, headers: { Accept: 'application/xml', 'User-Agent': UA } });
       if (!r.ok) return [];
-      return tfrRecordsFromXml(await r.text(), notamId);
+      const recs = tfrRecordsFromXml(await r.text(), notamId);
+      detailCache.set(notamId, { at: Date.now(), recs });
+      return recs;
     });
     xmlRecs = batches.flat();
   }
+  // Drop cache entries for TFRs no longer active so the map can't grow unbounded.
+  const active = new Set(ids);
+  for (const key of detailCache.keys()) if (!active.has(key)) detailCache.delete(key);
 
   return [...direct, ...xmlRecs];
 }
