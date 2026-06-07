@@ -9,20 +9,20 @@ this app for deployment.
 ## How THIS app meets the requirements
 
 The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
-(one runtime dep, `pg`), which maps cleanly onto Node.js Hosting:
+(zero runtime dependencies), which maps cleanly onto Node.js Hosting:
 
 | Requirement | This app |
 |---|---|
 | Root `package.json` with `start` script | ✅ `"start": "node server/index.js"` |
 | Entry point exists | ✅ `server/index.js` (also `main`) |
 | Listens on `process.env.PORT` | ✅ `process.env.PORT ?? 8787`, binds `0.0.0.0` |
-| Prod deps in `dependencies` (not dev) | ✅ only `pg` (pure JS, no native build) |
-| `npm install --production` safe | ✅ installs `pg`; no native postinstall |
+| Prod deps in `dependencies` (not dev) | ✅ none (zero dependencies) |
+| `npm install --production` safe | ✅ nothing to install (zero deps) |
 | Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
 | No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
 | **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, FAA ArcGIS (SUA), FAA TFR (tfr.faa.gov), map tiles, RainViewer (radar time) |
-| **Managed Postgres** | ✅ used for cross-device **saved sorties** (`DATABASE_URL`; falls back to browser-local when unset) |
+| **Database** | ✅ none — saved sorties persist in the browser (localStorage) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
 | Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |
 
@@ -109,18 +109,18 @@ communicate over HTTP/HTTPS only.
 (`aviationweather.gov`), FAA NOTAMs (`external-api.faa.gov`), winds aloft
 (`api.open-meteo.com`), optional airspace GeoJSON URLs, and browser map tiles.
 
-## Database (Managed Postgres)
+## Database (none — browser-local storage)
 
-The app deploys on **Render**, whose managed Postgres injects a single
-`DATABASE_URL` (discrete `DB_*`/`PG*` vars are also accepted for local dev).
-We use the `pg` driver (pure JS, no native build) with a small pooled client and
-parameterized queries; SSL is enabled automatically for non-local managed DBs.
-Preview and production share the same database.
+The app uses **no database** and has **zero runtime dependencies**. Saved
+sorties persist client-side in the browser's `localStorage` (`public/app.js` —
+`SORTIE_KEY` / `loadLocal` / `saveLocal`), so they survive reloads and sessions
+on that device. The trade-off is no cross-device sync.
 
-**Used only for cross-device saved sorties** (`server/data/db.js`): one
-`sorties` table (`name` PK, `data` JSONB, `updated_at`) with list/upsert/delete.
-When `DATABASE_URL` is unset, `dbConfigured()` is false and the app falls back to
-browser-local storage — so the DB is entirely optional.
+The server keeps a tiny `/api/sorties` contract for forward-compatibility:
+`server/data/db.js` reports `dbConfigured() === false`, so the front-end uses the
+local store. To add cross-device sync later, reintroduce a driver in `db.js` (a
+Postgres `pg` implementation lives in that file's git history) and have
+`dbConfigured()` reflect its env.
 
 ## What the Platform Handles
 
@@ -134,7 +134,7 @@ infrastructure are all fully managed.
 - [x] All production dependencies are in `"dependencies"` (this app has none)
 - [x] App listens on `process.env.PORT`
 - [x] No hardcoded ports, secrets, database credentials, or local file paths
-- [x] Managed Postgres via `pg` + `DATABASE_URL` (optional; browser-local fallback)
+- [x] No database — saved sorties persist in the browser (localStorage)
 - [x] App runs locally with `npm install && npm start`
 - [x] `"build"` script is defined (no-op here)
 - [x] All outbound connections use HTTP (80) or HTTPS (443)
@@ -159,7 +159,7 @@ infrastructure are all fully managed.
 
 ### Blocked outbound connections
 - Only ports 80/443 are allowed outbound. Use HTTPS endpoints only. External
-  databases must be reachable over HTTPS or use the managed Postgres instance.
+  databases must be reachable over HTTPS. (This app uses no database.)
 
 ## Getting Help
 

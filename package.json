@@ -11,8 +11,5 @@
     "demo": "node server/cli.js",
     "ingest": "node scripts/ingest-ourairports.js",
     "test": "node --test"
-  },
-  "dependencies": {
-    "pg": "^8.21.0"
   }
 }
