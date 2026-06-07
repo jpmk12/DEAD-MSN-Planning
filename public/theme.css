@@ -176,6 +176,9 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .ql { font-family: var(--mono); font-size: 12px; color: var(--accent); text-decoration: none; background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 999px; padding: 5px 12px; white-space: nowrap; transition: border-color 0.15s ease, background 0.15s ease; }
 .ql:hover { border-color: var(--accent); background: rgba(55, 182, 195, 0.12); }
 .ql::after { content: " ↗"; color: var(--text-faint); }
+.ql-build { color: #04141a; background: linear-gradient(180deg, #46c6d4, var(--accent)); border-color: var(--accent); font-weight: 700; }
+.ql-build::after { content: ""; }
+.ql-build:hover { filter: brightness(1.06); background: linear-gradient(180deg, #46c6d4, var(--accent)); }
 
 /* Collapsible tool panels (Route Winds, Route Lookup) */
 .tool-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }

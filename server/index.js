@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
+import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
@@ -162,6 +163,26 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/ahas-area') {
       const icao = (url.searchParams.get('icao') || '').trim().toUpperCase();
       sendJson(res, 200, { icao, area: ahasAreaForIcao(icao) || null });
+      return;
+    }
+
+    // Combined printable reference page (DAIP NOTAMs + AWC METAR/decoded TAF +
+    // AHAS) for one field. `only` filters sections; `print=1` auto-opens print.
+    if (url.pathname === '/api/refcard') {
+      const icao = (url.searchParams.get('icao') || '').trim().toUpperCase();
+      if (!icao) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('provide ?icao='); return; }
+      const onlyRaw = (url.searchParams.get('only') || 'all').toLowerCase();
+      const only = ['all', 'notams', 'wx', 'ahas'].includes(onlyRaw) ? onlyRaw : 'all';
+      const whenRaw = url.searchParams.get('when');
+      const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
+      const autoPrint = url.searchParams.get('print') === '1';
+      try {
+        const html = await buildRefCard(icao, whenIso, only, autoPrint);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(html);
+      } catch (e) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' }).end(`reference unavailable: ${String(e).slice(0, 200)}`);
+      }
       return;
     }
 
