@@ -401,6 +401,13 @@ function tabbedDetails(brief) {
   push('lowlevel', 'Low-Level', (brief.mtrs || []).length || null, mtrSection(brief));
   push('winds', 'Winds Aloft', null, windsAloftSection(brief));
 
+  // On Departure and Recovery cards, lead with TAF (forecast) instead of NOTAMs.
+  const role = brief.phase?.role;
+  if (role === 'DEPARTURE' || role === 'RECOVERY') {
+    const i = panels.findIndex((p) => p.key === 'taf');
+    if (i > 0) panels.unshift(panels.splice(i, 1)[0]);
+  }
+
   if (!panels.length) return '';
   const tabs = panels.map((p, i) =>
     `<button class="tab${i === 0 ? ' active' : ''}" data-tab="${p.key}">${TAB_ICONS[p.key] || ''}<span>${esc(p.label)}</span>${p.count ? `<span class="count">${p.count}</span>` : ''}</button>`).join('');
@@ -608,8 +615,11 @@ const PHASE_GROUP = { DEPARTURE: '① Departure', RECOVERY: '③ Recovery', ALTE
 // phase, in stop order, so the brief reads takeoff → recovery → alternates; the
 // low-level phase is a slim banner pointing at the route detail + map. A plain
 // departure-only brief falls back to a flat grid.
+// Render the airfield cards, split so the Departure card(s) sit directly under
+// the map (with the Climb Winds tool + route cards beneath), and Recovery/
+// Alternates go in the lower container. Returns { dep, rest } HTML.
 function renderAirfields(data, limits) {
-  if (!data.sortie) return `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`;
+  if (!data.sortie) return { dep: `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`, rest: '' };
   const groups = [];
   for (const b of data.airfields) {
     const role = b.phase?.role || 'FIELD';
@@ -617,22 +627,13 @@ function renderAirfields(data, limits) {
     if (!g || g.role !== role) { g = { role, items: [] }; groups.push(g); }
     g.items.push(b);
   }
-  const html = groups.map((g) =>
-    `<div class="phase-group"><div class="phase-group-h">${esc(PHASE_GROUP[g.role] || PHASE_GROUP.FIELD)}</div>
-      <div class="grid">${g.items.map((b) => card(b, limits)).join('')}</div></div>`);
-  // Insert the low-level banner between Departure and Recovery when routes exist.
-  if (activeRoutes.length) {
-    const llWhen = activeRoutes.find((d) => d.birdRisk?.runAt)?.birdRisk?.runAt
-      || activeRoutes.find((d) => d.windsAt)?.windsAt || null;
-    const llValid = llWhen ? `<span class="ll-hint">AHAS valid ${esc(zuluLocal(llWhen, { date: true }))} · per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`
-      : `<span class="ll-hint">Per-leg winds, altitudes and entry-time AHAS are in the route detail above and on the map.</span>`;
-    const ll = `<div class="phase-group lowlevel-group"><div class="phase-group-h">② Low-Level/AR</div>
-      <div class="ll-banner">${activeRoutes.map((d) => `<span class="route-chip ${RC_CLASS[d.type] || 'rc-ir'}"><span class="rc-dot"></span>${esc(d.id)}${d.birdRisk ? ` · <b style="color:${BIRD_COLOR[d.birdRisk.level]}">AHAS ${esc(d.birdRisk.level)}</b>` : ''}</span>`).join('')}
-        ${llValid}</div></div>`;
-    const depIdx = groups.findIndex((g) => g.role === 'RECOVERY');
-    if (depIdx >= 0) html.splice(depIdx, 0, ll); else html.push(ll);
-  }
-  return html.join('');
+  const groupHtml = (g) => `<div class="phase-group"><div class="phase-group-h">${esc(PHASE_GROUP[g.role] || PHASE_GROUP.FIELD)}</div>
+      <div class="grid">${g.items.map((b) => card(b, limits)).join('')}</div></div>`;
+  const isDep = (g) => g.role === 'DEPARTURE' || g.role === 'FIELD';
+  return {
+    dep: groups.filter(isDep).map(groupHtml).join(''),
+    rest: groups.filter((g) => !isDep(g)).map(groupHtml).join(''),
+  };
 }
 
 // Shared fetch + render for both the quick brief and the structured sortie.
@@ -646,6 +647,7 @@ async function runBrief({ ids, limits, extra = {}, button }) {
 
   if (button) $(button).disabled = true;
   $('results').innerHTML = `<div class="loading"><div class="spinner"></div>Pulling weather &amp; NOTAMs…</div>`;
+  if ($('results-rest')) $('results-rest').innerHTML = '';
   try {
     const res = await fetch(`/api/brief?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -656,13 +658,16 @@ async function runBrief({ ids, limits, extra = {}, button }) {
     updateStatusStrip(data.live);
     cardData = {};
     data.airfields.forEach((b) => { cardData[(b.uid || b.icao).toUpperCase()] = { brief: b, limits }; });
-    $('results').innerHTML = renderAirfields(data, limits);
+    const r = renderAirfields(data, limits);
+    $('results').innerHTML = r.dep || '<div class="empty">No departure field.</div>';
+    if ($('results-rest')) $('results-rest').innerHTML = r.rest;
     updatePrintHead(data, ids, limits);
     renderMap(data);
     return data;
   } catch (err) {
     $('results').innerHTML = `<div class="errbox">Failed to build brief: ${esc(err.message)}<br/>
       <span style="color:var(--text-dim);font-size:12px">Is the server running?</span></div>`;
+    if ($('results-rest')) $('results-rest').innerHTML = '';
     return null;
   } finally {
     if (button) $(button).disabled = false;
@@ -764,6 +769,7 @@ async function buildBrief() {
   // banner can show their entry-time AHAS risk, and the map overlays them. The
   // sortie's low-level field is the source of truth, so start from a clean set.
   activeRoutes = [];
+  windsPoints = []; // climb-winds overlay is re-added when the user runs that tool
   if (routes.length) await lookupRoutes(routes, llT, { scroll: false });
   else renderRouteResults();
   await runBrief({ ids, limits: readLimits(), extra: { stops: stopsParam }, button: 'go' });
@@ -832,7 +838,7 @@ function windsProfileCard(pt) {
       ${rows}</div></div></div>`;
 }
 
-async function getRouteWinds({ paintMap = true } = {}) {
+async function getRouteWinds() {
   const pts = $('winds-points').value.split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (!pts.length) return;
   const params = new URLSearchParams({ points: pts.join(',') });
@@ -843,15 +849,10 @@ async function getRouteWinds({ paintMap = true } = {}) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     $('winds-results').innerHTML = `<div class="grid">${data.points.map(windsProfileCard).join('')}</div>`;
-    // Radar-along-route: drop the route points + hazardous wx onto the map.
-    // Skipped when loading a saved sortie that also shows a brief (the brief map
-    // owns the view there; this tool's focused overlay would clobber it).
-    const routePts = data.points.filter((p) => p.found).map((p) => ({ icao: p.id, lat: p.lat, lon: p.lon, status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO' }));
-    if (paintMap && routePts.length) {
-      const mapEl = $('map');
-      mapEl.style.display = '';
-      currentMap = initMap(mapEl, { airfields: routePts, tfrs: [], sua: [], sigmets: data.airsigmets || [], pireps: [] });
-    }
+    // Overlay the winds points ON TOP of the brief map (airfields + routes +
+    // radar), not as a replacement — paintMap() merges windsPoints.
+    windsPoints = data.points.filter((p) => p.found).map((p) => ({ icao: p.id, lat: p.lat, lon: p.lon, status: (p.hazards || []).some((h) => h.hazard === 'CONVECTIVE') ? 'CAUTION' : 'GO' }));
+    paintMap();
   } catch (err) {
     $('winds-results').innerHTML = `<div class="errbox">Failed: ${esc(err.message)}</div>`;
   } finally {
@@ -893,7 +894,7 @@ function mtrDetailCard(d) {
   const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
-      <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}</div>
+      <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}<span class="chev card-chev">▾</span></div>
     <div class="body">${refuel}${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
 }
 
@@ -985,6 +986,7 @@ function wxValidity(data) {
 // objects), shown as removable chips.
 let lastBriefData = null;
 let activeRoutes = [];
+let windsPoints = []; // Climb-Winds navaids/airfields overlaid on the map ({icao,lat,lon,status})
 const normId = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 function renderMap(data) {
@@ -996,10 +998,15 @@ function paintMap() {
   const mapEl = $('map');
   if (!mapEl) return;
   const data = lastBriefData;
-  const airfields = data
+  const briefAirfields = data
     ? data.airfields.filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lon))
         .map((b) => ({ icao: b.icao, lat: b.lat, lon: b.lon, status: b.status }))
     : [];
+  // Merge in Climb-Winds points (dedup by icao) so that tool ADDS to the map
+  // rather than replacing the brief's airfields + routes.
+  const have = new Set(briefAirfields.map((a) => a.icao));
+  const windPts = windsPoints.filter((w) => Number.isFinite(w.lat) && Number.isFinite(w.lon) && !have.has(w.icao));
+  const airfields = [...briefAirfields, ...windPts];
   // With routes looked up, show exactly those (chip-controlled) over the brief;
   // otherwise fall back to the brief's auto nearby routes.
   const mtrs = activeRoutes.length
@@ -1011,7 +1018,7 @@ function paintMap() {
   // Fit to the airfields plus any looked-up route points (auto nearby routes
   // don't drag the default view out).
   const routePts = activeRoutes.flatMap((d) => (d.geometry?.points || []).map(([lat, lon]) => ({ lat, lon })));
-  const focus = activeRoutes.length ? [...airfields, ...routePts] : airfields;
+  const focus = (activeRoutes.length || windPts.length) ? [...airfields, ...routePts] : briefAirfields;
   currentMap = initMap(mapEl, {
     airfields, tfrs: as.tfrs, sua: as.sua,
     sigmets: data?.airsigmets || [], pireps: data?.pireps || [], convective: data?.convective || [],
@@ -1127,7 +1134,7 @@ async function loadSelectedSortie() {
   await buildBrief(); // evaluates each phase + overlays the low-level route(s)
   // The Route/Climb Winds input is restored; re-run it if it was populated so
   // its profiles come back too, but leave the brief's map in place.
-  if ((s['winds-points'] || '').trim()) getRouteWinds({ paintMap: false });
+  if ((s['winds-points'] || '').trim()) getRouteWinds();
 }
 
 async function deleteSelectedSortie() {
@@ -1182,6 +1189,9 @@ function init() {
 
   // Route chips: remove one route, or clear them all, then repaint the map.
   $('mtr-results')?.addEventListener('click', (e) => {
+    // Collapse/expand a route detail card by clicking its header.
+    const head = e.target.closest('.card > .head');
+    if (head) { head.parentElement.classList.toggle('collapsed'); return; }
     const x = e.target.closest('.route-chip-x');
     if (x) {
       const nid = normId(x.dataset.routeId);
@@ -1197,7 +1207,7 @@ function init() {
     }
   });
 
-$('results')?.addEventListener('click', (e) => {
+function onResultsClick(e) {
   // Collapse/expand a whole airfield card by clicking its header (but not when
   // tapping a pill in the header — that shows its tooltip instead).
   const cardHead = e.target.closest('.card > .head');
@@ -1257,7 +1267,11 @@ $('results')?.addEventListener('click', (e) => {
   raw.style.display = showRaw ? 'block' : 'none';
   dec.style.display = showRaw ? 'none' : 'block';
   t.textContent = showRaw ? 'show decoded' : 'show raw';
-});
+}
+// Both the Departure container and the Recovery/Alternates container use the
+// same card interactions (collapse, tabs, NOTAM filter, runway compare, TAF).
+$('results')?.addEventListener('click', onResultsClick);
+$('results-rest')?.addEventListener('click', onResultsClick);
 
 // Expand all collapsible sections (incl. NOTAM category groups) for printing,
 // and un-hide any groups a category filter is currently hiding so the printed

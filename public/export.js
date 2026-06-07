@@ -114,7 +114,9 @@ function toolHtml(id) {
 
 function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
   const head = (document.getElementById('print-head') || {}).innerHTML || '';
-  const results = (document.getElementById('results') || {}).innerHTML || '';
+  // Departure cards live in #results; recovery/alternates in #results-rest.
+  const results = ((document.getElementById('results') || {}).innerHTML || '')
+    + ((document.getElementById('results-rest') || {}).innerHTML || '');
   const winds = toolHtml('winds-results');
   const mtr = toolHtml('mtr-results');
   const radar = radarPng
