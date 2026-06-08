@@ -68,17 +68,20 @@
           <div class="sphase">
             <span class="sphase-tag dep">① Departure</span>
             <input id="sp-dep" class="sp-field" type="text" value="KLTS" placeholder="Field ICAO (e.g. KLTS)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-dep-t" type="datetime-local" title="Takeoff time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
+            <input id="sp-dep-d" class="sp-date" type="date" title="Takeoff date (Zulu)" />
+            <input id="sp-dep-hhmm" class="sp-hhmm" type="text" inputmode="numeric" maxlength="4" placeholder="HHMM" pattern="([01][0-9]|2[0-3])[0-5][0-9]" title="Takeoff time — 24-hour Zulu (HHMM)" autocomplete="off" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag ll">② Low-Level/AR</span>
             <input id="sp-ll" class="sp-field" type="text" value="AR312L IR-154" placeholder="Route(s) e.g. IR-154 AR312L — portion: IR-154.C-M (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-ll-t" type="datetime-local" title="Route entry time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
+            <input id="sp-ll-d" class="sp-date" type="date" title="Route entry date (Zulu)" />
+            <input id="sp-ll-hhmm" class="sp-hhmm" type="text" inputmode="numeric" maxlength="4" placeholder="HHMM" pattern="([01][0-9]|2[0-3])[0-5][0-9]" title="Route entry time — 24-hour Zulu (HHMM)" autocomplete="off" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag rec">③ Recovery</span>
             <input id="sp-rec" class="sp-field" type="text" value="KLTS" placeholder="Field ICAO (optional)" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-            <input id="sp-rec-t" type="datetime-local" title="Landing time (Zulu / UTC)" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
+            <input id="sp-rec-d" class="sp-date" type="date" title="Landing date (Zulu)" />
+            <input id="sp-rec-hhmm" class="sp-hhmm" type="text" inputmode="numeric" maxlength="4" placeholder="HHMM" pattern="([01][0-9]|2[0-3])[0-5][0-9]" title="Landing time — 24-hour Zulu (HHMM)" autocomplete="off" /><span class="sp-z" title="Times are Zulu (UTC)">Z</span>
           </div>
           <div class="sphase">
             <span class="sphase-tag alt">Alternates</span>

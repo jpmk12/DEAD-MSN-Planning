@@ -678,27 +678,44 @@ async function runBrief({ ids, limits, extra = {}, button }) {
 // Current Zulu (UTC) wall time as a datetime-local input value
 // (YYYY-MM-DDTHH:mm). The field has no timezone, so we show the UTC digits and
 // treat what the user types as Zulu (see zuluToIso).
-function nowZuluDt() {
+const TIME_PREFIXES = ['sp-dep', 'sp-ll', 'sp-rec'];
+
+// Default every empty phase time to "now" in Zulu (date + 24-hour HHMM) so phases
+// start from the current Zulu date/time without the user having to type it.
+function prefillDatetimes() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
-}
-// Default every empty time field to "now" in Zulu so phases start from the
-// current Zulu date+time without the user having to type it.
-function prefillDatetimes() {
-  ['sp-dep-t', 'sp-ll-t', 'sp-rec-t'].forEach((id) => {
-    const el = $(id);
-    if (el && !el.value) el.value = nowZuluDt();
-  });
+  const date = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+  const hhmm = `${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+  for (const pre of TIME_PREFIXES) {
+    const de = $(`${pre}-d`), te = $(`${pre}-hhmm`);
+    if (de && !de.value) de.value = date;
+    if (te && !te.value) te.value = hhmm;
+  }
 }
 
-// A datetime-local value entered as ZULU (UTC) → ISO, or '' when blank/invalid.
-// The input carries no timezone, so we pin the entered wall time to UTC.
-function zuluToIso(id) {
-  const v = val(id);
-  if (!v) return '';
-  const base = v.length === 16 ? `${v}:00` : v; // ensure seconds
-  const d = new Date(`${base}Z`);
+// Normalize a 24-hour military time field to HHMM: 1–2 digits = whole hour
+// (8 → 0800), 3–4 digits = H(H)MM (830 → 0830), clamped to 23:59.
+function normalizeHhmm(el) {
+  if (!el) return;
+  let s = (el.value || '').replace(/\D/g, '').slice(0, 4);
+  if (!s) { el.value = ''; return; }
+  s = s.length <= 2 ? s.padStart(2, '0') + '00' : s.padStart(4, '0');
+  const hh = Math.min(23, Number(s.slice(0, 2)));
+  const mm = Math.min(59, Number(s.slice(2, 4)));
+  el.value = String(hh).padStart(2, '0') + String(mm).padStart(2, '0');
+}
+
+// Combine a phase's Zulu date (YYYY-MM-DD) + 24-hour HHMM into an ISO instant,
+// pinning the entered wall time to UTC. '' when blank/invalid.
+function zuluToIso(prefix) {
+  const date = val(`${prefix}-d`);
+  const hhmmRaw = (val(`${prefix}-hhmm`) || '').replace(/\D/g, '');
+  if (!date || !hhmmRaw) return '';
+  const hhmm = hhmmRaw.length <= 2 ? hhmmRaw.padStart(2, '0') + '00' : hhmmRaw.padStart(4, '0');
+  const hh = Number(hhmm.slice(0, 2)), mm = Number(hhmm.slice(2, 4));
+  if (hh > 23 || mm > 59) return '';
+  const d = new Date(`${date}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00Z`);
   return Number.isNaN(d.getTime()) ? '' : d.toISOString();
 }
 const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
@@ -707,8 +724,8 @@ const splitIds = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUp
 // param: "ICAO@ISO@Label" pipe-separated, each at its own Zulu time (alternates
 // inherit the landing time).
 function refFieldsParam() {
-  const depT = zuluToIso('sp-dep-t');
-  const recT = zuluToIso('sp-rec-t');
+  const depT = zuluToIso('sp-dep');
+  const recT = zuluToIso('sp-rec');
   const out = [];
   const dep = splitIds(val('sp-dep'))[0]; if (dep) out.push(`${dep}@${depT}@Departure`);
   const rec = splitIds(val('sp-rec'))[0]; if (rec) out.push(`${rec}@${recT}@Recovery`);
@@ -724,7 +741,7 @@ function quickLinkUrls() {
   const fields = encodeURIComponent(refFieldsParam());
   const routeIds = splitIds(val('sp-ll'));
   const routes = routeIds.length ? `&routes=${encodeURIComponent(routeIds.join(','))}` : '';
-  const rwhenIso = zuluToIso('sp-ll-t');
+  const rwhenIso = zuluToIso('sp-ll');
   const rwhen = rwhenIso ? `&rwhen=${encodeURIComponent(rwhenIso)}` : '';
   return {
     'ql-daip': { href: `/api/refcard?fields=${fields}&only=notams`, title: 'DAIP NOTAMs - all sortie bases' },
@@ -749,9 +766,9 @@ async function buildBrief() {
   const recIcao = splitIds(val('sp-rec'))[0];
   const alts = splitIds(val('sp-alt'));
   const routes = splitIds(val('sp-ll'));
-  const depT = zuluToIso('sp-dep-t');
-  const recT = zuluToIso('sp-rec-t');
-  const llT = zuluToIso('sp-ll-t');
+  const depT = zuluToIso('sp-dep');
+  const recT = zuluToIso('sp-rec');
+  const llT = zuluToIso('sp-ll');
 
   // Compose ordered stops (departure → recovery → alternates). A field with no
   // time still gets a card (evaluated "now"); alternates inherit the landing time.
@@ -1117,7 +1134,7 @@ let sortieCache = {};       // name -> { <input id>: value, ... }
 // absent keys are left untouched). Covers the sortie phases, limits, pattern
 // AGL, and the Route/Climb Winds tool.
 const SORTIE_FIELDS = [
-  'sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt',
+  'sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt',
   'xwind', 'tailwind', 'highda', 'agls',
   'winds-points', 'rof',
 ];
@@ -1348,14 +1365,21 @@ window.addEventListener('afterprint', () => {
 });
 
   prefillDatetimes();
+  // Tidy each 24-hour Zulu time field to HHMM when the user leaves it / hits Enter.
+  TIME_PREFIXES.forEach((pre) => {
+    const el = $(`${pre}-hhmm`);
+    if (!el) return;
+    on(`${pre}-hhmm`, 'blur', () => { normalizeHhmm(el); updateQuickLinks(); });
+    on(`${pre}-hhmm`, 'keydown', (e) => { if (e.key === 'Enter') { normalizeHhmm(el); buildBrief(); } });
+  });
   trackChipTarget();
   updateQuickLinks();
   // Keep the toolbar links in sync with the departure field/time and the
   // low-level routes/entry time (AHAS + Build PDF include route bird-risk).
-  ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t'].forEach((id) => on(id, 'input', updateQuickLinks));
+  ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm'].forEach((id) => on(id, 'input', updateQuickLinks));
   on('go', 'click', buildBrief);
   on('sp-clear', 'click', () => {
-    ['sp-dep', 'sp-dep-t', 'sp-ll', 'sp-ll-t', 'sp-rec', 'sp-rec-t', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+    ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
     prefillDatetimes(); // restore the time fields to "now"
   });
   // Enter in any phase field builds the brief.

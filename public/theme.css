@@ -368,8 +368,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .sphase-tag.alt { color: var(--caution); border-color: rgba(210,153,34,0.5); background: rgba(210,153,34,0.1); }
 .sp-field { flex: 1; min-width: 130px; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 8px 10px; outline: none; }
 .sp-field:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,182,195,0.18); }
-.sphase input[type="datetime-local"] { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 7px 9px; outline: none; color-scheme: dark; }
-.sphase input[type="datetime-local"]:focus { border-color: var(--accent); }
+.sphase input[type="date"], .sp-hhmm { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 7px 9px; outline: none; color-scheme: dark; }
+.sphase input[type="date"]:focus, .sp-hhmm:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,182,195,0.18); }
+.sp-hhmm { width: 4.2em; text-align: center; letter-spacing: 1.5px; }
+.sp-hhmm::placeholder { letter-spacing: 1px; color: var(--text-faint); }
 .sp-note { font-size: 11px; color: var(--text-faint); }
 .sp-z { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 5px; padding: 2px 5px; align-self: center; }
 @media (max-width: 640px) { .sortie-grid { grid-template-columns: 1fr; } }
