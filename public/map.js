@@ -232,7 +232,7 @@ export function initMap(container, data) {
       }
     }
 
-    // Route of flight (user-entered) — gold polyline + waypoint dots/labels.
+    // Route of flight (user-entered) — gold polyline (2+ pts) + waypoint markers.
     const rofPts = routeOfFlight?.geometry?.points;
     if (rofPts && rofPts.length >= 2) {
       const d = rofPts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
@@ -243,11 +243,12 @@ export function initMap(container, data) {
       path.setAttribute('stroke-width', '3');
       path.setAttribute('stroke-linejoin', 'round');
       overlay.appendChild(path);
-      for (const wp of (routeOfFlight.points || [])) {
-        const p = scr(wp.lat, wp.lon);
-        overlay.appendChild(ring(p.x, p.y, 3, '#0a0e14', { fill: '#f0b429', width: 1.5 }));
-        overlay.appendChild(label(p.x + 6, p.y - 4, wp.id, '#ffd479'));
-      }
+    }
+    // Markers/labels draw even for a single point (no line to connect).
+    for (const wp of (routeOfFlight?.points || [])) {
+      const p = scr(wp.lat, wp.lon);
+      overlay.appendChild(ring(p.x, p.y, 3, '#0a0e14', { fill: '#f0b429', width: 1.5 }));
+      overlay.appendChild(label(p.x + 6, p.y - 4, wp.id, '#ffd479'));
     }
 
     if (state.wx) {
