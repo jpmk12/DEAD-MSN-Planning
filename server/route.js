@@ -16,20 +16,25 @@ import { resolveNavaid } from './data/navaids.js';
 import { resolveFix } from './data/fixes.js';
 import { airwaysAvailable, hasAirway, airwaySegmentNames } from './data/airways.js';
 import { proceduresAvailable, expandProcedure } from './data/procedures.js';
-import { lookupMtr, fetchMtrs, normalizeId } from './data/mtr.js';
+import { lookupMtr, fetchMtrs, normalizeId, parseMtrToken, sliceRoute } from './data/mtr.js';
 import { destinationPoint, haversineNm, bearingDeg, normalize360 } from './core/geo.js';
 
 const MIL_ROUTE = /^(AR|IR|VR|SR)-?\d/; // military AR/IR/VR/SR routes (IR154 or IR-154)
 
-// Resolve a military route id (AR312, IR154, VR1355…) to its centerline points,
-// allowing a prefix match (AR312 -> AR312H) since AR tracks carry H/L suffixes.
+// Resolve a military route token (AR312, IR-154, or IR-154.C-M with entry/exit)
+// to its centerline points: exact match, else prefix (AR312 -> AR312H), then trim
+// to the entry/exit portion when given.
 async function resolveMtr(tok, offline) {
-  const m = await lookupMtr(tok, offline);
-  if (m?.geometry?.points?.length) return { id: m.id, points: m.geometry.points };
-  const want = normalizeId(tok);
-  const { mtrs } = await fetchMtrs(offline);
-  const hit = mtrs.find((x) => normalizeId(x.id).startsWith(want) && x.geometry?.points?.length);
-  return hit ? { id: hit.id, points: hit.geometry.points } : null;
+  const { id, entry, exit } = parseMtrToken(tok);
+  let m = await lookupMtr(id, offline);
+  if (!m) {
+    const want = normalizeId(id);
+    const { mtrs } = await fetchMtrs(offline);
+    m = mtrs.find((x) => normalizeId(x.id).startsWith(want) && x.geometry?.points?.length) || null;
+  }
+  if (!m?.geometry?.points?.length) return null;
+  const r = (entry && exit) ? sliceRoute(m, entry, exit) : m;
+  return { id: r.id, points: r.geometry.points };
 }
 
 const CONNECTORS = new Set(['DCT', 'DIRECT', '.', '..']);

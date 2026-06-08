@@ -355,6 +355,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .rof-status .rof-ok { color: var(--go); font-family: var(--mono); }
 .rof-status .rof-warn { color: var(--warn, #d29922); }
 .rof-status .rof-load { color: var(--text-dim); }
+.mtr-points { font-size: 12px; color: var(--text-dim); margin: 6px 0; }
+.mtr-points .mtr-pts { font-family: var(--mono); color: var(--text); letter-spacing: 1px; }
+.mtr-points code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--accent); }
+.mtr-portion { font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid var(--border-bright); border-radius: 5px; padding: 1px 6px; margin-left: 6px; }
 .sortie-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .sphase { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
 .sphase-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 6px; white-space: nowrap; border: 1px solid; }

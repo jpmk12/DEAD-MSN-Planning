@@ -934,10 +934,20 @@ function mtrDetailCard(d) {
         ? `<div class="mtr-bird" style="color:var(--text-dim)">AHAS bird risk: UNAVAILABLE — no data returned for route entry ${esc(zuluLocal(d.windsAt, { date: true }))} (nothing fabricated)</div>`
         : '');
   const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
+  // Available turn points + the flown portion (entry/exit). Lets users see what
+  // they can fly and how to request a portion (e.g. IR-154.C-M).
+  const pts = Array.isArray(d.points) && d.points.length ? d.points : null;
+  const portionLine = pts
+    ? `<div class="mtr-points">Turn points: <span class="mtr-pts">${pts.map(esc).join(' ')}</span>` +
+      (d.portion
+        ? ` · <b>flying ${esc(d.entry)}→${esc(d.exit)}</b>`
+        : ` · fly a portion with <code>${esc(d.id)}.${esc(pts[0])}-${esc(pts[pts.length - 1])}</code>`) +
+      `</div>`
+    : '';
   return `<div class="card"><div class="head">
-      <div><div class="icao">${esc(d.id)}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
+      <div><div class="icao">${esc(d.id)}${d.portion ? ` <span class="mtr-portion">${esc(d.portion)}</span>` : ''}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
       <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}<span class="chev card-chev">▾</span></div>
-    <div class="body">${refuel}${routeBird}<div class="mtr-segs">${segs}</div></div></div>`;
+    <div class="body">${refuel}${routeBird}${portionLine}<div class="mtr-segs">${segs}</div></div></div>`;
 }
 
 const RC_CLASS = { IR: 'rc-ir', VR: 'rc-vr', AR: 'rc-ar' };

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bearingDeg } from '../core/geo.js';
 import { pointToPolylineNm } from './airspace.js';
-import { normalizeId, routeLine, lookupMtr, buildMtrDetail } from './mtr.js';
+import { normalizeId, routeLine, lookupMtr, buildMtrDetail, parseMtrToken, labeledPoints, sliceRoute } from './mtr.js';
 
 const near = (a, b, eps) => assert.ok(Math.abs(a - b) <= eps, `${a} ~ ${b}`);
 
@@ -85,4 +85,35 @@ test('AP/1B IR-154 has the full Altus point set', async () => {
   const d = await buildMtrDetail('IR-154', true);
   assert.equal(d.segments.length, 16); // 17 points A..Q
   assert.equal(d.segments[0].widthLeftNm, 2);
+});
+
+test('parseMtrToken splits an entry/exit spec off the route id', () => {
+  assert.deepEqual(parseMtrToken('IR-154.C-M'), { id: 'IR-154', entry: 'C', exit: 'M' });
+  assert.deepEqual(parseMtrToken('AR312L'), { id: 'AR312L', entry: null, exit: null });
+});
+
+test('labeledPoints reads turn points; null when names aren\'t labelled', () => {
+  const mtr = { segments: [{ name: 'A → B', points: [[0, 0], [1, 1]] }, { name: 'B → C', points: [[1, 1], [2, 2]] }] };
+  assert.deepEqual(labeledPoints(mtr).map((p) => p.label), ['A', 'B', 'C']);
+  assert.equal(labeledPoints({ segments: [{ name: 'route', points: [[0, 0], [1, 1]] }] }), null);
+});
+
+test('sliceRoute trims between entry/exit and reverses when needed', () => {
+  const mtr = { id: 'X', segments: [
+    { name: 'A → B', points: [[0, 0], [1, 1]] },
+    { name: 'B → C', points: [[1, 1], [2, 2]] },
+    { name: 'C → D', points: [[2, 2], [3, 3]] },
+  ] };
+  assert.deepEqual(sliceRoute(mtr, 'B', 'D').segments.map((s) => s.name), ['B → C', 'C → D']);
+  assert.deepEqual(sliceRoute(mtr, 'C', 'A').segments.map((s) => s.name), ['C → B', 'B → A']);
+  assert.equal(sliceRoute(mtr, 'Z', 'A').segments.length, 3); // unknown label -> unchanged
+});
+
+test('buildMtrDetail honors an entry/exit token (IR-154.C-M)', async () => {
+  const part = await buildMtrDetail('IR-154.C-M', true);
+  assert.equal(part.found, true);
+  assert.equal(part.portion, 'C-M');
+  assert.equal(part.id, 'IR-154');
+  assert.ok(part.points.includes('A') && part.points.includes('Q'));
+  assert.ok(part.geometry.points.length >= 2 && part.geometry.points.length < 17);
 });

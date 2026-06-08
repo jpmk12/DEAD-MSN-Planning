@@ -101,6 +101,50 @@ export async function lookupMtr(id, offline) {
   return mtrs.find((m) => normalizeId(m.id) === want) || null;
 }
 
+// "IR-154.C-M" -> { id:'IR-154', entry:'C', exit:'M' }; a plain id otherwise.
+export function parseMtrToken(token) {
+  const s = String(token || '').trim();
+  const m = /^(.+?)\.([A-Z0-9]{1,4})-([A-Z0-9]{1,4})$/i.exec(s);
+  if (m) return { id: m[1], entry: m[2].toUpperCase(), exit: m[3].toUpperCase() };
+  return { id: s, entry: null, exit: null };
+}
+
+const SEG_ENDS = /^\s*(\S+)\s*(?:→|->|—|–|-)\s*(\S+)\s*$/;
+/** Ordered labeled turn points [{label, coord:[lat,lon]}] from segment names
+ *  like "A → B" … "P → Q", or null when the names aren't point-labelled. */
+export function labeledPoints(mtr) {
+  const segs = mtr.segments || [];
+  const out = [];
+  for (let i = 0; i < segs.length; i++) {
+    const ends = SEG_ENDS.exec(segs[i].name || '');
+    const pts = segs[i].points || [];
+    if (!ends || pts.length < 2) return null;
+    if (i === 0) out.push({ label: ends[1].toUpperCase(), coord: pts[0] });
+    out.push({ label: ends[2].toUpperCase(), coord: pts[pts.length - 1] });
+  }
+  return out.length > 1 ? out : null;
+}
+
+const reverseName = (name) => { const m = SEG_ENDS.exec(name || ''); return m ? `${m[2]} → ${m[1]}` : name; };
+
+/** Trim an MTR to the legs between two named points (inclusive), reversing the
+ *  direction if the exit precedes the entry. Returns the original when the route
+ *  isn't point-labelled or the labels aren't found. */
+export function sliceRoute(mtr, entry, exit) {
+  if (!entry || !exit) return mtr;
+  const lp = labeledPoints(mtr);
+  if (!lp) return mtr;
+  const i = lp.findIndex((p) => p.label === entry);
+  const j = lp.findIndex((p) => p.label === exit);
+  if (i < 0 || j < 0 || i === j) return mtr;
+  const lo = Math.min(i, j), hi = Math.max(i, j);
+  let segs = (mtr.segments || []).slice(lo, hi); // legs lp[lo]..lp[hi]
+  if (i > j) segs = segs.slice().reverse().map((s) => ({ ...s, points: [...(s.points || [])].reverse(), name: reverseName(s.name) }));
+  const sliced = { ...mtr, segments: segs };
+  sliced.geometry = routeLine(sliced);
+  return sliced;
+}
+
 const midpoint = (pts) => pts[Math.floor(pts.length / 2)] || pts[0];
 const segLengthNm = (pts) => {
   let s = 0;
@@ -108,13 +152,17 @@ const segLengthNm = (pts) => {
   return s;
 };
 
-/** Build a detailed MTR view with per-leg winds (Phase 2). */
-export async function buildMtrDetail(id, offline, targetIso) {
-  const mtr = await lookupMtr(id, offline);
-  if (!mtr) return { found: false, id };
+/** Build a detailed MTR view with per-leg winds (Phase 2). Accepts an optional
+ *  entry/exit on the token (e.g. "IR-154.C-M") to draw only that portion. */
+export async function buildMtrDetail(token, offline, targetIso) {
+  const { id, entry, exit } = parseMtrToken(token);
+  const base = await lookupMtr(id, offline);
+  if (!base) return { found: false, id: token };
+  const allPoints = labeledPoints(base);
+  const mtr = (entry && exit) ? sliceRoute(base, entry, exit) : base;
 
-  const { risk } = await fetchRouteRisk([mtr.id], offline, targetIso);
-  const routeRisk = risk.get(normalizeId(mtr.id)) || null;
+  const { risk } = await fetchRouteRisk([base.id], offline, targetIso);
+  const routeRisk = risk.get(normalizeId(base.id)) || null;
 
   const segments = await Promise.all(
     (mtr.segments || []).map(async (seg) => {
@@ -161,11 +209,17 @@ export async function buildMtrDetail(id, offline, targetIso) {
   const requestedIso = targetIso && !Number.isNaN(Date.parse(targetIso)) ? new Date(targetIso).toISOString() : null;
   return {
     found: true,
-    id: mtr.id,
-    type: mtr.type,
-    name: mtr.name,
-    agency: mtr.agency,
-    refuelAlt: mtr.refuelAlt ?? null,
+    id: base.id,
+    type: base.type,
+    name: base.name,
+    agency: base.agency,
+    refuelAlt: base.refuelAlt ?? null,
+    // Available turn points (A…Q) and the flown portion, so the UI can show
+    // what's selectable and confirm the entry/exit drawn.
+    points: allPoints ? allPoints.map((p) => p.label) : null,
+    entry: entry || null,
+    exit: exit || null,
+    portion: (entry && exit) ? `${entry}-${exit}` : null,
     geometry: mtr.geometry,
     // Carry the AHAS validity (run hour) + the requested time through so the
     // route card can display the period the risk is valid for.
