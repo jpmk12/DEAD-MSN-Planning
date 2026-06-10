@@ -3,6 +3,7 @@
 
 import { initMap } from './map.js';
 import { zuluLocal, hhZ, hhL, TZ_ABBR } from './timefmt.js';
+import { buildRibbonModel, roleTag as rbRoleTag } from './ribbon.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -702,6 +703,7 @@ async function runBrief({ ids, limits, extra = {}, button }) {
     if ($('results-rest')) $('results-rest').innerHTML = r.rest;
     updatePrintHead(data, ids, limits);
     renderMap(data);
+    renderRibbon(data, activeRoutes, limits);
     return data;
   } catch (err) {
     $('results').innerHTML = `<div class="errbox">Failed to build brief: ${esc(err.message)}<br/>
@@ -963,6 +965,45 @@ function clearRouteOfFlight() {
   const el = $('rof'); if (el) el.value = '';
   const status = $('rof-status'); if (status) status.innerHTML = '';
   paintMap();
+}
+
+// ---- Mission hazard ribbon (the sortie as flown: dep → AR → LL → rec → alt) --
+// Pure model in ./ribbon.js (shared with the tests); this is just the render.
+function renderRibbon(data, routes, limits) {
+  const el = $('sec-ribbon');
+  if (!el) return;
+  if (!data || !(data.airfields || []).length) { el.hidden = true; el.innerHTML = ''; return; }
+  const llWhen = zuluToIso('sp-ll') || null;
+  const phases = buildRibbonModel(data, routes, limits, llWhen);
+  if (!phases.length) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const STAT = { 'GO': 'rb-go', 'CAUTION': 'rb-caution', 'NO-GO': 'rb-nogo', 'NO-DATA': 'rb-na' };
+  const seg = (p, i) => {
+    const roleTag = rbRoleTag(p.role);
+    const clear = p.status === 'GO' && !p.chips.some((c) => c.sev === 'caution' || c.sev === 'nogo');
+    const chips = p.chips.map((c) => `<span class="rb-chip sev-${c.sev}">${esc(c.k)}</span>`).join('');
+    const when = p.when ? zuluLocal(p.when) : '';
+    return `${i ? '<div class="rb-arrow">▸</div>' : ''}
+      <div class="rb-phase ${STAT[p.status] || 'rb-na'}" title="${esc(`${roleTag} ${p.id} ${when} · ${p.status}${p.reason ? ' — ' + p.reason : ''} · ${p.source}`)}">
+        <div class="rb-top"><span class="rb-role">${esc(roleTag)}</span>${clear ? '<span class="rb-clear">✓ clear</span>' : ''}</div>
+        <div class="rb-id">${esc(p.id)}</div>
+        <div class="rb-time">${esc(when)}</div>
+        <div class="rb-chips">${chips}</div>
+      </div>`;
+  };
+
+  const bad = phases.filter((p) => p.status === 'NO-GO').length;
+  const caut = phases.filter((p) => p.status === 'CAUTION').length;
+  const summary = bad ? `<span class="rb-sum nogo">${bad} phase${bad > 1 ? 's' : ''} NO-GO</span>`
+    : caut ? `<span class="rb-sum caution">${caut} phase${caut > 1 ? 's' : ''} CAUTION</span>`
+    : '<span class="rb-sum go">All phases GO</span>';
+
+  el.innerHTML = `
+    <div class="tool-head"><span class="tool-title">Mission Hazard Ribbon</span> ${summary}
+      <span class="rb-note">the sortie as flown · forecast at each phase time</span></div>
+    <div class="rb-track">${phases.map(seg).join('')}</div>
+    <div class="rb-foot">Per-phase worst-case from the same engine as the cards (wind/runway, ceiling-vis vs your minimums, AHAS birds, convective/SIGMET when representative). “CONV n/a” = convective-along-route not yet assessed. Verify with official sources.</div>`;
+  el.hidden = false;
 }
 
 // ---- Sortie timeline (hour-by-hour conditions per field across the window) --

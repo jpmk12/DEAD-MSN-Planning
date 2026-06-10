@@ -1,0 +1,63 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buildRibbonModel, fieldPhase, routePhase, xwSev, catSev, birdSev } from './ribbon.js';
+
+const LIMITS = { xwind: 30, tailwind: 10 };
+
+test('severity helpers map to go/caution/nogo', () => {
+  assert.equal(xwSev(10, 30), 'go');
+  assert.equal(xwSev(20, 30), 'caution'); // >= 60%
+  assert.equal(xwSev(31, 30), 'nogo');
+  assert.equal(catSev('VFR'), 'go');
+  assert.equal(catSev('IFR'), 'caution');
+  assert.equal(catSev('LIFR'), 'nogo');
+  assert.equal(birdSev('MODERATE'), 'caution');
+  assert.equal(birdSev('SEVERE'), 'nogo');
+});
+
+test('routePhase: AHAS + worst leg crosswind, convective marked not-assessed', () => {
+  const d = { id: 'IR-154', type: 'IR', birdRisk: { level: 'MODERATE' },
+    segments: [{ wind: { crosswindKt: 9 } }, { wind: { crosswindKt: 22 } }, { wind: null }] };
+  const p = routePhase(d, '2026-06-11T19:00:00Z', LIMITS);
+  assert.equal(p.status, 'CAUTION'); // MODERATE birds OR 22kt XW (>=60% of 30)
+  assert.ok(p.chips.some((c) => c.k === 'BIRD MODERATE' && c.sev === 'caution'));
+  assert.ok(p.chips.some((c) => c.k === 'XW 22'));
+  assert.ok(p.chips.some((c) => c.k === 'CONV n/a' && c.sev === 'info'));
+});
+
+test('buildRibbonModel orders dep → AR → LL → recovery → alternate and carries status', () => {
+  const data = { airfields: [
+    { icao: 'KLTS', status: 'GO', statusSource: 'TAF@ETA',
+      forecast: { active: { ident: '18R', crosswindKt: 6, gustCrosswindKt: 10 }, flightCategory: 'VFR' },
+      birdRisk: { level: 'LOW' }, phase: { role: 'DEPARTURE', when: '2026-06-11T14:15:00Z', hideCurrentOnly: true } },
+    { icao: 'KLTS', status: 'NO-GO', statusSource: 'TAF@ETA',
+      forecast: { active: { ident: '18R', crosswindKt: 30, gustCrosswindKt: 38 }, flightCategory: 'IFR' },
+      birdRisk: { level: 'MODERATE' }, statusReasons: ['Gust crosswind 38 kt on RWY 18R exceeds limit (30 kt).'],
+      phase: { role: 'RECOVERY', when: '2026-06-11T20:15:00Z', hideCurrentOnly: true } },
+    { icao: 'KAMA', status: 'GO', statusSource: 'TAF@ETA',
+      forecast: { active: { ident: '04', crosswindKt: 8, gustCrosswindKt: 8 }, flightCategory: 'VFR' },
+      birdRisk: { level: 'LOW' }, phase: { role: 'ALTERNATE', when: '2026-06-11T20:15:00Z', hideCurrentOnly: true } },
+  ] };
+  const routes = [
+    { id: 'AR197H', type: 'AR', birdRisk: { level: 'LOW' }, segments: [{ wind: { crosswindKt: 5 } }] },
+    { id: 'IR-154', type: 'IR', birdRisk: { level: 'MODERATE' }, segments: [{ wind: { crosswindKt: 12 } }] },
+  ];
+  const m = buildRibbonModel(data, routes, LIMITS, '2026-06-11T17:00:00Z');
+  assert.deepEqual(m.map((p) => `${p.role}:${p.id}`), ['DEPARTURE:KLTS', 'AR:AR197H', 'IR:IR-154', 'RECOVERY:KLTS', 'ALTERNATE:KAMA']);
+  // The decision: recovery NO-GO (38kt gust XW) while the alternate is GO.
+  assert.equal(m.find((p) => p.role === 'RECOVERY').status, 'NO-GO');
+  assert.equal(m.find((p) => p.role === 'ALTERNATE').status, 'GO');
+  // Far-future phases hide now-cast convective/SIGMET honestly.
+  assert.ok(m[0].chips.some((c) => c.k === 'now-cast n/a'));
+});
+
+test('fieldPhase uses current METAR when not future', () => {
+  const b = { icao: 'KCHS', status: 'CAUTION', statusSource: 'METAR',
+    analysis: { active: { ident: '03', crosswindKt: 21, gustCrosswindKt: null } },
+    currentConditions: { flightCategory: 'MVFR' }, birdRisk: { level: 'LOW' },
+    convective: [], hazardWx: [], pireps: [], phase: { role: 'DEPARTURE', when: null, hideCurrentOnly: false } };
+  const p = fieldPhase(b, LIMITS);
+  assert.equal(p.source, 'METAR');
+  assert.ok(p.chips.some((c) => c.k === 'XW 21' && c.sev === 'caution'));
+  assert.ok(p.chips.some((c) => c.k === 'MVFR'));
+});
