@@ -47,7 +47,7 @@ export function initMap(container, data) {
   const routeOfFlight = data.routeOfFlight || null;
   const validity = data.validity || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
-  const MTR_COLOR = { IR: '#4aa3df', VR: '#c77dff', AR: '#46c6a0' };
+  const MTR_COLOR = { IR: '#3fb950', VR: '#3fb950', AR: '#4aa3df' }; // low-level (IR/VR) green, A/R blue
 
   container.innerHTML = '';
   container.classList.add('map-panel');
@@ -99,7 +99,7 @@ export function initMap(container, data) {
     <div class="lg-row"><span class="lg-poly" style="border-color:#f85149;background:rgba(248,81,73,.12)"></span> Convective SIGMET</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.12)"></span> SIGMET &nbsp; <span class="lg-poly" style="border-color:#8a7bd8;background:rgba(138,123,216,.12)"></span> AIRMET</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.18)"></span> Convective outlook (TSTM→HIGH)</div>
-    <div class="lg-row"><span class="lg-line" style="background:#4aa3df"></span> IR &nbsp; <span class="lg-line" style="background:#c77dff"></span> VR &nbsp; <span class="lg-line" style="background:#46c6a0"></span> AR track</div>
+    <div class="lg-row"><span class="lg-line" style="background:#3fb950"></span> Low-level (IR/VR) &nbsp; <span class="lg-line" style="background:#4aa3df"></span> A/R track</div>
     <div class="lg-row"><span class="lg-line" style="background:#f0b429"></span> Route of flight</div>
     <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
 
