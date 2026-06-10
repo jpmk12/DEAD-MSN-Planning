@@ -10,8 +10,11 @@ const FIXTURE_URL = new URL('../../data/fixtures/metar-sample.json', import.meta
 // Short-TTL cache for the LIVE METAR/TAF fetch. METARs update ~hourly and TAFs
 // less often, so a few minutes is safe and keeps repeated briefs / the timeline
 // from re-hitting AWC. Only successful (non-empty) results are cached; failures
-// are never cached so a transient outage doesn't stick.
+// are never cached so a transient outage doesn't stick. On a FAILED refresh we
+// serve a recent cached result (≤30 min — each METAR carries its own obs time,
+// so nothing is misrepresented) rather than blanking the analysis.
 const WX_TTL_MS = 5 * 60 * 1000;
+const WX_MAX_STALE_MS = 30 * 60 * 1000;
 const wxCache = new Map(); // key -> { at, value }
 const wxKey = (icaos) => [...new Set(icaos.map((i) => i.toUpperCase()))].sort().join(',');
 
@@ -37,12 +40,18 @@ export async function loadWeather(icaos, offline) {
     // METAR and TAF run concurrently but with INDEPENDENT timeouts. AWC's TAF
     // endpoint is slower than METAR (especially on a cold container), so a
     // shared timeout could abort a still-pending TAF the moment METAR's window
-    // closed — surfacing TAF as "unreachable" while METAR worked. Give TAF its
-    // own, longer window and one retry.
+    // closed — surfacing TAF as "unreachable" while METAR worked. Both get one
+    // retry: a single slow AWC moment must not blank the whole wind/runway
+    // analysis (this bit in production — METAR previously had no retry).
     const metarP = (async () => {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 8000);
-      try { return await fetchMetars(icaos, c.signal); } finally { clearTimeout(t); }
+      for (const ms of [8000, 10000]) {
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort(), ms);
+        try { return await fetchMetars(icaos, c.signal); }
+        catch { /* retry once with a longer window */ }
+        finally { clearTimeout(t); }
+      }
+      return [];
     })();
     // Track TAF source reachability separately from how many TAFs came back: a
     // successful fetch that returns no TAF for a field (e.g. many military
@@ -78,5 +87,7 @@ export async function loadWeather(icaos, offline) {
   } catch {
     // unavailable — fall through
   }
+  // Refresh failed: serve the last good result if it's recent, else UNAVAILABLE.
+  if (hit && Date.now() - hit.at < WX_MAX_STALE_MS) return hit.value;
   return { obs: [], tafs: new Map(), live: false, tafLive: false };
 }
