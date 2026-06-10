@@ -13,7 +13,7 @@ import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
 import { fetchMtrs, normalizeId } from './data/mtr.js';
 import { fetchRouteRisk } from './data/ahas.js';
 import { fetchPireps } from './data/pireps.js';
-import { decodeTaf } from './data/taf.js';
+import { decodeTaf, tafAt, flightCategory, parseVisSm, parseCeilingFt } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
@@ -64,11 +64,79 @@ function phaseHorizon(whenIso, nowMs) {
 }
 
 // Placeholder limits — NOT official C-17 -1/TO values. Configurable per request.
+// ceilingMinFt / visMinSm are planning thresholds for the ceiling/vis flags.
 export const DEFAULT_LIMITS = {
   crosswindKt: 30,
   tailwindKt: 10,
   highDensityAltitudeFt: 5000,
+  ceilingMinFt: 1000,
+  visMinSm: 3,
 };
+
+const fmtVis = (sm) => (sm >= 99 ? '6+ SM' : (sm % 1 ? sm.toFixed(2).replace(/0+$/, '').replace(/\.$/, '') : String(sm)) + ' SM');
+
+/** Ceiling/visibility/flight-category from a raw METAR string (CONUS: SM vis).
+ *  Reuses the TAF token parsers; lowest BKN/OVC/VV wins for ceiling. */
+export function metarConditions(rawText) {
+  if (!rawText || typeof rawText !== 'string') return { visibilitySm: null, ceilingFt: null, flightCategory: null };
+  const toks = rawText.trim().replace(/\s+/g, ' ').split(' ');
+  let vis = null, ceil = null;
+  for (let k = 0; k < toks.length; k++) {
+    const tok = toks[k];
+    if (vis == null) {
+      if (/^\d$/.test(tok) && /^\d\/\dSM$/.test(toks[k + 1] || '')) { // "1 1/2SM"
+        const fm = /^(\d)\/(\d)SM$/.exec(toks[k + 1]); vis = Number(tok) + Number(fm[1]) / Number(fm[2]);
+      } else if (/SM$/.test(tok) || tok === 'CAVOK' || tok === 'P6SM') {
+        const v = parseVisSm(tok); if (v != null) vis = v;
+      }
+    }
+    const c = parseCeilingFt(tok); if (c != null) ceil = ceil == null ? c : Math.min(ceil, c);
+  }
+  return { visibilitySm: vis, ceilingFt: ceil, flightCategory: (vis != null || ceil != null) ? flightCategory(ceil, vis) : null };
+}
+
+/**
+ * Forecast conditions/analysis for a field AT a phase time, from its TAF.
+ * Runs the same wind/runway math against the TAF-at-ETA wind, and checks
+ * ceiling/vis vs planning minimums. Returns null when the TAF can't speak to it.
+ */
+export function phaseForecast(airport, tafDecoded, whenIso, limits) {
+  if (!airport || !tafDecoded || !whenIso) return null;
+  const fc = tafAt(tafDecoded, whenIso);
+  if (!fc) return null;
+  const hasWind = fc.wind && fc.wind.dirTrue != null;
+  const fAnalysis = hasWind
+    ? analyzeAirfield(airport, { icao: airport.icao, wind: { dirTrue: fc.wind.dirTrue, speedKt: fc.wind.speedKt, gustKt: fc.wind.gustKt }, tempC: null, altimHpa: null }, limits)
+    : null;
+  const cvWarnings = [];
+  if (fc.ceilingFt != null && limits.ceilingMinFt != null && fc.ceilingFt < limits.ceilingMinFt) {
+    cvWarnings.push(`Forecast ceiling ${fc.ceilingFt} ft below planning minimum (${limits.ceilingMinFt} ft) at ETA.`);
+  }
+  if (fc.visibilitySm != null && limits.visMinSm != null && fc.visibilitySm < limits.visMinSm) {
+    cvWarnings.push(`Forecast visibility ${fmtVis(fc.visibilitySm)} below planning minimum (${limits.visMinSm} SM) at ETA.`);
+  }
+  return {
+    source: 'TAF',
+    whenIso,
+    withinValidity: fc.withinValidity,
+    wind: fc.wind,
+    ceilingFt: fc.ceilingFt,
+    visibilitySm: fc.visibilitySm,
+    flightCategory: fc.flightCategory,
+    active: fAnalysis?.active ?? null,
+    runways: fAnalysis?.runways ?? null,
+    windWarnings: fAnalysis ? fAnalysis.warnings : [],
+    cvWarnings,
+    caveats: fc.caveats || [],
+  };
+}
+
+/** GO/CAUTION/NO-GO from a warning list (forecast or current). */
+function statusFromWarnings(warnings, hasClosure, alert) {
+  if (warnings.some((w) => /exceeds/.test(w))) return 'NO-GO';
+  if (warnings.length > 0 || hasClosure || alert) return 'CAUTION';
+  return 'GO';
+}
 
 /** Extract closed runway idents from NOTAMs, e.g. "RWY 15/33 CLSD" -> [15, 33]. */
 export function parseClosedRunways(notams) {
@@ -78,14 +146,6 @@ export function parseClosedRunways(notams) {
     if (m && m[1]) for (const id of m[1].split('/')) closed.add(id.toUpperCase());
   }
   return [...closed];
-}
-
-function deriveStatus(analysis, notams, airspaceAlert) {
-  if (!analysis) return 'NO-DATA';
-  if (analysis.warnings.some((w) => w.includes('exceeds'))) return 'NO-GO';
-  const hasClosure = notams.some((n) => n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
-  if (analysis.warnings.length > 0 || hasClosure || airspaceAlert) return 'CAUTION';
-  return 'GO';
 }
 
 export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null) {
@@ -278,6 +338,17 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       }).filter(Boolean);
     }
 
+    // Current (METAR) ceiling/vis/category, and the TAF-at-ETA forecast (wind
+    // analysis + ceiling/vis vs minimums) so each phase reads at ITS time.
+    const currentConditions = metarConditions(o?.rawText);
+    const tafDecodedForStop = decodeTaf(tafs.get(icao));
+    const forecast = airport ? phaseForecast(airport, tafDecodedForStop, stop.when, limits) : null;
+    if (forecast && !forecast.windIndeterminate) {
+      const closedSet = new Set(closedRunways);
+      const open = (forecast.runways || []).filter((r) => !closedSet.has(r.ident.toUpperCase())).sort((a, b) => b.headwindKt - a.headwindKt);
+      forecast.recommendedRunway = open[0]?.ident ?? null;
+    }
+
     // Bird/wildlife risk for this stop, at the stop's time.
     const birdRisk = birdByKey.get(`${stop.when || ''}|${icao}`) ?? null;
 
@@ -298,11 +369,23 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     const alert = alertReasons.length > 0;
 
     // Everything that drove the GO/CAUTION/NO-GO call (wind/runway warnings,
-    // runway closures, and the airspace/bird/wx alerts above).
+    // ceiling/vis vs minimums, runway closures, and the airspace/bird/wx alerts).
     const closureReasons = notams
       .filter((n) => n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text))
       .map((n) => `Runway closure (NOTAM): ${n.text.slice(0, 60)}`);
-    const statusReasons = [...(analysis ? analysis.warnings : []), ...closureReasons, ...alertReasons];
+    const hasClosure = notams.some((n) => n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
+    // Current (METAR) ceiling/vis below planning minimums.
+    const curCv = [];
+    if (currentConditions.ceilingFt != null && limits.ceilingMinFt && currentConditions.ceilingFt < limits.ceilingMinFt) curCv.push(`Ceiling ${currentConditions.ceilingFt} ft below planning minimum (${limits.ceilingMinFt} ft).`);
+    if (currentConditions.visibilitySm != null && limits.visMinSm && currentConditions.visibilitySm < limits.visMinSm) curCv.push(`Visibility ${fmtVis(currentConditions.visibilitySm)} below planning minimum (${limits.visMinSm} SM).`);
+    // Future phases are judged on the TAF-at-ETA; near phases on the current METAR.
+    const useForecast = horizon.future && forecast && (forecast.wind || forecast.ceilingFt != null || forecast.visibilitySm != null);
+    const govWarnings = useForecast
+      ? [...forecast.windWarnings, ...forecast.cvWarnings]
+      : [...(analysis ? analysis.warnings : []), ...curCv];
+    const statusSource = useForecast ? 'TAF@ETA' : 'METAR';
+    const status = (!analysis && !useForecast) ? 'NO-DATA' : statusFromWarnings(govWarnings, hasClosure, alert);
+    const statusReasons = [...govWarnings, ...closureReasons, ...alertReasons];
 
     airfields.push({
       icao,
@@ -325,7 +408,10 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       windsAloft,
       patternWinds,
       birdRisk,
-      status: deriveStatus(analysis, notams, alert),
+      currentConditions,
+      forecast,
+      statusSource,
+      status,
       statusReasons,
       // Sortie phase + data-horizon: lets the client group cards by phase, label
       // the planned time, and hide current-only layers at far-future phases.

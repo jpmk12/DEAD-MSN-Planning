@@ -442,6 +442,38 @@ function phaseBanner(brief) {
   return `<div class="${cls}">⏱ Planned ${esc(zuluLocal(p.when, { date: true }))}${lead ? ` · ${esc(lead)}` : ''}</div>${note}`;
 }
 
+const CAT_COLOR = { VFR: '#3fb950', MVFR: '#4aa3df', IFR: '#f85149', LIFR: '#c77dff' };
+const catColor = (c) => CAT_COLOR[c] || 'var(--text-dim)';
+const fmtVisSm = (sm) => (sm == null ? null : sm >= 99 ? '6+ SM' : (sm % 1 ? sm.toFixed(2).replace(/0+$/, '').replace(/\.$/, '') : String(sm)) + ' SM');
+const fmtFcWind = (w) => (!w ? '—' : `${w.dirTrue === 'VRB' ? 'VRB' : String(w.dirTrue).padStart(3, '0') + '°'}/${w.speedKt}${w.gustKt ? 'G' + w.gustKt : ''} kt`);
+
+// "Forecast at ETA" — the TAF-at-phase-time wind/runway analysis + ceiling/vis
+// vs minimums. Renders for any phase whose field has a TAF (even military fields
+// with no current METAR), and is highlighted when it drives the status.
+function forecastBlock(brief) {
+  const f = brief.forecast;
+  if (!f) return '';
+  const drives = brief.statusSource === 'TAF@ETA';
+  const cat = f.flightCategory ? `<span class="cat-chip" style="color:${catColor(f.flightCategory)};border-color:${catColor(f.flightCategory)}">${esc(f.flightCategory)}</span>` : '';
+  const cv = [];
+  if (f.ceilingFt != null) cv.push(`ceiling ${f.ceilingFt.toLocaleString()} ft`);
+  if (f.visibilitySm != null) cv.push(`vis ${esc(fmtVisSm(f.visibilitySm))}`);
+  const rwy = f.active ? ` · active RWY ${esc(f.recommendedRunway || f.active.ident)}` : '';
+  const warns = [...(f.windWarnings || []), ...(f.cvWarnings || [])];
+  const warnHtml = warns.length
+    ? `<div class="warnings">${warns.map((w) => `<div class="warn-item ${/exceeds/.test(w) ? 'crit' : ''}"><span class="ico">⚠</span><span>${esc(w)}</span></div>`).join('')}</div>`
+    : '';
+  const caveatHtml = (f.caveats || []).length
+    ? `<div class="fc-caveat">TEMPO/PROB: ${f.caveats.map((c) => esc(c.label) + (c.flightCategory ? ` (${esc(c.flightCategory)})` : '')).join(' · ')}</div>` : '';
+  const validity = f.withinValidity === false
+    ? '<div class="fc-caveat crit">⚠ Phase time is outside the TAF validity window — forecast not assured; verify with an updated TAF.</div>' : '';
+  const when = brief.phase?.when ? zuluLocal(brief.phase.when, { date: true }) : '';
+  return `<div class="forecast-block ${drives ? 'is-source' : ''}">
+    <div class="fc-h">Forecast at ETA ${when ? `<span class="fc-when">${esc(when)}</span>` : ''} ${cat}${drives ? '<span class="fc-src">drives status</span>' : ''}</div>
+    <div class="fc-line">TAF: ${esc(fmtFcWind(f.wind))}${cv.length ? ' · ' + cv.join(' · ') : ''}${rwy}</div>
+    ${validity}${caveatHtml}${warnHtml}</div>`;
+}
+
 function card(brief, limits) {
   if (!brief.found) {
     return `<div class="missing-card" data-uid="${esc(brief.uid || brief.icao)}"><span class="icao">${esc(brief.icao)}</span> — not in the reference dataset yet.
@@ -469,6 +501,7 @@ function card(brief, limits) {
         <div class="metric"><div class="k">Temp</div><div class="v">${a.observation.tempC ?? '--'}<small>°C</small></div></div>
         <div class="metric"><div class="k">Altimeter</div><div class="v">${a.observation.altimHpa ?? '--'}<small> hPa</small></div></div>
         <div class="metric ${highDA ? 'warn' : ''}"><div class="k">Density Alt</div><div class="v">${a.densityAltitudeFt != null ? a.densityAltitudeFt.toLocaleString() : '--'}<small> ft</small></div></div>
+        ${brief.currentConditions?.flightCategory ? `<div class="metric"><div class="k">Cat (now)</div><div class="v" style="font-size:14px;color:${catColor(brief.currentConditions.flightCategory)}">${esc(brief.currentConditions.flightCategory)}</div>${(brief.currentConditions.ceilingFt != null || brief.currentConditions.visibilitySm != null) ? `<small class="ahas-when">${brief.currentConditions.ceilingFt != null ? brief.currentConditions.ceilingFt.toLocaleString() + ' ft' : ''}${brief.currentConditions.visibilitySm != null ? (brief.currentConditions.ceilingFt != null ? ' · ' : '') + esc(fmtVisSm(brief.currentConditions.visibilitySm)) : ''}</small>` : ''}</div>` : ''}
         ${brief.birdRisk ? `<div class="metric ${brief.birdRisk.level !== 'LOW' ? 'warn' : ''}" ${tipOf(birdRiskTip(brief.birdRisk))}><div class="k">AHAS Birds</div><div class="v" style="font-size:14px;color:${BIRD_COLOR[brief.birdRisk.level]}">${esc(brief.birdRisk.level)}</div>${birdRiskWhen(brief.birdRisk) ? `<small class="ahas-when">${esc(birdRiskWhen(brief.birdRisk))}</small>` : ''}</div>` : ''}
       </div>
       ${windBlock(brief, selRwy, limits)}
@@ -478,6 +511,7 @@ function card(brief, limits) {
   } else {
     body += `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
   }
+  body += forecastBlock(brief);
 
   const ahasChip = brief.birdRisk
     ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(birdRiskTip(brief.birdRisk))}>AHAS ${esc(brief.birdRisk.level)}</span>`

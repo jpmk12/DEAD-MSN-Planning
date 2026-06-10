@@ -142,6 +142,8 @@ function parseLimits(url) {
     crosswindKt: num('xwind', DEFAULT_LIMITS.crosswindKt),
     tailwindKt: num('tailwind', DEFAULT_LIMITS.tailwindKt),
     highDensityAltitudeFt: num('highda', DEFAULT_LIMITS.highDensityAltitudeFt),
+    ceilingMinFt: num('ceilmin', DEFAULT_LIMITS.ceilingMinFt),
+    visMinSm: num('vismin', DEFAULT_LIMITS.visMinSm),
   };
 }
 
