@@ -745,7 +745,20 @@ async function runBrief({ ids, limits, extra = {}, button }) {
 // Current Zulu (UTC) wall time as a datetime-local input value
 // (YYYY-MM-DDTHH:mm). The field has no timezone, so we show the UTC digits and
 // treat what the user types as Zulu (see zuluToIso).
-const TIME_PREFIXES = ['sp-dep', 'sp-ll', 'sp-rec'];
+const TIME_PREFIXES = ['sp-dep', 'sp-ar', 'sp-ll', 'sp-rec'];
+
+// AR tracks + low-level routes, each id paired with ITS OWN entry time as
+// "ID@ISO" (AR at the A/R time, IR/VR/SR at the low-level time) — so every
+// route's AHAS/winds are evaluated at the time it's actually flown.
+function routeTokens() {
+  const arT = zuluToIso('sp-ar');
+  const llT = zuluToIso('sp-ll');
+  return [
+    ...splitIds(val('sp-ar')).map((id) => ({ id, when: arT || null })),
+    ...splitIds(val('sp-ll')).map((id) => ({ id, when: llT || null })),
+  ];
+}
+const routeTokensParam = () => routeTokens().map((r) => (r.when ? `${r.id}@${r.when}` : r.id)).join(',');
 
 // Default every empty phase time to "now" in Zulu (date + 24-hour HHMM) so phases
 // start from the current Zulu date/time without the user having to type it.
@@ -806,10 +819,9 @@ function refFieldsParam() {
 // decoded TAF + 12-hr AHAS actually show. Build PDF combines all of it.
 function quickLinkUrls() {
   const fields = encodeURIComponent(refFieldsParam());
-  const routeIds = splitIds(val('sp-ll'));
-  const routes = routeIds.length ? `&routes=${encodeURIComponent(routeIds.join(','))}` : '';
-  const rwhenIso = zuluToIso('sp-ll');
-  const rwhen = rwhenIso ? `&rwhen=${encodeURIComponent(rwhenIso)}` : '';
+  const toks = routeTokensParam();
+  const routes = toks ? `&routes=${encodeURIComponent(toks)}` : '';
+  const rwhen = ''; // per-route times ride in the routes tokens (ID@ISO)
   return {
     'ql-daip': { href: `/api/refcard?fields=${fields}&only=notams`, title: 'DAIP NOTAMs - all sortie bases' },
     'ql-awc': { href: `/api/refcard?fields=${fields}&only=wx`, title: 'METAR + decoded TAF - all sortie bases' },
@@ -832,9 +844,11 @@ async function buildBrief() {
   const depIcao = splitIds(val('sp-dep'))[0];
   const recIcao = splitIds(val('sp-rec'))[0];
   const alts = splitIds(val('sp-alt'));
-  const routes = splitIds(val('sp-ll'));
+  const arRoutes = splitIds(val('sp-ar'));
+  const llRoutes = splitIds(val('sp-ll'));
   const depT = zuluToIso('sp-dep');
   const recT = zuluToIso('sp-rec');
+  const arT = zuluToIso('sp-ar');
   const llT = zuluToIso('sp-ll');
 
   // Compose ordered stops (departure → recovery → alternates). A field with no
@@ -851,20 +865,23 @@ async function buildBrief() {
   const stopsParam = stops.map((s) => `${s.icao}@${s.when || ''}@${s.role}@${s.label}`).join('|');
 
   // Sortie timeline runs in parallel with the brief (same stops/routes/limits).
+  // Routes carry their own entry time (AR at A/R time, IR/VR at low-level time).
   const lim = readLimits();
   const tlParams = new URLSearchParams({ stops: stopsParam });
-  if (routes.length) { tlParams.set('routes', routes.join(',')); if (llT) tlParams.set('rwhen', llT); }
+  const toks = routeTokensParam();
+  if (toks) tlParams.set('routes', toks);
   if (lim.xwind) tlParams.set('xwind', lim.xwind);
   if (lim.tailwind) tlParams.set('tailwind', lim.tailwind);
   fetchTimeline(tlParams);
 
-  // Look up the low-level routes (at entry time) first so the brief's low-level
-  // banner can show their entry-time AHAS risk, and the map overlays them. The
-  // sortie's low-level field is the source of truth, so start from a clean set.
+  // Look up AR tracks at the A/R entry time and low-level routes at the
+  // low-level entry time — separate lookups so each group's per-leg winds and
+  // AHAS are evaluated at the time it's actually flown.
   activeRoutes = [];
   windsPoints = []; // climb-winds overlay is re-added when the user runs that tool
-  if (routes.length) await lookupRoutes(routes, llT, { scroll: false });
-  else renderRouteResults();
+  if (arRoutes.length) await lookupRoutes(arRoutes, arT, { scroll: false });
+  if (llRoutes.length) await lookupRoutes(llRoutes, llT, { scroll: false });
+  if (!arRoutes.length && !llRoutes.length) renderRouteResults();
   await runBrief({ ids, limits: lim, extra: { stops: stopsParam }, button: 'go' });
 }
 
@@ -1000,8 +1017,8 @@ function renderRibbon(data, routes, limits) {
   const el = $('sec-ribbon');
   if (!el) return;
   if (!data || !(data.airfields || []).length) { el.hidden = true; el.innerHTML = ''; return; }
-  const llWhen = zuluToIso('sp-ll') || null;
-  const phases = buildRibbonModel(data, routes, limits, llWhen);
+  const whens = { arWhen: zuluToIso('sp-ar') || null, llWhen: zuluToIso('sp-ll') || null };
+  const phases = buildRibbonModel(data, routes, limits, whens);
   if (!phases.length) { el.hidden = true; el.innerHTML = ''; return; }
 
   const STAT = { 'GO': 'rb-go', 'CAUTION': 'rb-caution', 'NO-GO': 'rb-nogo', 'NO-DATA': 'rb-na' };
@@ -1079,8 +1096,8 @@ function renderTimeline(tl) {
 
   const routeRows = (tl.routes || []).map((r) => {
     const cells = r.cells.map((c) =>
-      `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · birds ${esc(c.bird || 'UNAVAILABLE')}">${r.when && r.when.slice(0, 13) === c.t.slice(0, 13) ? '<span class="tl-mark">E</span>' : ''}</div>`).join('');
-    return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>AHAS</small></div>${cells}</div>`;
+      `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · AHAS bird risk ${esc(c.bird || 'UNAVAILABLE')}">${r.when && r.when.slice(0, 13) === c.t.slice(0, 13) ? '<span class="tl-mark" title="Route entry time">E</span>' : (c.bird ? `<span class="tl-bird">${esc(c.bird[0])}</span>` : '')}</div>`).join('');
+    return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>birds</small></div>${cells}</div>`;
   }).join('');
 
   const demo = tl.demo ? `<span class="tl-demo" title="${esc(tl.demoNote || 'Fixture data')}">${esc(tl.demo)} DEMO — fixture data, not live</span>` : '';
@@ -1089,10 +1106,18 @@ function renderTimeline(tl) {
       <span class="tl-range">${esc(zuluLocal(hours[0], { date: true }))} – ${esc(zuluLocal(hours[hours.length - 1]))}</span></div>
     <div class="tl-grid" style="--tlcols:${hours.length}">${head}${fieldRows}${routeRows}</div>
     <div class="tl-legend">
+      <span class="tl-leg-h">Cell color — that hour's call:</span>
       <span><i class="tl-sw tl-go"></i>GO</span><span><i class="tl-sw tl-caution"></i>CAUTION</span>
-      <span><i class="tl-sw tl-nogo"></i>NO-GO</span><span><i class="tl-sw tl-na"></i>UNAVAILABLE</span>
-      <span class="tl-note">field rows = METAR/TAF at each hour vs your limits · route rows = AHAS bird risk · D/R/A/E = phase times · tap a cell for detail</span>
+      <span><i class="tl-sw tl-nogo"></i>NO-GO</span><span><i class="tl-sw tl-na"></i>no data for that hour (nothing fabricated)</span>
     </div>
+    <div class="tl-legend">
+      <span class="tl-leg-h">Markers:</span>
+      <span><b class="tl-mark">D</b> Departure</span><span><b class="tl-mark">R</b> Recovery</span>
+      <span><b class="tl-mark">A</b> Alternate ETA</span><span><b class="tl-mark">E</b> Route entry</span>
+      <span><i class="tl-sw tl-nowleg"></i> outlined column = now</span>
+      <span>route rows: <b>L/M/S</b> = AHAS bird risk Low / Moderate / Severe</span>
+    </div>
+    <div class="tl-legend"><span class="tl-note">Each field row re-runs the wind/runway + ceiling-vis checks for every hour — from the current METAR near now, from the TAF period valid at that hour further out. Tap any cell for the full detail.</span></div>
     <div id="tl-detail" class="tl-detail"></div>`;
   el.hidden = false;
 }
@@ -1333,7 +1358,7 @@ let sortieCache = {};       // name -> { <input id>: value, ... }
 // absent keys are left untouched). Covers the sortie phases, limits, pattern
 // AGL, and the Route/Climb Winds tool.
 const SORTIE_FIELDS = [
-  'sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt',
+  'sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ar', 'sp-ar-d', 'sp-ar-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt',
   'xwind', 'tailwind', 'highda', 'agls',
   'winds-points', 'rof',
 ];
@@ -1405,6 +1430,20 @@ async function loadSelectedSortie() {
   // Some legacy saves stored the airfield list under `icaos`; map it to Departure.
   if (!(s['sp-dep'] || '').trim() && (s.icaos || '').trim()) {
     const dep = $('sp-dep'); if (dep) dep.value = splitIds(s.icaos)[0] || '';
+  }
+  // Migration: older saves kept AR tracks in the combined Low-Level/AR field.
+  // Move AR* ids into the (then-empty) A/R field, inheriting the LL time.
+  const arEl = $('sp-ar'), llEl = $('sp-ll');
+  if (arEl && llEl && !arEl.value.trim()) {
+    const llIds = splitIds(llEl.value);
+    const arIds = llIds.filter((id) => /^AR-?\d/.test(id));
+    if (arIds.length) {
+      arEl.value = arIds.join(' ');
+      llEl.value = llIds.filter((id) => !/^AR-?\d/.test(id)).join(' ');
+      const ad = $('sp-ar-d'), ah = $('sp-ar-hhmm'), ld = $('sp-ll-d'), lh = $('sp-ll-hhmm');
+      if (ad && !ad.value && ld) ad.value = ld.value;
+      if (ah && !ah.value && lh) ah.value = lh.value;
+    }
   }
   await buildBrief(); // evaluates each phase + overlays the low-level route(s)
   // The Route/Climb Winds input is restored; re-run it if it was populated so
@@ -1580,14 +1619,14 @@ window.addEventListener('afterprint', () => {
   updateQuickLinks();
   // Keep the toolbar links in sync with the departure field/time and the
   // low-level routes/entry time (AHAS + Build PDF include route bird-risk).
-  ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm'].forEach((id) => on(id, 'input', updateQuickLinks));
+  ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ar', 'sp-ar-d', 'sp-ar-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm'].forEach((id) => on(id, 'input', updateQuickLinks));
   on('go', 'click', buildBrief);
   on('sp-clear', 'click', () => {
-    ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+    ['sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ar', 'sp-ar-d', 'sp-ar-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
     prefillDatetimes(); // restore the time fields to "now"
   });
   // Enter in any phase field builds the brief.
-  ['sp-dep', 'sp-ll', 'sp-rec', 'sp-alt'].forEach((id) => on(id, 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); }));
+  ['sp-dep', 'sp-ar', 'sp-ll', 'sp-rec', 'sp-alt'].forEach((id) => on(id, 'keydown', (e) => { if (e.key === 'Enter') buildBrief(); }));
   on('rof-go', 'click', drawRouteOfFlight);
   on('rof-clear', 'click', clearRouteOfFlight);
   on('rof', 'keydown', (e) => { if (e.key === 'Enter') drawRouteOfFlight(); });
@@ -1600,7 +1639,12 @@ window.addEventListener('afterprint', () => {
   on('winds-go', 'click', getRouteWinds);
   on('winds-points', 'keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
   loadQuickChips();
-  buildBrief();
+  // No auto-brief on load: let the user set fields/dates/times first, then pull
+  // once on Build Brief — avoids a wasted live fan-out against the defaults.
+  const res = $('results');
+  if (res && !res.innerHTML.trim()) {
+    res.innerHTML = `<div class="empty">Set your fields and Zulu times above, then press <b>Build Brief</b> to pull live data.</div>`;
+  }
 }
 
 // Run init only once the DOM is ready, and never let a missing element abort it.

@@ -119,6 +119,18 @@ function parseStops(raw) {
   return stops.length ? stops : null;
 }
 
+// Parse route tokens "ID" or "ID@ISO" (comma/space separated). Each route can
+// carry ITS OWN entry time (AR tracks at the A/R time, IR/VR at the low-level
+// time); a bare id falls back to `rwhen` (legacy single-time param).
+function parseRouteTokens(raw, rwhen) {
+  const fallback = rwhen && !Number.isNaN(Date.parse(rwhen)) ? new Date(rwhen).toISOString() : null;
+  return (raw ?? '').split(/[\s,]+/).filter(Boolean).slice(0, 8).map((tok) => {
+    const [id, when] = tok.split('@');
+    const iso = when && !Number.isNaN(Date.parse(when)) ? new Date(when).toISOString() : fallback;
+    return { id: id.trim(), when: iso };
+  }).filter((r) => r.id);
+}
+
 // Parse the refcard `fields` param: pipe-separated "ICAO@ISO@Label" (time/label
 // optional). Falls back to a single { icao, when } when only ?icao= is given.
 function parseRefFields(raw, fallbackIcao, fallbackWhen) {
@@ -280,7 +292,7 @@ const server = createServer(async (req, res) => {
       if (!fields.length) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('provide ?fields= or ?icao='); return; }
       const rwhenRaw = url.searchParams.get('rwhen');
       const routeWhen = rwhenRaw && !Number.isNaN(Date.parse(rwhenRaw)) ? new Date(rwhenRaw).toISOString() : null;
-      const routes = (url.searchParams.get('routes') || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 8);
+      const routes = parseRouteTokens(url.searchParams.get('routes'), url.searchParams.get('rwhen'));
       const autoPrint = url.searchParams.get('print') === '1';
       try {
         const html = await buildRefCard(fields, only, autoPrint, routes, routeWhen);
@@ -346,9 +358,7 @@ const server = createServer(async (req, res) => {
       }
       const stops = parseStops(url.searchParams.get('stops') ?? '');
       if (!stops) { sendJson(res, 400, { error: 'provide ?stops=ICAO@ISO@ROLE@Label|... (or ?demo=caddo10)' }); return; }
-      const rwhen = url.searchParams.get('rwhen');
-      const routes = (url.searchParams.get('routes') ?? '').split(/[\s,]+/).filter(Boolean).slice(0, 8)
-        .map((id) => ({ id, when: rwhen && !Number.isNaN(Date.parse(rwhen)) ? new Date(rwhen).toISOString() : null }));
+      const routes = parseRouteTokens(url.searchParams.get('routes'), url.searchParams.get('rwhen'));
       const offline = url.searchParams.get('offline') === '1';
       sendJson(res, 200, await buildTimeline({ stops, routes, offline, limits: parseLimits(url) }));
       return;

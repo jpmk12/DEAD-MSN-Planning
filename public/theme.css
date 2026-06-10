@@ -375,6 +375,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .sphase-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 6px; white-space: nowrap; border: 1px solid; }
 .sphase-tag.dep { color: var(--go); border-color: rgba(63,185,80,0.5); background: rgba(63,185,80,0.1); }
 .sphase-tag.ll { color: #c77dff; border-color: rgba(199,125,255,0.5); background: rgba(199,125,255,0.1); }
+.sphase-tag.ar { color: #46c6a0; border-color: rgba(70,198,160,0.5); background: rgba(70,198,160,0.1); }
 .sphase-tag.rec { color: var(--accent); border-color: var(--accent-dim); background: rgba(55,182,195,0.1); }
 .sphase-tag.alt { color: var(--caution); border-color: rgba(210,153,34,0.5); background: rgba(210,153,34,0.1); }
 .sp-field { flex: 1; min-width: 130px; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--border-bright); border-radius: 8px; padding: 8px 10px; outline: none; }
@@ -475,9 +476,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .tl-nogo { background: rgba(248,81,73,0.5); border-color: rgba(248,81,73,0.65); }
 .tl-na { background: repeating-linear-gradient(135deg, var(--panel-2) 0 5px, var(--panel) 5px 10px); }
 .tl-mark { font-family: var(--mono); font-size: 10px; font-weight: 800; color: #0a0e14; background: var(--text); border-radius: 4px; padding: 0 4px; line-height: 15px; }
-.tl-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: var(--text-dim); }
+.tl-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--text-dim); }
 .tl-legend .tl-sw { display: inline-block; width: 13px; height: 13px; border-radius: 4px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
 .tl-legend .tl-note { color: var(--text-faint); }
+.tl-legend .tl-leg-h { font-weight: 700; color: var(--text-dim); }
+.tl-legend .tl-mark { margin-right: 4px; }
+.tl-sw.tl-nowleg { background: transparent; outline: 2px solid var(--accent); outline-offset: -2px; }
+.tl-bird { font-family: var(--mono); font-size: 10px; font-weight: 800; color: #0a0e14; opacity: 0.75; }
 .tl-detail { font-family: var(--mono); font-size: 12px; color: var(--text); margin-top: 8px; min-height: 0; }
 
 .map-section { margin-bottom: 22px; }

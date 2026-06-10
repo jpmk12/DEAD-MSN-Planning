@@ -60,8 +60,12 @@ export function routePhase(d, when, limits) {
   return { role: d.type || 'IR', id: d.id, when, source: 'AHAS+winds', status, chips, reason: null };
 }
 
-/** Ordered mission phases: departure → AR → low-level → recovery → alternate. */
-export function buildRibbonModel(data, routes, limits, llWhen) {
+/** Ordered mission phases: departure → AR → low-level → recovery → alternate.
+ *  `whens` = { arWhen, llWhen } — AR tracks and low-level routes are flown (and
+ *  evaluated) at their own entry times. A bare string is accepted as llWhen for
+ *  back-compat. */
+export function buildRibbonModel(data, routes, limits, whens) {
+  const w = typeof whens === 'string' || whens == null ? { arWhen: whens ?? null, llWhen: whens ?? null } : whens;
   const af = data.airfields || [];
   const byRole = (r) => af.filter((b) => (b.phase?.role || 'FIELD') === r);
   const ar = (routes || []).filter((d) => d.type === 'AR');
@@ -69,8 +73,8 @@ export function buildRibbonModel(data, routes, limits, llWhen) {
   return [
     ...byRole('DEPARTURE').map((b) => fieldPhase(b, limits)),
     ...byRole('FIELD').map((b) => fieldPhase(b, limits)),
-    ...ar.map((d) => routePhase(d, llWhen, limits)),
-    ...ll.map((d) => routePhase(d, llWhen, limits)),
+    ...ar.map((d) => routePhase(d, w.arWhen ?? null, limits)),
+    ...ll.map((d) => routePhase(d, w.llWhen ?? null, limits)),
     ...byRole('RECOVERY').map((b) => fieldPhase(b, limits)),
     ...byRole('ALTERNATE').map((b) => fieldPhase(b, limits)),
   ];

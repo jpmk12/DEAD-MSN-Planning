@@ -42,11 +42,14 @@ test('buildRibbonModel orders dep → AR → LL → recovery → alternate and c
     { id: 'AR197H', type: 'AR', birdRisk: { level: 'LOW' }, segments: [{ wind: { crosswindKt: 5 } }] },
     { id: 'IR-154', type: 'IR', birdRisk: { level: 'MODERATE' }, segments: [{ wind: { crosswindKt: 12 } }] },
   ];
-  const m = buildRibbonModel(data, routes, LIMITS, '2026-06-11T17:00:00Z');
+  const m = buildRibbonModel(data, routes, LIMITS, { arWhen: '2026-06-11T17:00:00Z', llWhen: '2026-06-11T19:00:00Z' });
   assert.deepEqual(m.map((p) => `${p.role}:${p.id}`), ['DEPARTURE:KLTS', 'AR:AR197H', 'IR:IR-154', 'RECOVERY:KLTS', 'ALTERNATE:KAMA']);
   // The decision: recovery NO-GO (38kt gust XW) while the alternate is GO.
   assert.equal(m.find((p) => p.role === 'RECOVERY').status, 'NO-GO');
   assert.equal(m.find((p) => p.role === 'ALTERNATE').status, 'GO');
+  // AR and LL phases carry their OWN entry times.
+  assert.equal(m.find((p) => p.id === 'AR197H').when, '2026-06-11T17:00:00Z');
+  assert.equal(m.find((p) => p.id === 'IR-154').when, '2026-06-11T19:00:00Z');
   // Far-future phases hide now-cast convective/SIGMET honestly.
   assert.ok(m[0].chips.some((c) => c.k === 'now-cast n/a'));
 });

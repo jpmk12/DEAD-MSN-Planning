@@ -221,12 +221,15 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     return { f, airport, wx, notamRes, ahas };
   }));
 
-  // Route AHAS once (shared low-level phase).
+  // Route AHAS, each route at ITS OWN entry time (AR tracks vs low-level routes
+  // are flown at different times). Entries may be "ID" strings (legacy, use
+  // routeWhen) or { id, when } objects.
+  const routeList = (routes || []).map((r) => (typeof r === 'string' ? { id: r, when: routeWhen } : { id: r.id, when: r.when ?? routeWhen }));
   const routeAhas = want('ahas')
-    ? await Promise.all(routes.map(async (id) => {
+    ? await Promise.all(routeList.map(async ({ id, when }) => {
         const type = ahasRouteType(id);
         if (!type || !ahasHasRoute(id)) return { id, ahas: null };
-        return { id, ahas: await ahas12Route(type, normRoute(id), routeWhen).catch(() => null) };
+        return { id, ahas: await ahas12Route(type, normRoute(id), when).catch(() => null) };
       }))
     : [];
 
@@ -257,7 +260,7 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
 <body>
   <header class="doc-head">
     <div class="doc-title">MISSION REFERENCE — ${esc(titleMap[only] || 'Reference')}</div>
-    <div class="doc-meta">${esc(fieldList)}${routeAhas.length ? ` · routes ${esc(routes.join(', '))}` : ''} · Generated ${esc(nowZ())}</div>
+    <div class="doc-meta">${esc(fieldList)}${routeAhas.length ? ` · routes ${esc(routeList.map((r) => r.id).join(', '))}` : ''} · Generated ${esc(nowZ())}</div>
   </header>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   ${body}
