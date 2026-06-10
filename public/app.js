@@ -432,6 +432,7 @@ function phaseBanner(brief) {
   const lead = (() => {
     const m = p.minutesAhead;
     if (m == null) return '';
+    if (m <= -60) { const h = Math.round(-m / 60); return `${h}h ago (past)`; }
     if (m <= 0) return 'now';
     const h = Math.floor(m / 60), mm = m % 60;
     return '+' + (h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}m`);
@@ -1330,12 +1331,16 @@ function updatePrintHead(data, ids, limits) {
   const src = `WX ${data.live.weather ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.live.notams ? 'LIVE' : 'UNAVAIL'}`;
   let takeoff = '';
   if (data.sortie) {
-    // Summarize the phase timeline (each phase at its own time).
-    const phases = data.airfields
-      .filter((b) => b.phase && b.phase.when && b.phase.role !== 'FIELD')
+    // Summarize the phases in mission order, each at its own time: departure →
+    // A/R (at its entry time) → low-level (at its) → recovery → alternates.
+    const fld = (role) => data.airfields.filter((b) => b.phase?.role === role && b.phase?.when)
       .map((b) => `${esc(b.phase.label)} ${esc(b.icao)} @ ${esc(zuluLocal(b.phase.when))}`);
-    const ll = activeRoutes.length ? [`Low-Level/AR ${activeRoutes.map((d) => esc(d.id)).join(', ')}`] : [];
-    const line = [...phases.slice(0, 1), ...ll, ...phases.slice(1)].join('  →  ');
+    const arWhen = zuluToIso('sp-ar'); const llWhen = zuluToIso('sp-ll');
+    const arIds = activeRoutes.filter((d) => d.type === 'AR').map((d) => esc(d.id));
+    const llIds = activeRoutes.filter((d) => d.type && d.type !== 'AR').map((d) => esc(d.id));
+    const ar = arIds.length ? [`A/R ${arIds.join(', ')}${arWhen ? ' @ ' + esc(zuluLocal(arWhen)) : ''}`] : [];
+    const ll = llIds.length ? [`Low-Level ${llIds.join(', ')}${llWhen ? ' @ ' + esc(zuluLocal(llWhen)) : ''}`] : [];
+    const line = [...fld('DEPARTURE'), ...ar, ...ll, ...fld('RECOVERY'), ...fld('ALTERNATE')].join('  →  ');
     takeoff = line ? `<div class="ph-meta">Sortie timeline: ${line} — each phase evaluated at its own time</div>` : '';
   } else if (data.targetTime) {
     takeoff = `<div class="ph-meta">Planned takeoff ${esc(zuluLocal(data.targetTime, { date: true }))} — winds &amp; AHAS tailored to this time</div>`;
