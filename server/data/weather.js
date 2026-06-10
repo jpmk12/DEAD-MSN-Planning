@@ -16,6 +16,11 @@ const FIXTURE_URL = new URL('../../data/fixtures/metar-sample.json', import.meta
 const WX_TTL_MS = 5 * 60 * 1000;
 const WX_MAX_STALE_MS = 30 * 60 * 1000;
 const wxCache = new Map(); // key -> { at, value }
+
+// Last failure reason from the live AWC fetch (e.g. "METAR: AWC 429 Too Many
+// Requests ..."), surfaced by /api/diag so an UNAVAILABLE has a visible cause.
+let lastWxError = null;
+export function lastWeatherError() { return lastWxError; }
 const wxKey = (icaos) => [...new Set(icaos.map((i) => i.toUpperCase()))].sort().join(',');
 
 async function loadFixtureObs(icaos) {
@@ -48,7 +53,7 @@ export async function loadWeather(icaos, offline) {
         const c = new AbortController();
         const t = setTimeout(() => c.abort(), ms);
         try { return await fetchMetars(icaos, c.signal); }
-        catch { /* retry once with a longer window */ }
+        catch (e) { lastWxError = `METAR: ${e && e.message ? e.message : e}`; }
         finally { clearTimeout(t); }
       }
       return [];
@@ -62,7 +67,7 @@ export async function loadWeather(icaos, offline) {
         const c = new AbortController();
         const t = setTimeout(() => c.abort(), 12000);
         try { return { ok: true, list: await fetchTafs(icaos, c.signal) }; }
-        catch { /* retry once */ }
+        catch (e) { lastWxError = `TAF: ${e && e.message ? e.message : e}`; }
         finally { clearTimeout(t); }
       }
       return { ok: false, list: [] };
@@ -80,6 +85,7 @@ export async function loadWeather(icaos, offline) {
       // TAF (e.g. KLTS) is "no TAF for this field", not "source unreachable".
       // Only when METAR is also unavailable do we mark TAF unreachable.
       const value = { obs, tafs, live: true, tafLive: taf.ok || obs.length > 0 };
+      lastWxError = null; // healthy again
       wxCache.set(key, { at: Date.now(), value });
       if (wxCache.size > 64) wxCache.delete(wxCache.keys().next().value);
       return value;
