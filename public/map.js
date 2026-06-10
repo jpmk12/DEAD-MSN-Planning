@@ -100,7 +100,7 @@ export function initMap(container, data) {
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.12)"></span> SIGMET &nbsp; <span class="lg-poly" style="border-color:#8a7bd8;background:rgba(138,123,216,.12)"></span> AIRMET</div>
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.18)"></span> Convective outlook (TSTM→HIGH)</div>
     <div class="lg-row"><span class="lg-line" style="background:#3fb950"></span> Low-level (IR/VR) &nbsp; <span class="lg-line" style="background:#4aa3df"></span> A/R track</div>
-    <div class="lg-row"><span class="lg-line" style="background:#f0b429"></span> Route of flight</div>
+    <div class="lg-row"><span class="lg-line" style="background:#f0b429"></span> Route of flight (connectors; A/R &amp; low-level portions take the colors above)</div>
     <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
 
   const times = document.createElement('div');
@@ -232,17 +232,36 @@ export function initMap(container, data) {
       }
     }
 
-    // Route of flight (user-entered) — gold polyline (2+ pts) + waypoint markers.
+    // Route of flight (user-entered) — segment colors carry the route portion's
+    // identity: A/R blue, low-level (IR/VR/SR) green, connectors gold. A segment
+    // is colored only when BOTH endpoints belong to the same route portion.
     const rofPts = routeOfFlight?.geometry?.points;
+    const rofKinds = routeOfFlight?.pointKinds || [];
     if (rofPts && rofPts.length >= 2) {
-      const d = rofPts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', '#f0b429');
-      path.setAttribute('stroke-width', '3');
-      path.setAttribute('stroke-linejoin', 'round');
-      overlay.appendChild(path);
+      const segColor = (a, b) => {
+        if (a && a === b) {
+          if (a === 'AR') return '#4aa3df';
+          if (a === 'IR' || a === 'VR' || a === 'SR') return '#3fb950';
+        }
+        return '#f0b429';
+      };
+      // Merge consecutive same-color segments into one path for clean joins.
+      let i = 0;
+      while (i < rofPts.length - 1) {
+        const col = segColor(rofKinds[i], rofKinds[i + 1]);
+        let j = i + 1;
+        while (j < rofPts.length - 1 && segColor(rofKinds[j], rofKinds[j + 1]) === col) j++;
+        const d = rofPts.slice(i, j + 1).map(([la, lo], k) => { const p = scr(la, lo); return `${k ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', col);
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('stroke-linecap', 'round');
+        overlay.appendChild(path);
+        i = j;
+      }
     }
     // Markers/labels draw even for a single point (no line to connect).
     for (const wp of (routeOfFlight?.points || [])) {

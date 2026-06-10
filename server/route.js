@@ -34,7 +34,7 @@ async function resolveMtr(tok, offline) {
   }
   if (!m?.geometry?.points?.length) return null;
   const r = (entry && exit) ? sliceRoute(m, entry, exit) : m;
-  return { id: r.id, points: r.geometry.points };
+  return { id: r.id, points: r.geometry.points, type: m.type || null };
 }
 
 const CONNECTORS = new Set(['DCT', 'DIRECT', '.', '..']);
@@ -111,7 +111,10 @@ export async function buildRoute(routeStr, offline, near) {
     if (MIL_ROUTE.test(tok)) {
       const mtr = await resolveMtr(tok, offline);
       if (mtr) {
-        mtr.points.forEach((pt, idx) => entries.push({ id: idx === 0 ? mtr.id : '', kind: 'mtr', lat: pt[0], lon: pt[1], vertexOnly: idx !== 0 }));
+        // Tag each vertex with the route TYPE (AR / IR / VR / SR) so the map can
+        // color the A/R portion blue and the low-level portion green.
+        const milType = mtr.type || (tok.match(/^(AR|IR|VR|SR)/) || [])[1] || 'mtr';
+        mtr.points.forEach((pt, idx) => entries.push({ id: idx === 0 ? mtr.id : '', kind: milType, lat: pt[0], lon: pt[1], vertexOnly: idx !== 0 }));
       } else {
         entries.push({ unresolved: true, raw: tok, note: 'MTR/AR route not found (not in bundled routes)' });
       }
@@ -186,6 +189,9 @@ export async function buildRoute(routeStr, offline, near) {
   return {
     points: labeled.map((p) => ({ id: p.id, kind: p.kind, lat: p.lat, lon: p.lon })),
     geometry: { kind: 'line', points: allPts.map((p) => [p.lat, p.lon]) },
+    // Per-vertex kind aligned to geometry.points, so the map colors the A/R
+    // portion blue and the low-level (IR/VR/SR) portion green.
+    pointKinds: allPts.map((p) => p.kind || null),
     legs,
     totalNm: Math.round(totalNm),
     unresolved,

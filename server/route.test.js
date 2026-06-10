@@ -51,3 +51,15 @@ test('buildRoute expands a SID anchored to its departure airport', async () => {
   assert.ok(ids.includes('KCHS') && ids.includes('GIPPL'), 'airport + transition fix drawn');
   assert.equal(r.unresolved.length, 0);
 });
+
+test('buildRoute tags MTR/AR vertices with their type for map coloring', async () => {
+  const ir = await buildRoute('IR-154', true);
+  assert.ok(ir.pointKinds.length === ir.geometry.points.length);
+  assert.ok(ir.pointKinds.every((k) => k === 'IR'), 'low-level vertices kind IR');
+  const ar = await buildRoute('AR312', true); // -> AR312H
+  assert.ok(ar.pointKinds.every((k) => k === 'AR'), 'A/R vertices kind AR');
+  // A mixed route: fix connectors stay null/non-AR/IR, AR portion is AR.
+  const mix = await buildRoute('FLOYD AR312 FLOYD', true, { lat: 34, lon: -100 });
+  assert.ok(mix.pointKinds.includes('AR'));
+  assert.ok(mix.pointKinds.some((k) => k !== 'AR'), 'connector points are not AR');
+});
