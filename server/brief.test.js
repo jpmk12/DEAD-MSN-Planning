@@ -39,3 +39,25 @@ test('phaseForecast returns null when the TAF cannot speak to the time', () => {
   const d = decodeTaf('KLTS 111120Z 1112/1218 24012KT P6SM SCT040');
   assert.equal(phaseForecast(APT, d, 'bad-date', DEFAULT_LIMITS), null);
 });
+
+import { rankAlternates } from './brief.js';
+
+test('rankAlternates orders by status, then worst-case crosswind, then category', () => {
+  const alt = (icao, status, xw, cat, src = 'TAF@ETA') => ({
+    uid: icao, icao, status, statusSource: src,
+    forecast: src === 'TAF@ETA' ? { active: { ident: 'X', crosswindKt: xw, gustCrosswindKt: xw }, flightCategory: cat } : null,
+    analysis: src === 'METAR' ? { active: { ident: 'X', crosswindKt: xw } } : null,
+    currentConditions: { flightCategory: cat }, birdRisk: { level: 'LOW' },
+    phase: { role: 'ALTERNATE', when: '2026-06-11T20:15:00Z' }, statusReasons: [],
+  });
+  const r = rankAlternates([
+    alt('KAAA', 'CAUTION', 18, 'MVFR'),
+    alt('KBBB', 'GO', 12, 'VFR'),
+    alt('KCCC', 'GO', 4, 'VFR'),
+    { ...alt('KDEP', 'GO', 1, 'VFR'), phase: { role: 'DEPARTURE' } }, // not an alternate
+  ], DEFAULT_LIMITS);
+  assert.deepEqual(r.map((x) => x.icao), ['KCCC', 'KBBB', 'KAAA']);
+  assert.equal(r[0].rank, 1);
+  assert.equal(r[0].crosswindKt, 4);
+  assert.ok(r[2].reasons.length >= 1);
+});

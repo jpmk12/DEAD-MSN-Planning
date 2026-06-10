@@ -17,6 +17,7 @@ import { decodeTaf, tafAt, flightCategory, parseVisSm, parseCeilingFt } from './
 import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
+import { watchTaf } from './data/tafwatch.js';
 
 // Default pattern altitudes (ft AGL) reported in the wind section; configurable
 // per request. Each is shown with its MSL (field elev + AGL).
@@ -136,6 +137,38 @@ function statusFromWarnings(warnings, hasClosure, alert) {
   if (warnings.some((w) => /exceeds/.test(w))) return 'NO-GO';
   if (warnings.length > 0 || hasClosure || alert) return 'CAUTION';
   return 'GO';
+}
+
+const STATUS_RANK = { 'GO': 0, 'CAUTION': 1, 'NO-GO': 2, 'NO-DATA': 3 };
+const CAT_RANK = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
+
+/**
+ * Rank ALTERNATE stops by their forecast at ETA — status first, then worst-case
+ * (gust) crosswind, then flight category. Each entry carries the numbers that
+ * drove the ranking so the UI can explain it. Pure (tested).
+ */
+export function rankAlternates(airfields, limits) {
+  const alts = (airfields || []).filter((b) => b.phase?.role === 'ALTERNATE');
+  if (alts.length < 1) return [];
+  const keyed = alts.map((b) => {
+    const useFc = b.statusSource === 'TAF@ETA' && b.forecast;
+    const active = useFc ? b.forecast?.active : b.analysis?.active;
+    const xw = active ? Math.round(active.gustCrosswindKt ?? active.crosswindKt) : null;
+    const cat = (useFc ? b.forecast?.flightCategory : null) ?? b.currentConditions?.flightCategory ?? null;
+    const reasons = [];
+    if (xw != null) reasons.push(`XW ${xw} kt${xw >= (limits?.crosswindKt ?? 30) ? ' — exceeds limit' : ''}`);
+    if (cat) reasons.push(cat);
+    if (b.birdRisk?.level && b.birdRisk.level !== 'LOW') reasons.push(`birds ${b.birdRisk.level}`);
+    if ((b.statusReasons || []).length) reasons.push(b.statusReasons[0]);
+    return {
+      uid: b.uid, icao: b.icao, status: b.status, source: b.statusSource ?? 'METAR',
+      when: b.phase?.when ?? null, crosswindKt: xw, flightCategory: cat,
+      reasons: reasons.slice(0, 3),
+      _k: [STATUS_RANK[b.status] ?? 3, xw ?? 999, CAT_RANK[cat] ?? 2.5],
+    };
+  });
+  keyed.sort((a, b) => a._k[0] - b._k[0] || a._k[1] - b._k[1] || a._k[2] - b._k[2]);
+  return keyed.map(({ _k, ...rest }, i) => ({ rank: i + 1, ...rest }));
 }
 
 /** Extract closed runway idents from NOTAMs, e.g. "RWY 15/33 CLSD" -> [15, 33]. */
@@ -426,6 +459,25 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     });
   }
 
+  // Alternates ranked by their forecast at ETA (status, then worst-case
+  // crosswind, then flight category) — "which alternate do I plan?".
+  const alternates = rankAlternates(airfields, limits);
+
+  // TAF degradation watch: did an amended TAF push any briefed phase toward
+  // CAUTION/NO-GO since the last brief? Compared AT each phase's time. Skipped
+  // offline (tests) so fixture runs don't accumulate watch state.
+  const tafChanges = [];
+  if (!offline) {
+    for (const icao of fields) {
+      const raw = tafs.get(icao);
+      if (!raw) continue;
+      const whens = stopList.filter((s) => s.icao === icao).map((s) => s.when);
+      for (const ch of watchTaf(icao, raw, whens)) {
+        tafChanges.push({ icao, when: ch.when, notes: ch.notes });
+      }
+    }
+  }
+
   // The map only needs geometry around the briefed fields. Live nationwide feeds
   // (e.g. ~1500 SUA areas) would otherwise bloat the response and the overlay,
   // so trim every map layer to within MAP_AIRSPACE_NM of any briefed field
@@ -469,5 +521,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     convective: nearAnyField(convResult.convective),
     mtrs: nearAnyField(mtrResult.mtrs).map((m) => ({ ...m, birdRisk: mtrLevel(m.id) })),
     airfields,
+    alternates,
+    tafChanges,
   };
 }

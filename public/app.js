@@ -475,7 +475,7 @@ function forecastBlock(brief) {
     ${validity}${caveatHtml}${warnHtml}</div>`;
 }
 
-function card(brief, limits) {
+function card(brief, limits, altRank) {
   if (!brief.found) {
     return `<div class="missing-card" data-uid="${esc(brief.uid || brief.icao)}"><span class="icao">${esc(brief.icao)}</span> — not in the reference dataset yet.
       ${phaseBanner(brief)}<div style="margin-top:6px;font-size:12px">Add it via NASR/OpenAIP ingest, or pick a bundled field.</div></div>`;
@@ -519,8 +519,10 @@ function card(brief, limits) {
     : '';
   const roleTag = PHASE_TAG[brief.phase?.role]
     ? `<span class="role-tag role-${esc(brief.phase.role.toLowerCase())}">${esc(PHASE_TAG[brief.phase.role])}</span>` : '';
+  const rankBadge = altRank
+    ? `<span class="alt-rank-badge ${altRank === 1 ? 'best' : ''}" title="Alternate ranking by forecast at ETA (status, then crosswind, then category)">${altRank === 1 ? '★ ' : ''}ALT #${altRank}</span>` : '';
   return `<div class="card" data-icao="${esc(ap.icao)}" data-uid="${esc(brief.uid || ap.icao)}">
-    <div class="head">${roleTag}<div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
+    <div class="head">${roleTag}${rankBadge}<div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
       <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}" ${tipOf(statusTip(brief))}>${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
     <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
@@ -657,9 +659,33 @@ const PHASE_GROUP = { DEPARTURE: '① Departure', RECOVERY: '③ Recovery', ALTE
 // departure-only brief falls back to a flat grid.
 // Render the airfield cards, split so the Departure card(s) sit directly under
 // the map (with the Climb Winds tool + route cards beneath), and Recovery/
+// "TAF amended and it got worse" banner — only shows when a NEWER TAF degraded
+// a briefed phase since the previous brief (server-side watch).
+function degradeBanner(data) {
+  const ch = data.tafChanges || [];
+  if (!ch.length) return '';
+  const rows = ch.map((c) =>
+    `<div class="warn-item crit"><span class="ico">⚠</span><span><b>TAF AMENDED — ${esc(c.icao)}</b> at ${esc(zuluLocal(c.when, { date: true }))}: ${esc(c.notes.join('; '))}. Re-check this phase.</span></div>`).join('');
+  return `<div class="degrade-banner">${rows}</div>`;
+}
+
+// Ranked alternates strip (forecast at ETA): which alternate do I plan?
+function altRankStrip(data) {
+  const alts = data.alternates || [];
+  if (alts.length < 2) return ''; // ranking only means something with options
+  const item = (a) => {
+    const cls = a.status === 'NO-GO' ? 'nogo' : a.status === 'CAUTION' ? 'caution' : 'go';
+    const bits = [a.status, a.crosswindKt != null ? `XW ${a.crosswindKt}` : null, a.flightCategory].filter(Boolean).join(' · ');
+    return `<span class="alt-rank ${cls}" title="${esc((a.reasons || []).join(' · ') || bits)} (${esc(a.source)})">#${a.rank} ${esc(a.icao)} <small>${esc(bits)}</small></span>`;
+  };
+  return `<div class="alt-rank-strip"><span class="alt-rank-lbl">Alternates at ETA (best first):</span>${alts.map(item).join('')}</div>`;
+}
+
 // Alternates go in the lower container. Returns { dep, rest } HTML.
 function renderAirfields(data, limits) {
-  if (!data.sortie) return { dep: `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`, rest: '' };
+  if (!data.sortie) return { dep: degradeBanner(data) + `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`, rest: '' };
+  // Rank badge for alternate cards (#1 = plan this one).
+  const rankByUid = new Map((data.alternates || []).map((a) => [a.uid, a.rank]));
   const groups = [];
   for (const b of data.airfields) {
     const role = b.phase?.role || 'FIELD';
@@ -668,10 +694,11 @@ function renderAirfields(data, limits) {
     g.items.push(b);
   }
   const groupHtml = (g) => `<div class="phase-group"><div class="phase-group-h">${esc(PHASE_GROUP[g.role] || PHASE_GROUP.FIELD)}</div>
-      <div class="grid">${g.items.map((b) => card(b, limits)).join('')}</div></div>`;
+      ${g.role === 'ALTERNATE' ? altRankStrip(data) : ''}
+      <div class="grid">${g.items.map((b) => card(b, limits, rankByUid.get(b.uid))).join('')}</div></div>`;
   const isDep = (g) => g.role === 'DEPARTURE' || g.role === 'FIELD';
   return {
-    dep: groups.filter(isDep).map(groupHtml).join(''),
+    dep: degradeBanner(data) + groups.filter(isDep).map(groupHtml).join(''),
     rest: groups.filter((g) => !isDep(g)).map(groupHtml).join(''),
   };
 }
