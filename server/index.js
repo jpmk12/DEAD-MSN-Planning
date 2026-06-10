@@ -417,7 +417,7 @@ const server = createServer(async (req, res) => {
           ? Object.fromEntries(Object.entries(b.diag.timings).sort((a, c) => c[1] - a[1]))
           : null;
         out.sources = {
-          metar: { live: b.live.weather, sample: (af.analysis?.observation?.rawText || '').slice(0, 90), error: b.live.weather ? null : lastWeatherError() },
+          metar: { live: b.live.weather, via: b.wxSource ?? null, sample: (af.analysis?.observation?.rawText || '').slice(0, 90), error: b.live.weather ? null : lastWeatherError() },
           taf: { live: b.live.taf, sample: (af.taf || '').slice(0, 90) },
           notams: { live: b.live.notams, source: b.notamSource, count: af.notams?.length ?? 0, sample: (af.notams?.[0]?.text || '').slice(0, 120) },
           sua: { live: b.live.sua, count: b.airspace?.sua?.length ?? 0 },

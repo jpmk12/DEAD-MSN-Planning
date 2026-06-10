@@ -4,6 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { fetchMetars, fetchTafs, mapAwcMetar } from './awc.js';
+import { fetchTgftpWeather } from './tgftp.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/metar-sample.json', import.meta.url);
 
@@ -92,6 +93,21 @@ export async function loadWeather(icaos, offline) {
     }
   } catch {
     // unavailable — fall through
+  }
+  // AWC failed (e.g. per-IP throttling returning 200-with-empty-body). Fall back
+  // to NOAA TGFTP station files — independent NWS infrastructure, raw text we
+  // parse ourselves. Still real, current data: live=true with the source noted.
+  try {
+    const fb = await fetchTgftpWeather(icaos);
+    if (fb.obs.length > 0) {
+      console.log(`[wx] AWC unavailable (${lastWxError || 'unknown'}) — served ${fb.obs.length} METAR(s) via NOAA TGFTP fallback`);
+      const value = { obs: fb.obs, tafs: fb.tafs, live: true, tafLive: true, source: 'NOAA-TGFTP' };
+      wxCache.set(key, { at: Date.now(), value });
+      if (wxCache.size > 64) wxCache.delete(wxCache.keys().next().value);
+      return value;
+    }
+  } catch {
+    // fall through
   }
   // Refresh failed: serve the last good result if it's recent, else UNAVAILABLE.
   if (hit && Date.now() - hit.at < WX_MAX_STALE_MS) return hit.value;

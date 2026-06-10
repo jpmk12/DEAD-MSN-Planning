@@ -32,7 +32,13 @@ export const USER_AGENT = 'C17MissionPlanner/1.0 (mission planning; contact: ops
 async function getJson(url, signal) {
   const res = await fetch(url, { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`AWC ${res.status} ${res.statusText} for ${url}`);
-  return res.json();
+  // AWC sometimes returns 200 with an EMPTY/truncated body (typically per-IP
+  // throttling on shared egress). Name that case explicitly so diag shows the
+  // real cause instead of a bare JSON parse error.
+  const text = (await res.text()).trim();
+  if (!text) throw new Error('AWC 200 but EMPTY body (likely per-IP throttling)');
+  try { return JSON.parse(text); }
+  catch { throw new Error(`AWC 200 but invalid JSON (${text.length}B, likely throttling)`); }
 }
 
 export async function fetchMetars(icaos, signal) {

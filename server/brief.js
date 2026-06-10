@@ -458,6 +458,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       ahas: ahasRes.live,
     },
     limits,
+    wxSource: wxRes.source ?? (wxRes.live ? 'AWC' : null),
     notamSource: notamResult.source ?? null,
     notamSourceNote: notamResult.sourceNote ?? null,
     knownAirfields: await knownAirports(),
