@@ -119,7 +119,25 @@ test('VRB wind => no active runway + discretion warning', () => {
   assert.equal(a.windIndeterminate, true);
   assert.ok(a.warnings.some((w) => w.includes('discretion')));
 });
+test('VRB with strong gust warns of possible crosswind exceeding the limit (R1)', () => {
+  const a = analyzeAirfield(calm, { icao: 'VRBG', wind: { dirTrue: 'VRB', speedKt: 15, gustKt: 28 } }, LIMITS);
+  assert.equal(a.windIndeterminate, true);
+  assert.equal(a.active, null);
+  const w = a.warnings.find((x) => /Variable wind/.test(x));
+  assert.ok(w, 'variable-wind warning present');
+  assert.ok(/up to 28 kt/.test(w), 'uses worst-case gust magnitude');
+  assert.ok(/exceeds limit/.test(w), 'flagged as exceeding the crosswind limit');
+});
+
+test('VRB below the limit cautions but does not claim an exceedance', () => {
+  const a = analyzeAirfield(calm, { icao: 'VRBL', wind: { dirTrue: 'VRB', speedKt: 8 } }, LIMITS);
+  const w = a.warnings.find((x) => /Variable wind/.test(x));
+  assert.ok(w && /up to 8 kt/.test(w));
+  assert.ok(!/exceeds limit/.test(w));
+});
+
 test('calm (00000KT) is indeterminate', () => {
   const a = analyzeAirfield(calm, { icao: 'CALM', wind: { dirTrue: null, speedKt: 0 } }, LIMITS);
   assert.equal(a.active, null);
+  assert.ok(a.warnings.some((w) => /discretion/.test(w)));
 });

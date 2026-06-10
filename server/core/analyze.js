@@ -73,7 +73,27 @@ export function analyzeAirfield(airport, obs, limits) {
 
   const warnings = [];
   if (windIndeterminate) {
-    warnings.push('Wind is calm or variable — runway selection is at pilot discretion.');
+    // A VARIABLE wind with real speed can put its full magnitude as crosswind on
+    // ANY runway — zeroing the component (correct for runway selection) must not
+    // read as "no crosswind". Warn with the worst-case (gust) magnitude, and call
+    // it out as exceeding the limit so the status reflects the real hazard.
+    const sp = typeof obs.wind.speedKt === 'number' ? obs.wind.speedKt : 0;
+    const gust = typeof obs.wind.gustKt === 'number' ? obs.wind.gustKt : 0;
+    const maxKt = Math.max(sp, gust);
+    if (obs.wind.dirTrue === 'VRB' && maxKt > 0) {
+      const gustTxt = gust > sp ? ` gusting ${Math.round(gust)}` : '';
+      if (maxKt > limits.crosswindKt) {
+        warnings.push(
+          `Variable wind ${Math.round(sp)}${gustTxt} kt — crosswind up to ${Math.round(maxKt)} kt possible on any runway, exceeds limit (${limits.crosswindKt} kt).`,
+        );
+      } else {
+        warnings.push(
+          `Variable wind ${Math.round(sp)}${gustTxt} kt — crosswind up to ${Math.round(maxKt)} kt possible on any runway; runway selection at pilot discretion.`,
+        );
+      }
+    } else {
+      warnings.push('Wind is calm or variable — runway selection is at pilot discretion.');
+    }
   } else if (active) {
     if (active.crosswindKt > limits.crosswindKt) {
       warnings.push(

@@ -38,14 +38,24 @@ const VARS = [
   ...PRESSURE_LEVELS.flatMap((l) => [`wind_speed_${l.key}`, `wind_direction_${l.key}`]),
 ];
 
-export function buildUrl(lat, lon) {
+/** Open-Meteo forecast_days to request so the window reaches the target time
+ *  (today + enough days), capped at 3. Defaults to 1 when no/invalid target. */
+export function forecastDaysFor(targetIso) {
+  const t = Date.parse(targetIso);
+  if (!Number.isFinite(t)) return 1;
+  const dayMs = 86400000; // calendar (UTC) days from today to the target, inclusive
+  const days = Math.floor(t / dayMs) - Math.floor(Date.now() / dayMs) + 1;
+  return Math.min(3, Math.max(1, days));
+}
+
+export function buildUrl(lat, lon, targetIso) {
   const p = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
     hourly: VARS.join(','),
     wind_speed_unit: 'kn',
     timezone: 'GMT',
-    forecast_days: '1',
+    forecast_days: String(forecastDaysFor(targetIso)),
   });
   return `https://api.open-meteo.com/v1/forecast?${p.toString()}`;
 }
@@ -124,7 +134,7 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
   let live = false;
   if (!offline && lat != null && lon != null) {
     try {
-      const res = await fetch(buildUrl(lat, lon), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
+      const res = await fetch(buildUrl(lat, lon, targetIso), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
       if (res.ok) { json = await res.json(); live = true; }
     } catch {
       /* fall through to fixture */
@@ -132,10 +142,25 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
   }
   // offline=true → sample (tests); production failure → empty (UNAVAILABLE).
   if (!json) {
-    if (!offline) return { profile: [], time: null, live: false };
+    if (!offline) return { profile: [], time: null, live: false, clamped: false, requested: targetIso ?? null };
     json = await loadFixture();
   }
   const times = json?.hourly?.time ?? [];
-  const idx = findHourIndex(times, targetIso ?? new Date().toISOString());
-  return { profile: parseProfile(json, idx, elevFt ?? 0), time: times[idx] ? times[idx] + 'Z' : null, live };
+  const want = targetIso ?? new Date().toISOString();
+  const idx = findHourIndex(times, want);
+  // Honesty guard (R2): if the requested time falls outside the forecast window
+  // (e.g. a stop further out than coverage), the selected sample is the window
+  // EDGE, not the real time — flag it so the UI never shows it as the ETA wind.
+  const target = Date.parse(want);
+  const lastT = times.length ? Date.parse(times[times.length - 1] + 'Z') : NaN;
+  const firstT = times.length ? Date.parse(times[0] + 'Z') : NaN;
+  const clamped = Number.isFinite(target) && Number.isFinite(lastT)
+    && (target > lastT + 3600000 || target < firstT - 3600000);
+  return {
+    profile: parseProfile(json, idx, elevFt ?? 0),
+    time: times[idx] ? times[idx] + 'Z' : null,
+    live,
+    clamped,
+    requested: targetIso ?? null,
+  };
 }

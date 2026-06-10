@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findHourIndex, parseProfile, nearestLevel, interpolateWind, buildUrl } from './windsaloft.js';
+import { findHourIndex, parseProfile, nearestLevel, interpolateWind, buildUrl, forecastDaysFor, fetchWindsAloft } from './windsaloft.js';
 
 const sample = {
   hourly: {
@@ -23,6 +23,27 @@ test('buildUrl requests knots and the expected levels', () => {
   assert.match(u, /wind_speed_unit=kn/);
   assert.match(u, /wind_speed_925hPa/);
   assert.match(u, /latitude=34.9/);
+});
+
+test('forecastDaysFor sizes the window to reach the target (cap 3) (R2)', () => {
+  const now = Date.now();
+  assert.equal(forecastDaysFor(undefined), 1);
+  assert.equal(forecastDaysFor('not-a-date'), 1);
+  assert.equal(forecastDaysFor(new Date(now).toISOString()), 1); // today
+  assert.ok(forecastDaysFor(new Date(now + 25 * 3600000).toISOString()) >= 2); // next calendar day(s)
+  assert.equal(forecastDaysFor(new Date(now + 10 * 86400000).toISOString()), 3); // capped
+  assert.match(buildUrl(34, -99, new Date(now + 25 * 3600000).toISOString()), /forecast_days=[23]/);
+});
+
+test('fetchWindsAloft flags a target beyond the forecast window as clamped (R2)', async () => {
+  // offline uses the bundled sample (2026-06-04 15-17Z). A target inside that
+  // window is not clamped; one far outside is, so the UI never shows the edge
+  // sample as the ETA wind.
+  const inWindow = await fetchWindsAloft(34.9, -117.9, 2300, true, '2026-06-04T16:00:00Z');
+  assert.equal(inWindow.clamped, false);
+  const beyond = await fetchWindsAloft(34.9, -117.9, 2300, true, '2999-01-01T00:00:00Z');
+  assert.equal(beyond.clamped, true);
+  assert.equal(beyond.requested, '2999-01-01T00:00:00Z');
 });
 
 test('findHourIndex selects the hour at/just before target', () => {

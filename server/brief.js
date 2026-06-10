@@ -40,6 +40,18 @@ const MTR_THRESHOLD_NM = 60;
 const FUTURE_MIN = 90;
 const CURRENT_ONLY_MIN = 180;
 
+/** Is an airspace item (TFR/SUA) scheduled active at the stop's ETA? Items with
+ *  no effective window are assumed active (we can't rule them out). */
+function activeAt(item, whenIso) {
+  const start = item.effectiveStart ? Date.parse(item.effectiveStart) : NaN;
+  const end = item.effectiveEnd ? Date.parse(item.effectiveEnd) : NaN;
+  const t = whenIso ? Date.parse(whenIso) : Date.now();
+  if (!Number.isFinite(t)) return true;
+  if (Number.isFinite(start) && t < start) return false; // not yet active at ETA
+  if (Number.isFinite(end) && t > end) return false; // expired by ETA
+  return true;
+}
+
 /** Classify a stop time relative to now for the data-horizon logic. */
 function phaseHorizon(whenIso, nowMs) {
   if (!whenIso) return { future: false, minutesAhead: 0, hideCurrentOnly: false };
@@ -275,7 +287,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     // current-only weather alerts (SIGMET/convective now-casts) are skipped for
     // far-future phases, where they aren't representative (they're hidden).
     const alertReasons = [];
-    if (tfrs.some((t) => t.distanceNm === 0)) alertReasons.push('Inside an active TFR');
+    if (tfrs.some((t) => t.distanceNm === 0 && activeAt(t, stop.when))) alertReasons.push('Inside a TFR active at your ETA');
     if (sua.some((s) => s.distanceNm === 0 && s.status === 'active' && s.type === 'RESTRICTED')) alertReasons.push('Inside active Restricted airspace');
     if (raim.status === 'PREDICTED OUTAGE') alertReasons.push('Predicted GPS/RAIM outage');
     if (birdRisk?.level === 'SEVERE') alertReasons.push('SEVERE bird risk (AHAS)');

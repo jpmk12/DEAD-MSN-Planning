@@ -220,8 +220,12 @@ function windsAloftSection(brief) {
         <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt</div></div></div>`;
     })
     .join('');
-  const t = wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(zuluLocal(wa.time))} · pattern/departure band</div>` : '';
-  return `${t}<div class="notams">${rows}</div>`;
+  // Honesty (R2): if the requested phase time is beyond the forecast window, the
+  // shown sample is the window edge — say so plainly, don't imply it's the ETA wind.
+  const clamp = wa.clamped
+    ? `<div class="when" style="margin-bottom:6px;color:var(--warn,#d29922)">⚠ Beyond winds-aloft forecast horizon — showing the latest available (${esc(zuluLocal(wa.time))}), NOT your phase time. Verify with an official source.</div>`
+    : (wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(zuluLocal(wa.time))} · pattern/departure band</div>` : '');
+  return `${clamp}<div class="notams">${rows}</div>`;
 }
 
 const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };
