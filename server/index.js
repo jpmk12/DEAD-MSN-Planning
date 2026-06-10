@@ -409,6 +409,10 @@ const server = createServer(async (req, res) => {
         const af = b.airfields?.[0] || {};
         out.notamSource = b.notamSource;
         out.live = b.live;
+        // Per-source latency (ms) for this brief — the slowest live feed first.
+        out.timings = b.diag?.timings
+          ? Object.fromEntries(Object.entries(b.diag.timings).sort((a, c) => c[1] - a[1]))
+          : null;
         out.sources = {
           metar: { live: b.live.weather, sample: (af.analysis?.observation?.rawText || '').slice(0, 90) },
           taf: { live: b.live.taf, sample: (af.taf || '').slice(0, 90) },

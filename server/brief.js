@@ -78,6 +78,15 @@ function deriveStatus(analysis, notams, airspaceAlert) {
 
 export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null) {
   const nowMs = Date.now();
+  const startPerf = performance.now();
+  // Per-source wall-clock timing (ms), so /api/diag and the [timing] log can show
+  // which live feed is slow on the real host — the fan-out is parallel, so the
+  // brief's latency is the slowest single source, and this names it.
+  const timings = {};
+  const timed = (name, p) => {
+    const t0 = performance.now();
+    return p.finally(() => { timings[name] = Math.round(performance.now() - t0); });
+  };
   const normWhen = (w) => (w && !Number.isNaN(Date.parse(w)) ? new Date(w).toISOString() : null);
   // Optional planned takeoff time. When set, time-sensitive layers (winds aloft,
   // AHAS bird risk) are tailored to it instead of "now".
@@ -129,14 +138,14 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   // they need (route AHAS on the bundled MTR set; nothing else waits on the slow
   // feeds), and birds/winds run alongside the rest instead of stacking after —
   // so total time is the slowest single source, not their sum.
-  const weatherP = loadWeather(fields, offline);
-  const notamsP = fetchNotams(fields, offline);
-  const tfrP = fetchTfrs(offline);
-  const suaP = fetchSua(offline, undefined, airspaceBbox);
-  const sigmetP = fetchAirSigmets(offline);
-  const pirepP = fetchPireps(offline, pirepBbox);
-  const convP = fetchConvective(offline);
-  const mtrP = fetchMtrs(offline);
+  const weatherP = timed('weather', loadWeather(fields, offline));
+  const notamsP = timed('notams', fetchNotams(fields, offline));
+  const tfrP = timed('tfr', fetchTfrs(offline));
+  const suaP = timed('sua', fetchSua(offline, undefined, airspaceBbox));
+  const sigmetP = timed('sigmet', fetchAirSigmets(offline));
+  const pirepP = timed('pirep', fetchPireps(offline, pirepBbox));
+  const convP = timed('convective', fetchConvective(offline));
+  const mtrP = timed('mtr', fetchMtrs(offline));
 
   // AHAS airfield bird risk per stop time. Fields sharing a time are fetched
   // together; an out-and-back field gets separate departure/recovery risk.
@@ -147,7 +156,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     byWhen.get(k).add(s.icao);
   }
   let birdLive = false;
-  const birdsP = Promise.all([...byWhen].map(async ([whenKey, icaoSet]) => {
+  const birdsP = timed('birds', Promise.all([...byWhen].map(async ([whenKey, icaoSet]) => {
     const res = await fetchBirdRisk([...icaoSet], offline, whenKey || null);
     birdLive = birdLive || res.live;
     return [whenKey, res];
@@ -160,13 +169,13 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       }
     }
     return m;
-  });
+  }));
 
   // Route AHAS for routes near the fields, at the departure time. Depends only
   // on the bundled MTR set + airport coords, so it starts as soon as MTRs load.
   const depStop = stopList.find((s) => s.role === 'DEPARTURE') || stopList[0];
   const routeWhen = depStop?.when ?? targetIso;
-  const routeAhasP = mtrP.then((mtrRes) => {
+  const routeAhasP = timed('ahas', mtrP.then((mtrRes) => {
     const ids = new Set();
     for (const icao of fields) {
       const ap = airportMap.get(icao);
@@ -175,12 +184,12 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       }
     }
     return fetchRouteRisk([...ids], offline, routeWhen);
-  });
+  }));
 
   // Winds aloft per stop — needs only coordinates + the stop time, so it's fully
   // independent of the weather/NOTAM/airspace fetches.
   let windsLive = false;
-  const windsP = (async () => {
+  const windsP = timed('windsAloft', (async () => {
     const map = new Map();
     await Promise.all(stopList.map(async (s) => {
       const key = stopKey(s);
@@ -192,10 +201,16 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       map.set(key, r || null);
     }));
     return map;
-  })();
+  })());
 
   const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey] =
     await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP]);
+  timings.total = Math.round(performance.now() - startPerf);
+  // Name the slow live feed in the host log (skip offline/test runs to avoid noise).
+  if (!offline) {
+    console.log(`[timing] brief fields=${fields.length} ` +
+      Object.entries(timings).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}ms`).join(' '));
+  }
   const { obs, tafs, live: wxLive } = wxRes;
   const byIcao = new Map(obs.map((o) => [o.icao.toUpperCase(), o]));
   const mtrLevel = (id) => ahasRes.risk.get(normalizeId(id))?.level ?? null;
@@ -326,6 +341,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     generatedAt: new Date().toISOString(),
     targetTime: targetIso,
     sortie: isSortie,
+    // Per-source wall-clock (ms) for this brief; surfaced by /api/diag and the
+    // [timing] log so the slowest live feed on the host is visible.
+    diag: { timings },
     live: {
       weather: wxLive,
       taf: wxRes.tafLive,
