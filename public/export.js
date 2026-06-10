@@ -135,7 +135,7 @@ function buildExportHtml(themeCss, { autoprint, radarPng, radarCap } = {}) {
 <style>${themeCss}</style>
 <style>${EXPORT_CSS}</style>
 </head>
-<body>
+<body class="${document.body.classList.contains('print-essential') ? 'print-essential' : ''}">
 <div class="app">
   <header class="topbar">
     <div>

@@ -130,9 +130,17 @@ function formatWind(wind) {
   return `${dir}° / ${wind.speedKt}${wind.gustKt ? 'G' + wind.gustKt : ''} kt`;
 }
 
+// Routine-for-print NOTAMs: verbose DOD procedural/IAP-minima notices and the
+// services/other tail. Always shown on screen; the "essential NOTAMs" print
+// toggle hides them on the kneeboard (with a count so nothing hides silently).
+function isRoutineNotam(n) {
+  if (/PROCEDURAL\s+NOTAM|INSTRUMENT\s+APPROACH\s+PROCEDURE|DEPARTURE\s+PROCEDURES/i.test(n.text || '')) return true;
+  return n.category === 'SERVICES' || n.category === 'OTHER';
+}
+
 function notamRow(n) {
   const end = n.effectiveEnd ? `<div class="when">until ${esc(zuluLocal(n.effectiveEnd, { date: true }))}</div>` : '';
-  return `<div class="notam" data-cat="${esc(n.category)}"><span class="cat cat-${esc(n.category)}">${esc(n.category)}</span>
+  return `<div class="notam${isRoutineNotam(n) ? ' n-routine' : ''}" data-cat="${esc(n.category)}"><span class="cat cat-${esc(n.category)}">${esc(n.category)}</span>
     <div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
 }
 
@@ -156,10 +164,14 @@ function notamGroups(notams) {
   return cats.map((cat) => {
     const items = byCat.get(cat);
     const open = NOTAM_OPEN_DEFAULT.has(cat);
+    const routine = items.filter(isRoutineNotam).length;
+    const hiddenNote = routine
+      ? `<div class="n-hidden-note">${routine} procedural/routine NOTAM${routine > 1 ? 's' : ''} omitted from this printout — see the app or DAIP for full text.</div>`
+      : '';
     return `<details class="ngroup" data-cat="${esc(cat)}"${open ? ' open' : ''}>
       <summary class="ngroup-sum"><span class="cat cat-${esc(cat)}">${esc(cat)}</span>
         <span class="ngroup-n">${items.length}</span><span class="ngroup-chev">▾</span></summary>
-      <div class="notams">${items.map(notamRow).join('')}</div></details>`;
+      <div class="notams">${items.map(notamRow).join('')}${hiddenNote}</div></details>`;
   }).join('');
 }
 
@@ -1637,6 +1649,20 @@ window.addEventListener('afterprint', () => {
   on('rof', 'keydown', (e) => { if (e.key === 'Enter') drawRouteOfFlight(); });
   on('export-html', 'click', () => runExport('html'));
   on('export-pdf', 'click', () => runExport('pdf'));
+  // Essential-NOTAMs print mode: toggles a body class the print stylesheet keys
+  // on. Persisted; default ON (the kneeboard pain is verbose procedural NOTAMs).
+  {
+    const pe = $('print-essential');
+    const stored = localStorage.getItem('dead-print-essential');
+    if (pe) {
+      pe.checked = stored == null ? true : stored === '1';
+      document.body.classList.toggle('print-essential', pe.checked);
+      pe.addEventListener('change', () => {
+        document.body.classList.toggle('print-essential', pe.checked);
+        try { localStorage.setItem('dead-print-essential', pe.checked ? '1' : '0'); } catch { /* storage blocked */ }
+      });
+    }
+  }
   on('sortie-save', 'click', saveCurrentSortie);
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);

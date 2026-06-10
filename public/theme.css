@@ -106,6 +106,8 @@ body {
 .nfilter:hover { border-color: var(--accent-dim); color: var(--text); }
 .nfilter.active { color: var(--accent); border-color: var(--accent); background: rgba(55, 182, 195, 0.12); }
 .nfilter b { color: var(--text); }
+/* Print-only note for NOTAMs omitted by the essential-print toggle */
+.n-hidden-note { display: none; font-size: 11px; font-style: italic; color: var(--text-dim); padding: 6px 0 2px; border-top: 1px dashed var(--border); }
 
 /* Controls */
 .controls {
@@ -580,6 +582,17 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   .tabpanels { border: none; padding: 0; }
   .tabpanel { display: block !important; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 8px; }
   .raw-taf { display: none !important; }
+
+  /* Essential-NOTAMs print mode: hide procedural/routine NOTAMs, show the
+     per-category "N omitted" note instead (nothing disappears silently). */
+  body.print-essential .notam.n-routine { display: none !important; }
+  body.print-essential .n-hidden-note { display: block !important; }
+
+  /* Print polish: screen-only affordances add nothing on paper. */
+  [data-tip]::after { content: none !important; }     /* tap-to-reveal ⓘ icons */
+  .chev, .card-chev, .ngroup-chev { display: none !important; } /* collapse arrows */
+  .rwys-cap, .tl-detail, .route-chip-x, .route-chip-clear { display: none !important; } /* tap hints/buttons */
+  .tl-legend .tl-note { display: none; }              /* "tap a cell" explainer */
 
   .print-head { display: block; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; }
   .print-head .ph-title { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
