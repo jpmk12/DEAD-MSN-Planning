@@ -12,6 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const FIXTURE_URL = new URL('../../data/fixtures/windsaloft-sample.json', import.meta.url);
 
+// Short-TTL cache of the raw Open-Meteo response, keyed by location + window
+// size. One response serves every forecast hour, so per-stop/timeline reads of
+// the same field reuse it. ~5 min keeps it fresh; failures aren't cached.
+const WA_TTL_MS = 5 * 60 * 1000;
+const waCache = new Map(); // key -> { at, json }
+
 // Levels we request, with approximate standard-atmosphere MSL altitudes (ft)
 // for pressure levels, or AGL offsets for height levels. Spans the surface up
 // through ~FL300 so the profile is useful for climb-out and route planning.
@@ -133,11 +139,24 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
   let json = null;
   let live = false;
   if (!offline && lat != null && lon != null) {
-    try {
-      const res = await fetch(buildUrl(lat, lon, targetIso), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
-      if (res.ok) { json = await res.json(); live = true; }
-    } catch {
-      /* fall through to fixture */
+    // One Open-Meteo response covers EVERY hour of the requested window, so cache
+    // it by location + window size: all per-stop times for a field (and the
+    // route-winds tool's repeats, and the timeline's hours) reuse one fetch.
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)},${forecastDaysFor(targetIso)}`;
+    const hit = waCache.get(key);
+    if (hit && Date.now() - hit.at < WA_TTL_MS) { json = hit.json; live = true; }
+    else {
+      try {
+        const res = await fetch(buildUrl(lat, lon, targetIso), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
+        if (res.ok) {
+          json = await res.json();
+          live = true;
+          waCache.set(key, { at: Date.now(), json });
+          if (waCache.size > 96) waCache.delete(waCache.keys().next().value);
+        }
+      } catch {
+        /* fall through to fixture */
+      }
     }
   }
   // offline=true → sample (tests); production failure → empty (UNAVAILABLE).

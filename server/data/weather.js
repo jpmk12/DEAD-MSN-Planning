@@ -7,6 +7,14 @@ import { fetchMetars, fetchTafs, mapAwcMetar } from './awc.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/metar-sample.json', import.meta.url);
 
+// Short-TTL cache for the LIVE METAR/TAF fetch. METARs update ~hourly and TAFs
+// less often, so a few minutes is safe and keeps repeated briefs / the timeline
+// from re-hitting AWC. Only successful (non-empty) results are cached; failures
+// are never cached so a transient outage doesn't stick.
+const WX_TTL_MS = 5 * 60 * 1000;
+const wxCache = new Map(); // key -> { at, value }
+const wxKey = (icaos) => [...new Set(icaos.map((i) => i.toUpperCase()))].sort().join(',');
+
 async function loadFixtureObs(icaos) {
   const raw = await readFile(fileURLToPath(FIXTURE_URL), 'utf8');
   const arr = JSON.parse(raw);
@@ -22,6 +30,9 @@ export async function loadWeather(icaos, offline) {
   if (offline) {
     return { obs: await loadFixtureObs(icaos), tafs: new Map(), live: false, tafLive: false };
   }
+  const key = wxKey(icaos);
+  const hit = wxCache.get(key);
+  if (hit && Date.now() - hit.at < WX_TTL_MS) return hit.value;
   try {
     // METAR and TAF run concurrently but with INDEPENDENT timeouts. AWC's TAF
     // endpoint is slower than METAR (especially on a cold container), so a
@@ -59,7 +70,10 @@ export async function loadWeather(icaos, offline) {
       // source is reachable, so the TAF source is "live" too — a field with no
       // TAF (e.g. KLTS) is "no TAF for this field", not "source unreachable".
       // Only when METAR is also unavailable do we mark TAF unreachable.
-      return { obs, tafs, live: true, tafLive: taf.ok || obs.length > 0 };
+      const value = { obs, tafs, live: true, tafLive: taf.ok || obs.length > 0 };
+      wxCache.set(key, { at: Date.now(), value });
+      if (wxCache.size > 64) wxCache.delete(wxCache.keys().next().value);
+      return value;
     }
   } catch {
     // unavailable — fall through
