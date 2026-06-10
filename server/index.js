@@ -15,6 +15,7 @@ import { loadEnv } from './env.js';
 import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
 import { buildRoute } from './route.js';
+import { buildTimeline } from './timeline.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { knownAirports } from './data/airports.js';
@@ -332,6 +333,24 @@ const server = createServer(async (req, res) => {
       const nm = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(url.searchParams.get('near') || '');
       const near = nm ? { lat: Number(nm[1]), lon: Number(nm[2]) } : null;
       sendJson(res, 200, await buildRouteWinds(ids, offline, undefined, near));
+      return;
+    }
+
+    if (url.pathname === '/api/timeline') {
+      // CADDO10 offline demo: bundled fixture, fixed anchor time, labeled DEMO.
+      if (url.searchParams.get('demo') === 'caddo10') {
+        const fix = JSON.parse(await readFile(fileURLToPath(new URL('../data/fixtures/caddo10.json', import.meta.url)), 'utf8'));
+        const tl = await buildTimeline({ stops: fix.stops, routes: fix.routes, limits: parseLimits(url), inject: fix });
+        sendJson(res, 200, { ...tl, demo: 'CADDO10', demoNote: fix._sources });
+        return;
+      }
+      const stops = parseStops(url.searchParams.get('stops') ?? '');
+      if (!stops) { sendJson(res, 400, { error: 'provide ?stops=ICAO@ISO@ROLE@Label|... (or ?demo=caddo10)' }); return; }
+      const rwhen = url.searchParams.get('rwhen');
+      const routes = (url.searchParams.get('routes') ?? '').split(/[\s,]+/).filter(Boolean).slice(0, 8)
+        .map((id) => ({ id, when: rwhen && !Number.isNaN(Date.parse(rwhen)) ? new Date(rwhen).toISOString() : null }));
+      const offline = url.searchParams.get('offline') === '1';
+      sendJson(res, 200, await buildTimeline({ stops, routes, offline, limits: parseLimits(url) }));
       return;
     }
 

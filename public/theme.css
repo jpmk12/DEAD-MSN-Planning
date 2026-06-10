@@ -417,6 +417,29 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .mtr-seg-w.hi { color: var(--nogo); }
 
 /* ---- Map ----------------------------------------------------------------- */
+/* ---- Sortie timeline (hour-by-hour status per field) ---- */
+.tl-section { margin-bottom: 22px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
+.tl-section .tool-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; cursor: default; }
+.tl-demo { font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: #f0b429; border: 1px solid rgba(240,180,41,0.55); background: rgba(240,180,41,0.1); border-radius: 5px; padding: 2px 7px; }
+.tl-range { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-left: auto; }
+.tl-grid { display: grid; gap: 3px; overflow-x: auto; }
+.tl-row { display: grid; grid-template-columns: 92px repeat(var(--tlcols), minmax(24px, 1fr)); gap: 3px; align-items: stretch; }
+.tl-lbl { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }
+.tl-lbl small { color: var(--text-faint); font-weight: 400; }
+.tl-hours .tl-h { font-family: var(--mono); font-size: 10px; color: var(--text-dim); text-align: center; padding: 2px 0; }
+.tl-hours .tl-h.tl-now { color: var(--accent); font-weight: 700; }
+.tl-c { position: relative; height: 26px; border-radius: 5px; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.tl-c.tl-now { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tl-go { background: rgba(63,185,80,0.4); border-color: rgba(63,185,80,0.55); }
+.tl-caution { background: rgba(210,153,34,0.45); border-color: rgba(210,153,34,0.6); }
+.tl-nogo { background: rgba(248,81,73,0.5); border-color: rgba(248,81,73,0.65); }
+.tl-na { background: repeating-linear-gradient(135deg, var(--panel-2) 0 5px, var(--panel) 5px 10px); }
+.tl-mark { font-family: var(--mono); font-size: 10px; font-weight: 800; color: #0a0e14; background: var(--text); border-radius: 4px; padding: 0 4px; line-height: 15px; }
+.tl-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: var(--text-dim); }
+.tl-legend .tl-sw { display: inline-block; width: 13px; height: 13px; border-radius: 4px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
+.tl-legend .tl-note { color: var(--text-faint); }
+.tl-detail { font-family: var(--mono); font-size: 12px; color: var(--text); margin-top: 8px; min-height: 0; }
+
 .map-section { margin-bottom: 22px; }
 .map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 .map-viewport { position: relative; width: 100%; height: clamp(260px, 42vh, 460px); overflow: hidden; background: #0c121a; cursor: grab; touch-action: none; resize: vertical; min-height: 200px; max-height: 88vh; }

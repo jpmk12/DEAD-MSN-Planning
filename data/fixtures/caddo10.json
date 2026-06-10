@@ -1,0 +1,48 @@
+{
+  "_what": "CADDO10 offline demo scenario - 11 Jun 2026 KLTS local training sortie (6.0 hr). Fixture data only, clearly labeled DEMO in the UI; never used for live briefs.",
+  "_sources": "Airport/runway records derived from the FAA CIFP extract provided for this project (KLTS: elev 1382, magvar E5.0, RW 18L/R-36L/R at 175.0/355.0 mag; KAMA: elev 3607, magvar E8.0, RW 04/22 13502ft 038.0/218.0, RW 13/31 7901ft 129.0/309.0). METAR/TAF/AHAS values are crafted demo data shaped like the real products, with a deliberate TAF degradation at recovery time so the timeline demonstrates a divert decision.",
+  "now": "2026-06-11T12:00:00Z",
+  "stops": [
+    { "icao": "KLTS", "when": "2026-06-11T14:15:00Z", "role": "DEPARTURE", "label": "Takeoff" },
+    { "icao": "KLTS", "when": "2026-06-11T20:15:00Z", "role": "RECOVERY", "label": "Land" },
+    { "icao": "KAMA", "when": "2026-06-11T20:15:00Z", "role": "ALTERNATE", "label": "Alternate" }
+  ],
+  "routes": [
+    { "id": "AR197H", "when": "2026-06-11T17:00:00Z" },
+    { "id": "IR-154", "when": "2026-06-11T19:00:00Z" }
+  ],
+  "airports": {
+    "KLTS": {
+      "icao": "KLTS", "name": "Altus AFB (demo record from CIFP)", "elevationFt": 1382, "lat": 34.66797, "lon": -99.26775, "magVar": 5,
+      "runways": [
+        { "ident": "18R", "magHeading": 175, "trueHeading": 180 },
+        { "ident": "36L", "magHeading": 355, "trueHeading": 360 },
+        { "ident": "18L", "magHeading": 175, "trueHeading": 180 },
+        { "ident": "36R", "magHeading": 355, "trueHeading": 360 }
+      ]
+    },
+    "KAMA": {
+      "icao": "KAMA", "name": "Amarillo Intl (demo record from CIFP)", "elevationFt": 3607, "lat": 35.21936, "lon": -101.70592, "magVar": 8,
+      "runways": [
+        { "ident": "04", "magHeading": 38, "trueHeading": 46 },
+        { "ident": "22", "magHeading": 218, "trueHeading": 226 },
+        { "ident": "13", "magHeading": 129, "trueHeading": 137 },
+        { "ident": "31", "magHeading": 309, "trueHeading": 317 }
+      ]
+    }
+  },
+  "metars": {
+    "KLTS": "KLTS 111155Z 17010KT 10SM FEW035 28/14 A2998 RMK DEMO",
+    "KAMA": "KAMA 111153Z 20012KT 10SM SCT045 27/10 A3001 RMK DEMO"
+  },
+  "tafs": {
+    "KLTS": "KLTS 111100Z 1112/1218 17012KT P6SM SCT045 FM111800 19018G28KT P6SM BKN025 BECMG 1119/1121 09025G38KT 3SM TSRA OVC008",
+    "KAMA": "KAMA 111130Z 1112/1218 20012KT P6SM SCT050"
+  },
+  "birds": {
+    "KLTS": { "2026-06-11T13": "LOW", "2026-06-11T14": "LOW", "2026-06-11T15": "LOW", "2026-06-11T16": "LOW", "2026-06-11T17": "LOW", "2026-06-11T18": "LOW", "2026-06-11T19": "LOW", "2026-06-11T20": "MODERATE", "2026-06-11T21": "MODERATE", "2026-06-11T22": "LOW" },
+    "KAMA": { "2026-06-11T13": "LOW", "2026-06-11T14": "LOW", "2026-06-11T15": "LOW", "2026-06-11T16": "LOW", "2026-06-11T17": "LOW", "2026-06-11T18": "LOW", "2026-06-11T19": "LOW", "2026-06-11T20": "LOW", "2026-06-11T21": "LOW", "2026-06-11T22": "LOW" },
+    "AR197H": { "2026-06-11T16": "LOW", "2026-06-11T17": "LOW", "2026-06-11T18": "LOW", "2026-06-11T19": "LOW" },
+    "IR-154": { "2026-06-11T17": "LOW", "2026-06-11T18": "MODERATE", "2026-06-11T19": "MODERATE", "2026-06-11T20": "MODERATE", "2026-06-11T21": "LOW" }
+  }
+}

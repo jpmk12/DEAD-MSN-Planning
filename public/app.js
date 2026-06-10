@@ -821,6 +821,14 @@ async function buildBrief() {
   const ids = [...new Set(stops.map((s) => s.icao))];
   const stopsParam = stops.map((s) => `${s.icao}@${s.when || ''}@${s.role}@${s.label}`).join('|');
 
+  // Sortie timeline runs in parallel with the brief (same stops/routes/limits).
+  const lim = readLimits();
+  const tlParams = new URLSearchParams({ stops: stopsParam });
+  if (routes.length) { tlParams.set('routes', routes.join(',')); if (llT) tlParams.set('rwhen', llT); }
+  if (lim.xwind) tlParams.set('xwind', lim.xwind);
+  if (lim.tailwind) tlParams.set('tailwind', lim.tailwind);
+  fetchTimeline(tlParams);
+
   // Look up the low-level routes (at entry time) first so the brief's low-level
   // banner can show their entry-time AHAS risk, and the map overlays them. The
   // sortie's low-level field is the source of truth, so start from a clean set.
@@ -828,7 +836,7 @@ async function buildBrief() {
   windsPoints = []; // climb-winds overlay is re-added when the user runs that tool
   if (routes.length) await lookupRoutes(routes, llT, { scroll: false });
   else renderRouteResults();
-  await runBrief({ ids, limits: readLimits(), extra: { stops: stopsParam }, button: 'go' });
+  await runBrief({ ids, limits: lim, extra: { stops: stopsParam }, button: 'go' });
 }
 
 // The phase field a quick-chip drops into: whichever airfield field was focused
@@ -955,6 +963,91 @@ function clearRouteOfFlight() {
   const el = $('rof'); if (el) el.value = '';
   const status = $('rof-status'); if (status) status.innerHTML = '';
   paintMap();
+}
+
+// ---- Sortie timeline (hour-by-hour conditions per field across the window) --
+const TL_STATUS_CLASS = { 'GO': 'tl-go', 'CAUTION': 'tl-caution', 'NO-GO': 'tl-nogo' };
+const TL_BIRD_CLASS = { LOW: 'tl-go', MODERATE: 'tl-caution', SEVERE: 'tl-nogo' };
+let timelineData = null;
+
+function tlCellTip(c) {
+  if (!c.source) return `${zuluLocal(c.t)} — UNAVAILABLE (no METAR/TAF speaks to this hour; nothing fabricated)`;
+  const bits = [`${zuluLocal(c.t)} · ${c.source}`];
+  if (c.wind) bits.push(`${c.wind.dirTrue === 'VRB' ? 'VRB' : String(c.wind.dirTrue).padStart(3, '0') + '°'}/${c.wind.speedKt}${c.wind.gustKt ? 'G' + c.wind.gustKt : ''} kt`);
+  if (c.active) bits.push(`RWY ${c.active} XW ${c.gustCrosswindKt ?? c.crosswindKt} kt`);
+  if (c.cat) bits.push(c.cat);
+  if (c.bird) bits.push(`birds ${c.bird}`);
+  if (c.warn) bits.push(`⚠ ${c.warn}`);
+  if (c.caveat) bits.push(c.caveat);
+  return bits.join(' · ');
+}
+
+function renderTimeline(tl) {
+  timelineData = tl;
+  const el = $('sec-timeline');
+  if (!el) return;
+  if (!tl || !tl.fields?.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const hours = tl.window.hours;
+  const nowKey = (tl.now || '').slice(0, 13);
+  const hourLbl = (iso) => `${iso.slice(11, 13)}Z`;
+
+  const markerFor = (roles, iso) => {
+    const hits = (roles || []).filter((r) => r.when && r.when.slice(0, 13) === iso.slice(0, 13));
+    if (!hits.length) return '';
+    const ch = hits.map((r) => (r.role || 'F')[0]).join('');
+    return `<span class="tl-mark" title="${esc(hits.map((r) => `${r.label} ${zuluLocal(r.when)}`).join(' · '))}">${esc(ch)}</span>`;
+  };
+
+  const head = `<div class="tl-row tl-hours"><div class="tl-lbl">Zulu →</div>${hours.map((h) =>
+    `<div class="tl-h ${h.slice(0, 13) === nowKey ? 'tl-now' : ''}">${hourLbl(h)}</div>`).join('')}</div>`;
+
+  const fieldRows = tl.fields.map((f, fi) => {
+    const cells = f.cells.map((c, ci) =>
+      `<div class="tl-c ${c.status ? TL_STATUS_CLASS[c.status] : 'tl-na'} ${c.t.slice(0, 13) === nowKey ? 'tl-now' : ''}"
+        data-tl="${fi},${ci}" title="${esc(tlCellTip(c))}">${markerFor(f.roles, c.t)}</div>`).join('');
+    const roleTxt = (f.roles || []).map((r) => r.role[0]).join('/');
+    return `<div class="tl-row"><div class="tl-lbl">${esc(f.icao)} <small>${esc(roleTxt)}</small></div>${cells}</div>`;
+  }).join('');
+
+  const routeRows = (tl.routes || []).map((r) => {
+    const cells = r.cells.map((c) =>
+      `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · birds ${esc(c.bird || 'UNAVAILABLE')}">${r.when && r.when.slice(0, 13) === c.t.slice(0, 13) ? '<span class="tl-mark">E</span>' : ''}</div>`).join('');
+    return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>AHAS</small></div>${cells}</div>`;
+  }).join('');
+
+  const demo = tl.demo ? `<span class="tl-demo" title="${esc(tl.demoNote || 'Fixture data')}">${esc(tl.demo)} DEMO — fixture data, not live</span>` : '';
+  el.innerHTML = `
+    <div class="tool-head"><span class="tool-title">Sortie Timeline</span> ${demo}
+      <span class="tl-range">${esc(zuluLocal(hours[0], { date: true }))} – ${esc(zuluLocal(hours[hours.length - 1]))}</span></div>
+    <div class="tl-grid" style="--tlcols:${hours.length}">${head}${fieldRows}${routeRows}</div>
+    <div class="tl-legend">
+      <span><i class="tl-sw tl-go"></i>GO</span><span><i class="tl-sw tl-caution"></i>CAUTION</span>
+      <span><i class="tl-sw tl-nogo"></i>NO-GO</span><span><i class="tl-sw tl-na"></i>UNAVAILABLE</span>
+      <span class="tl-note">field rows = METAR/TAF at each hour vs your limits · route rows = AHAS bird risk · D/R/A/E = phase times · tap a cell for detail</span>
+    </div>
+    <div id="tl-detail" class="tl-detail"></div>`;
+  el.hidden = false;
+}
+
+async function fetchTimeline(params) {
+  try {
+    const res = await fetch(`/api/timeline?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderTimeline(await res.json());
+  } catch {
+    const el = $('sec-timeline');
+    if (el) { el.hidden = true; el.innerHTML = ''; }
+  }
+}
+
+function onTimelineClick(e) {
+  const cell = e.target.closest('[data-tl]');
+  if (!cell || !timelineData) return;
+  const [fi, ci] = cell.dataset.tl.split(',').map(Number);
+  const f = timelineData.fields[fi];
+  const c = f?.cells[ci];
+  const det = $('tl-detail');
+  if (det && c) det.innerHTML = `<b>${esc(f.icao)}</b> — ${esc(tlCellTip(c))}`;
 }
 
 // ---- MTR (low-level route) lookup tool -------------------------------------
@@ -1403,6 +1496,11 @@ window.addEventListener('afterprint', () => {
 });
 
   prefillDatetimes();
+  // Timeline cell taps + the CADDO10 offline demo (?demo=caddo10).
+  on('sec-timeline', 'click', onTimelineClick);
+  if (new URLSearchParams(location.search).get('demo') === 'caddo10') {
+    fetchTimeline(new URLSearchParams({ demo: 'caddo10' }));
+  }
   // Tidy each 24-hour Zulu time field to HHMM when the user leaves it / hits Enter.
   TIME_PREFIXES.forEach((pre) => {
     const el = $(`${pre}-hhmm`);
