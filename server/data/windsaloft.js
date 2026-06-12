@@ -33,6 +33,7 @@ const PRESSURE_LEVELS = [
   { key: '500hPa', altMsl: 18289 },
   { key: '400hPa', altMsl: 23574 },
   { key: '300hPa', altMsl: 30065 },
+  { key: '250hPa', altMsl: 33999 }, // ~FL340 — headroom above high AR/tanker blocks
 ];
 const HEIGHT_LEVELS = [
   { key: '80m', aglFt: 262 },

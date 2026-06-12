@@ -18,8 +18,13 @@ import { ahasRaw, parseAhasHourly, ahasAreaForIcao, ahasRouteType, ahasHasRoute 
 const HOUR_MS = 3600000;
 const METAR_GOVERNS_MIN = 90; // matches the brief's FUTURE_MIN horizon
 
-/** Hourly ISO instants covering the sortie window (stops + now), capped. */
-export function hourRange(stops, nowMs, capHours = 18) {
+/**
+ * Column time-points spanning the sortie window (now → departure-1h …
+ * landing+2h). The window ALWAYS reaches the last stop; to keep the column count
+ * readable on a long/far sortie, the step adapts (1h normally, 2h/3h for long
+ * days) so the landing is never cut off. Returns ISO instants (column starts).
+ */
+export function hourRange(stops, nowMs, maxCols = 16) {
   const times = (stops || []).map((s) => Date.parse(s.when)).filter(Number.isFinite);
   const floorH = (ms) => Math.floor(ms / HOUR_MS) * HOUR_MS;
   let from, to;
@@ -30,10 +35,13 @@ export function hourRange(stops, nowMs, capHours = 18) {
     from = floorH(nowMs);
     to = from + 12 * HOUR_MS;
   }
+  const spanH = Math.round((to - from) / HOUR_MS);
+  const step = Math.max(1, Math.ceil(spanH / maxCols)); // hours per column
   const hours = [];
-  for (let t = from; t <= to && hours.length < capHours; t += HOUR_MS) {
-    hours.push(new Date(t).toISOString());
-  }
+  for (let t = from; t <= to; t += step * HOUR_MS) hours.push(new Date(t).toISOString());
+  // Guarantee the window end (landing + buffer) is a column even if step skipped it.
+  const lastIso = new Date(to).toISOString();
+  if (hours[hours.length - 1] !== lastIso) hours.push(lastIso);
   return hours;
 }
 

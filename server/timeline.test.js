@@ -17,6 +17,22 @@ test('hourRange covers now + all stops, hourly, capped', () => {
   assert.equal(hourRange([], nowMs).length, 13);
 });
 
+test('hourRange adapts the step so a long sortie always reaches landing', () => {
+  const now = Date.parse('2026-06-11T12:00:00Z');
+  // 26h day: takeoff 14Z, landing next day 16Z -> window ~12Z..18Z+1d (~30h).
+  const longStops = [
+    { when: '2026-06-11T14:00:00Z' },
+    { when: '2026-06-12T16:00:00Z' },
+  ];
+  const hours = hourRange(longStops, now, 16);
+  assert.ok(hours.length <= 17, `cols ${hours.length} within budget`);
+  // The landing window (+2h buffer) is the last column — never cut off.
+  assert.equal(hours[hours.length - 1], '2026-06-12T18:00:00.000Z');
+  // Columns are >1h apart (bucketed) for the long span.
+  const step = (Date.parse(hours[1]) - Date.parse(hours[0])) / 3600000;
+  assert.ok(step >= 2, `step ${step}`);
+});
+
 test('CADDO10 timeline: METAR governs near-now, TAF governs the window, degradation drives a divert decision', async () => {
   const tl = await buildTimeline({ stops: FIX.stops, routes: FIX.routes, inject: FIX });
   const klts = tl.fields.find((f) => f.icao === 'KLTS');

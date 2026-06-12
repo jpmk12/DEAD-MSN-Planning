@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { bearingDeg, haversineNm } from '../core/geo.js';
 import { windComponents } from '../core/wind.js';
 import { geojsonToAirspace } from './airspace.js';
-import { fetchWindsAloft, nearestLevel } from './windsaloft.js';
+import { fetchWindsAloft, interpolateWind } from './windsaloft.js';
 import { fetchRouteRisk, segmentRisk } from './ahas.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/mtr-sample.json', import.meta.url);
@@ -177,12 +177,17 @@ export async function buildMtrDetail(token, offline, targetIso) {
 
       let wind = null;
       if (mid) {
-        const w = await fetchWindsAloft(mid[0], mid[1], seg.floorFt ?? 0, offline, targetIso).catch(() => null);
-        const lvl = w && w.profile.length ? nearestLevel(w.profile, targetAlt) : null;
+        // Sample winds AT the block altitude (e.g. FL250 for an AR FL240–260
+        // track). Pass elevFt=0 so the near-surface AGL levels stay near the
+        // ground instead of being offset up into a high block (which would put
+        // surface winds at altitude), and INTERPOLATE between pressure levels so
+        // the block gets its true wind, not the nearest single level.
+        const w = await fetchWindsAloft(mid[0], mid[1], 0, offline, targetIso).catch(() => null);
+        const lvl = w && w.profile.length ? interpolateWind(w.profile, targetAlt) : null;
         if (lvl && bearing != null) {
           const c = windComponents(bearing, lvl.dirTrue, lvl.speedKt);
           wind = {
-            altFt: lvl.altFt, dirTrue: lvl.dirTrue, speedKt: lvl.speedKt,
+            altFt: Math.round(targetAlt), dirTrue: lvl.dirTrue, speedKt: lvl.speedKt,
             headwindKt: Math.round(c.headwindKt), crosswindKt: Math.round(c.crosswindKt), crosswindSide: c.crosswindSide,
             live: w.live,
           };

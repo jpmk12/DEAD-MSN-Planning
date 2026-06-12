@@ -1087,35 +1087,49 @@ function renderTimeline(tl) {
   if (!tl || !tl.fields?.length) { el.hidden = true; el.innerHTML = ''; return; }
   const hours = tl.window.hours;
   const nowKey = (tl.now || '').slice(0, 13);
+  // Columns can be >1h apart on a long sortie; place markers in the BUCKET that
+  // contains the phase time (the last column whose start <= the phase time), not
+  // an exact-hour match, so D/R/A/E never fall off the grid.
+  const hourMs = hours.map((h) => Date.parse(h));
+  const stepH = hourMs.length > 1 ? Math.round((hourMs[1] - hourMs[0]) / 3600000) : 1;
   const hourLbl = (iso) => `${iso.slice(11, 13)}Z`;
-
-  const markerFor = (roles, iso) => {
-    const hits = (roles || []).filter((r) => r.when && r.when.slice(0, 13) === iso.slice(0, 13));
-    if (!hits.length) return '';
-    const ch = hits.map((r) => (r.role || 'F')[0]).join('');
-    return `<span class="tl-mark" title="${esc(hits.map((r) => `${r.label} ${zuluLocal(r.when)}`).join(' · '))}">${esc(ch)}</span>`;
+  const colIndexFor = (whenIso) => {
+    const w = Date.parse(whenIso);
+    if (!Number.isFinite(w)) return -1;
+    let idx = -1;
+    for (let i = 0; i < hourMs.length; i++) { if (hourMs[i] <= w) idx = i; else break; }
+    return idx;
   };
 
   const head = `<div class="tl-row tl-hours"><div class="tl-lbl">Zulu →</div>${hours.map((h) =>
     `<div class="tl-h ${h.slice(0, 13) === nowKey ? 'tl-now' : ''}">${hourLbl(h)}</div>`).join('')}</div>`;
 
   const fieldRows = tl.fields.map((f, fi) => {
-    const cells = f.cells.map((c, ci) =>
-      `<div class="tl-c ${c.status ? TL_STATUS_CLASS[c.status] : 'tl-na'} ${c.t.slice(0, 13) === nowKey ? 'tl-now' : ''}"
-        data-tl="${fi},${ci}" title="${esc(tlCellTip(c))}">${markerFor(f.roles, c.t)}</div>`).join('');
+    const markByCol = {};
+    for (const r of (f.roles || [])) {
+      const ci = colIndexFor(r.when);
+      if (ci >= 0) (markByCol[ci] ||= []).push(r);
+    }
+    const cells = f.cells.map((c, ci) => {
+      const hits = markByCol[ci];
+      const mark = hits ? `<span class="tl-mark" title="${esc(hits.map((r) => `${r.label} ${zuluLocal(r.when)}`).join(' · '))}">${esc(hits.map((r) => (r.role || 'F')[0]).join(''))}</span>` : '';
+      return `<div class="tl-c ${c.status ? TL_STATUS_CLASS[c.status] : 'tl-na'} ${c.t.slice(0, 13) === nowKey ? 'tl-now' : ''}" data-tl="${fi},${ci}" title="${esc(tlCellTip(c))}">${mark}</div>`;
+    }).join('');
     const roleTxt = (f.roles || []).map((r) => r.role[0]).join('/');
     return `<div class="tl-row"><div class="tl-lbl">${esc(f.icao)} <small>${esc(roleTxt)}</small></div>${cells}</div>`;
   }).join('');
 
   const routeRows = (tl.routes || []).map((r) => {
-    const cells = r.cells.map((c) =>
-      `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · AHAS bird risk ${esc(c.bird || 'UNAVAILABLE')}">${r.when && r.when.slice(0, 13) === c.t.slice(0, 13) ? '<span class="tl-mark" title="Route entry time">E</span>' : (c.bird ? `<span class="tl-bird">${esc(c.bird[0])}</span>` : '')}</div>`).join('');
+    const entryCol = colIndexFor(r.when);
+    const cells = r.cells.map((c, ci) =>
+      `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · AHAS bird risk ${esc(c.bird || 'UNAVAILABLE')}">${ci === entryCol ? '<span class="tl-mark" title="Route entry time">E</span>' : (c.bird ? `<span class="tl-bird">${esc(c.bird[0])}</span>` : '')}</div>`).join('');
     return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>birds</small></div>${cells}</div>`;
   }).join('');
 
   const demo = tl.demo ? `<span class="tl-demo" title="${esc(tl.demoNote || 'Fixture data')}">${esc(tl.demo)} DEMO — fixture data, not live</span>` : '';
   el.innerHTML = `
     <div class="tool-head"><span class="tool-title">Sortie Timeline</span> ${demo}
+      ${stepH > 1 ? `<span class="tl-demo" title="Long sortie — columns are ${stepH}-hourly so the full window through landing always fits">${stepH}-hourly</span>` : ''}
       <span class="tl-range">${esc(zuluLocal(hours[0], { date: true }))} – ${esc(zuluLocal(hours[hours.length - 1]))}</span></div>
     <div class="tl-grid" style="--tlcols:${hours.length}">${head}${fieldRows}${routeRows}</div>
     <div class="tl-legend">
