@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NVG Ops — feature mockup</title>
+<style>
+  :root{color-scheme:dark;--bg:#0a0e14;--panel:#121821;--panel2:#0e131b;--border:#1f2a37;--border2:#2b3a4d;
+  --text:#e6edf3;--dim:#97a3b4;--faint:#5b6878;--accent:#37b6c3;--go:#3fb950;--caution:#d29922;--nogo:#f85149;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--moon:#b7c5ff;}
+  *{box-sizing:border-box}
+  body{margin:0;padding:26px;background:linear-gradient(160deg,#0b1018,#070a0f);color:var(--text);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:1100px;margin-inline:auto;}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 24px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin:30px 0 10px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .mono{font-family:var(--mono)}
+  .note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.5}
+  /* A: toggle */
+  .sphase{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 12px}
+  .tag{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(183,197,255,.5);color:var(--moon);background:rgba(183,197,255,.08)}
+  .switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+  .sw{width:34px;height:19px;border-radius:999px;background:var(--accent);position:relative}
+  .sw::after{content:'';position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;background:#04141a}
+  .hint{font-size:12px;color:var(--faint)}
+  /* B: card block */
+  .illum{border:1px solid var(--border);border-left:4px solid var(--moon);border-radius:9px;padding:10px 12px;background:var(--panel2)}
+  .il-h{display:flex;align-items:center;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-bottom:8px}
+  .badge{font-family:var(--mono);font-size:11px;font-weight:800;border:1px solid;border-radius:6px;padding:2px 8px}
+  .b-high{color:var(--go);border-color:rgba(63,185,80,.55);background:rgba(63,185,80,.1)}
+  .b-low{color:var(--caution);border-color:rgba(210,153,34,.55);background:rgba(210,153,34,.1)}
+  .src{font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:auto}
+  .il-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .cell{background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:7px 9px}
+  .k{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint)}
+  .v{font-family:var(--mono);font-size:13px;margin-top:2px}
+  .v small{color:var(--dim)}
+  .caveat{display:flex;gap:7px;font-size:12px;color:#f0d59a;background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);border-radius:7px;padding:7px 9px;margin-top:9px}
+  /* C: timeline */
+  .tl{display:grid;gap:3px;font-family:var(--mono)}
+  .tl-row{display:grid;grid-template-columns:92px repeat(11,minmax(24px,1fr));gap:3px;align-items:stretch}
+  .tl-lbl{font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .tl-lbl small{color:var(--faint);font-weight:400}
+  .tl-h{font-size:10px;color:var(--dim);text-align:center;padding:2px 0}
+  .c{height:26px;border-radius:5px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800}
+  .go{background:rgba(63,185,80,.4);border-color:rgba(63,185,80,.55)}
+  .ca{background:rgba(210,153,34,.45);border-color:rgba(210,153,34,.6)}
+  .day{background:rgba(240,200,90,.35);border-color:rgba(240,200,90,.5);color:#3a3000}
+  .twi{background:rgba(240,140,60,.32);border-color:rgba(240,140,60,.5);color:#ffd9b0}
+  .ngt-l{background:rgba(20,28,60,.85);border-color:#2c3a6e;color:#8fa2ff}
+  .ngt-h{background:rgba(64,80,160,.55);border-color:#5b6fd0;color:#dbe2ff}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--dim);margin-top:9px}
+  .swt{display:inline-block;width:13px;height:13px;border-radius:4px;border:1px solid var(--border);vertical-align:-2px;margin-right:5px}
+  /* D: ribbon */
+  .rb{display:flex;gap:6px;overflow-x:auto}
+  .ph{min-width:150px;border:1px solid var(--border);border-left:4px solid var(--go);border-radius:9px;padding:8px 10px;background:var(--panel2)}
+  .ph.cau{border-left-color:var(--caution);background:rgba(210,153,34,.06)}
+  .role{font-family:var(--mono);font-size:10px;font-weight:800;color:var(--dim)}
+  .id{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:2px}
+  .tm{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .chip{font-family:var(--mono);font-size:10px;font-weight:700;border:1px solid;border-radius:5px;padding:1px 5px}
+  .c-go{color:var(--go);border-color:rgba(63,185,80,.45)}
+  .c-ca{color:var(--caution);border-color:rgba(210,153,34,.5)}
+  .c-moon{color:var(--moon);border-color:rgba(183,197,255,.45)}
+  .arrow{display:flex;align-items:center;color:var(--faint)}
+  /* decisions */
+  .q{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px}
+  .q b{color:var(--accent)}
+  .opt{display:inline-block;font-family:var(--mono);font-size:11px;border:1px solid var(--border2);border-radius:6px;padding:2px 8px;margin:4px 6px 0 0;color:var(--dim)}
+  .opt.rec{color:var(--go);border-color:rgba(63,185,80,.5)}
+</style>
+</head>
+<body>
+  <h1>🌙 NVG Ops — feature mockup</h1>
+  <p class="sub">Four surfaces, one toggle. All values below are illustrative (KLTS, 11 Jun 2026 night sortie). LOW = 0–2.1 mlx, HIGH = ≥2.2 mlx per AFI 11-214.</p>
+
+  <h2>A — Planning panel: the NVG toggle</h2>
+  <div class="panel">
+    <div class="sphase">
+      <span class="tag">🌙 NVG</span>
+      <span class="switch"><span class="sw"></span><b>NVG sortie</b></span>
+      <span class="hint">adds sun/moon &amp; illumination data to every phase, the timeline, the ribbon and the kneeboard · saved with the sortie</span>
+    </div>
+  </div>
+
+  <h2>B — Phase card: ILLUMINATION block (two states)</h2>
+  <div class="panel">
+    <div class="illum">
+      <div class="il-h">🌙 Illumination — Low-Level entry @ 0310Z <span class="badge b-high">HIGH ILLUM · 12.4 mlx</span><span class="src">USNO · moon model</span></div>
+      <div class="il-grid">
+        <div class="cell"><div class="k">Sun</div><div class="v">Set 0142Z · <b>EENT 0312Z</b><br><small>BMNT 1012Z · Rise 1117Z</small></div></div>
+        <div class="cell"><div class="k">Moon</div><div class="v">Rise 0223Z · Set 1334Z<br><small>Waxing gibbous · disk 78%</small></div></div>
+        <div class="cell"><div class="k">Lunar position @0310Z</div><div class="v">Alt <b>+32°</b> · Az 142°<br><small>above horizon ✓</small></div></div>
+        <div class="cell"><div class="k">Illumination</div><div class="v"><b>12.4 mlx</b> · HIGH<br><small>clear-sky computed value</small></div></div>
+      </div>
+      <div class="caveat">⚠ TAF shows BKN025 at this time — cloud cover reduces effective illumination below the clear-sky value. Verify with official sources.</div>
+    </div>
+    <div style="height:10px"></div>
+    <div class="illum" style="border-left-color:var(--caution)">
+      <div class="il-h">🌙 Illumination — Recovery @ 0915Z <span class="badge b-low">LOW ILLUM · 0.8 mlx</span><span class="src">computed (Meeus)</span></div>
+      <div class="il-grid">
+        <div class="cell"><div class="k">Moon</div><div class="v">Set 0834Z — <b>below horizon</b><br><small>disk 78% (does not matter when down)</small></div></div>
+        <div class="cell"><div class="k">Illumination</div><div class="v"><b>0.8 mlx</b> · LOW<br><small>starlight/airglow only</small></div></div>
+        <div class="cell"><div class="k">Sun</div><div class="v">BMNT 1012Z<br><small>recovery is 57 min before BMNT</small></div></div>
+      </div>
+    </div>
+    <p class="note">Day phases show one quiet line — “Daylight at this phase — NVG illumination n/a.” The LOW/HIGH badge mirrors AFI 11-214; the moon-down case shows why lunar <i>position</i> is computed, not just disk %.</p>
+  </div>
+
+  <h2>C — Sortie timeline: new ILLUM row</h2>
+  <div class="panel">
+    <div class="tl">
+      <div class="tl-row"><div class="tl-lbl">Zulu →</div><div class="tl-h">00Z</div><div class="tl-h">01Z</div><div class="tl-h">02Z</div><div class="tl-h">03Z</div><div class="tl-h">04Z</div><div class="tl-h">05Z</div><div class="tl-h">06Z</div><div class="tl-h">07Z</div><div class="tl-h">08Z</div><div class="tl-h">09Z</div><div class="tl-h">10Z</div></div>
+      <div class="tl-row"><div class="tl-lbl">KLTS <small>D/R</small></div><div class="c go"></div><div class="c go"></div><div class="c go"></div><div class="c go">D</div><div class="c go"></div><div class="c ca"></div><div class="c ca"></div><div class="c go"></div><div class="c go"></div><div class="c go">R</div><div class="c go"></div></div>
+      <div class="tl-row"><div class="tl-lbl">ILLUM <small>KLTS</small></div><div class="c day">☀</div><div class="c twi">t</div><div class="c twi">t</div><div class="c ngt-h">H</div><div class="c ngt-h">H</div><div class="c ngt-h">H</div><div class="c ngt-h">H</div><div class="c ngt-h">H</div><div class="c ngt-l">L</div><div class="c ngt-l">L</div><div class="c twi">t</div></div>
+      <div class="tl-row"><div class="tl-lbl">IR-154 <small>birds</small></div><div class="c"></div><div class="c"></div><div class="c go">L</div><div class="c ca">E</div><div class="c ca">M</div><div class="c ca">M</div><div class="c go">L</div><div class="c go">L</div><div class="c"></div><div class="c"></div><div class="c"></div></div>
+    </div>
+    <div class="legend">
+      <span><i class="swt day"></i>daylight ☀</span><span><i class="swt twi"></i>twilight (civil→EENT / BMNT→civil)</span>
+      <span><i class="swt ngt-h"></i>night · HIGH illum (≥2.2 mlx)</span><span><i class="swt ngt-l"></i>night · LOW illum (0–2.1 mlx)</span>
+    </div>
+    <p class="note">One glance: it goes dark at 03Z right at takeoff, the moon carries HIGH illum until ~08Z, and recovery at 09Z falls in a LOW-illum window before BMNT. Row appears only when the NVG toggle is on.</p>
+  </div>
+
+  <h2>D — Mission ribbon: ILLUM chip per night phase</h2>
+  <div class="panel">
+    <div class="rb">
+      <div class="ph"><div class="role">DEP</div><div class="id">KLTS</div><div class="tm">0310Z</div><div class="chips"><span class="chip c-go">XW 6</span><span class="chip c-go">VFR</span><span class="chip c-moon">ILLUM H 12 mlx</span></div></div>
+      <div class="arrow">▸</div>
+      <div class="ph"><div class="role">LL</div><div class="id">IR-154</div><div class="tm">0400Z</div><div class="chips"><span class="chip c-ca">BIRD M</span><span class="chip c-moon">ILLUM H 9 mlx</span></div></div>
+      <div class="arrow">▸</div>
+      <div class="ph cau"><div class="role">REC</div><div class="id">KLTS</div><div class="tm">0915Z</div><div class="chips"><span class="chip c-go">XW 4</span><span class="chip c-ca">ILLUM L 0.8 mlx</span></div></div>
+    </div>
+    <p class="note">LOW illum renders caution-colored as a planning consideration — it does <b>not</b> drive GO/NO-GO (decision Q4).</p>
+  </div>
+
+  <h2>Decisions</h2>
+  <div class="q"><b>Q1 · Data source.</b> Sun/moon event times from:
+    <br><span class="opt rec">Hybrid — USNO API when reachable, local computed (Meeus/NOAA) fallback (recommended)</span>
+    <span class="opt">Local computation only (offline-pure)</span>
+    <span class="opt">USNO only (UNAVAILABLE when down)</span></div>
+  <div class="q"><b>Q2 · Millilux display.</b>
+    <br><span class="opt rec">Show computed clear-sky mlx + LOW/HIGH badge + cloud caveat (recommended)</span>
+    <span class="opt">Show only disk % + moon altitude + LOW/HIGH call (no mlx number)</span></div>
+  <div class="q"><b>Q3 · Activation.</b>
+    <br><span class="opt rec">Only when the “NVG sortie” toggle is on (recommended)</span>
+    <span class="opt">Always show a slim illumination line on any night phase</span></div>
+  <div class="q"><b>Q4 · LOW illum severity.</b>
+    <br><span class="opt rec">Caution-colored chip/badge, no effect on GO/NO-GO (recommended)</span>
+    <span class="opt">Purely informational (neutral color)</span>
+    <span class="opt">Contributes CAUTION to the phase status</span></div>
+  <p class="note">Reply like: “Q1 hybrid, Q2 show mlx, Q3 toggle, Q4 caution color” — or just “all recommended.” Build order after sign-off: astro engine + tests → brief/timeline/ribbon wiring → UI/print → USNO cross-check.</p>
+</body>
+</html>
