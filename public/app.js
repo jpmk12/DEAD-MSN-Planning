@@ -464,6 +464,39 @@ const fmtFcWind = (w) => (!w ? '—' : `${w.dirTrue === 'VRB' ? 'VRB' : String(w
 // "Forecast at ETA" — the TAF-at-phase-time wind/runway analysis + ceiling/vis
 // vs minimums. Renders for any phase whose field has a TAF (even military fields
 // with no current METAR), and is highlighted when it drives the status.
+// NVG illumination block — sun/moon events, % illum + lunar position at the
+// phase time, millilux + AFI 11-214 LOW/HIGH, and a cloud caveat. Computed.
+const ILLUM_CLASS = { HIGH: 'b-illhigh', LOW: 'b-illlow' };
+function nvgBlock(brief) {
+  const n = brief.nvg;
+  if (!n) return '';
+  const ev = n.events || {};
+  const z = (iso) => (iso ? zuluLocal(iso) : '—');
+  if (n.daylight) {
+    return `<div class="illum-block daylight"><div class="il-h">🌙 NVG · ${esc(z(brief.phase?.when))}
+      <span class="cat-chip">DAYLIGHT — illumination n/a</span></div>
+      <div class="fc-line">Sun up (alt ${n.sunAltDeg}°). Sunset ${esc(z(ev.sunset))} · EENT ${esc(z(ev.eent))}.</div></div>`;
+  }
+  const cls = n.illumClass === 'HIGH' ? 'b-illhigh' : 'b-illlow';
+  const moon = n.moon || {};
+  const moonState = moon.up
+    ? `Alt <b>+${moon.altDeg}°</b> · Az ${moon.azDeg}° · disk ${Math.round((moon.fraction || 0) * 100)}% (${esc(moon.name || '')})`
+    : `<b>below horizon</b> · disk ${Math.round((moon.fraction || 0) * 100)}% (does not contribute)`;
+  const caveat = n.cloudCaveat
+    ? `<div class="fc-caveat crit">⚠ BKN/OVC ceiling ${n.cloudCeilingFt ? n.cloudCeilingFt.toLocaleString() + ' ft' : ''} at this time — cloud cover reduces effective illumination below the clear-sky value.</div>`
+    : '';
+  return `<div class="illum-block ${cls}">
+    <div class="il-h">🌙 Illumination · ${esc(z(brief.phase?.when))}
+      <span class="cat-chip ${cls}">${esc(n.illumClass)} ILLUM · ${n.illumMlx} mlx</span>
+      <span class="fc-src">computed${n.source && n.source !== 'computed' ? ' · ' + esc(n.source) : ''}</span></div>
+    <div class="il-grid">
+      <div class="il-cell"><div class="k">Sun</div><div class="v">Set ${esc(z(ev.sunset))} · <b>EENT ${esc(z(ev.eent))}</b><br><small>BMNT ${esc(z(ev.bmnt))} · Rise ${esc(z(ev.sunrise))}</small></div></div>
+      <div class="il-cell"><div class="k">Moon</div><div class="v">Rise ${esc(z(ev.moonrise))} · Set ${esc(z(ev.moonset))}</div></div>
+      <div class="il-cell"><div class="k">Lunar position</div><div class="v">${moonState}</div></div>
+      <div class="il-cell"><div class="k">Ground illum</div><div class="v"><b>${n.illumMlx} mlx</b> · ${esc(n.illumClass)}<br><small>clear-sky computed</small></div></div>
+    </div>${caveat}</div>`;
+}
+
 function forecastBlock(brief) {
   const f = brief.forecast;
   if (!f) return '';
@@ -526,6 +559,7 @@ function card(brief, limits, altRank) {
     body += `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
   }
   body += forecastBlock(brief);
+  body += nvgBlock(brief);
 
   const ahasChip = brief.birdRisk
     ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(birdRiskTip(brief.birdRisk))}>AHAS ${esc(brief.birdRisk.level)}</span>`
@@ -723,6 +757,7 @@ async function runBrief({ ids, limits, extra = {}, button }) {
   });
   const agls = val('agls').replace(/\s+/g, '');
   if (agls) params.set('agls', agls);
+  if ($('nvg-mode')?.checked) params.set('nvg', '1'); // NVG sortie -> illumination
   for (const [k, v] of Object.entries(extra)) if (v) params.set(k, v);
 
   if (button) $(button).disabled = true;
@@ -885,6 +920,7 @@ async function buildBrief() {
   if (toks) tlParams.set('routes', toks);
   if (lim.xwind) tlParams.set('xwind', lim.xwind);
   if (lim.tailwind) tlParams.set('tailwind', lim.tailwind);
+  if ($('nvg-mode')?.checked) tlParams.set('nvg', '1');
   fetchTimeline(tlParams);
 
   // Look up AR tracks at the A/R entry time and low-level routes at the
@@ -1116,7 +1152,19 @@ function renderTimeline(tl) {
       return `<div class="tl-c ${c.status ? TL_STATUS_CLASS[c.status] : 'tl-na'} ${c.t.slice(0, 13) === nowKey ? 'tl-now' : ''}" data-tl="${fi},${ci}" title="${esc(tlCellTip(c))}">${mark}</div>`;
     }).join('');
     const roleTxt = (f.roles || []).map((r) => r.role[0]).join('/');
-    return `<div class="tl-row"><div class="tl-lbl">${esc(f.icao)} <small>${esc(roleTxt)}</small></div>${cells}</div>`;
+    let row = `<div class="tl-row"><div class="tl-lbl">${esc(f.icao)} <small>${esc(roleTxt)}</small></div>${cells}</div>`;
+    // NVG illumination band row (only when the brief was built in NVG mode).
+    if (tl.nvg && Array.isArray(f.illum)) {
+      const ic = f.illum.map((g) => {
+        if (!g || !g.band) return '<div class="tl-c tl-na"></div>';
+        const cl = g.band === 'day' ? 'tl-day' : g.band === 'twilight' ? 'tl-twi' : (g.class === 'HIGH' ? 'tl-nh' : 'tl-nl');
+        const ch = g.band === 'day' ? '☀' : g.band === 'twilight' ? 't' : (g.class === 'HIGH' ? 'H' : 'L');
+        const tip = g.band === 'day' ? `${zuluLocal(g.t)} · daylight` : `${zuluLocal(g.t)} · ${g.band} · ${g.mlx} mlx ${g.class}${g.moonUp ? ' · moon up' : ''}`;
+        return `<div class="tl-c ${cl}" title="${esc(tip)}">${ch}</div>`;
+      }).join('');
+      row += `<div class="tl-row"><div class="tl-lbl tl-illum-lbl">ILLUM <small>${esc(f.icao)}</small></div>${ic}</div>`;
+    }
+    return row;
   }).join('');
 
   const routeRows = (tl.routes || []).map((r) => {
@@ -1144,6 +1192,12 @@ function renderTimeline(tl) {
       <span><i class="tl-sw tl-nowleg"></i> outlined column = now</span>
       <span>route rows: <b>L/M/S</b> = AHAS bird risk Low / Moderate / Severe</span>
     </div>
+    ${tl.nvg ? `<div class="tl-legend">
+      <span class="tl-leg-h">ILLUM row (NVG) — computed illumination band:</span>
+      <span><i class="tl-sw tl-day"></i>☀ daylight</span><span><i class="tl-sw tl-twi"></i>t twilight</span>
+      <span><i class="tl-sw tl-nh"></i>H night HIGH (≥2.2 mlx)</span><span><i class="tl-sw tl-nl"></i>L night LOW (0–2.1 mlx)</span>
+      <span class="tl-note">AFI 11-214 thresholds · astronomy-derived — verify with official sources.</span>
+    </div>` : ''}
     <div class="tl-legend"><span class="tl-note">Each field row re-runs the wind/runway + ceiling-vis checks for every hour — from the current METAR near now, from the TAF period valid at that hour further out. Tap any cell for the full detail.</span></div>
     <div id="tl-detail" class="tl-detail"></div>`;
   el.hidden = false;
@@ -1390,7 +1444,7 @@ let sortieCache = {};       // name -> { <input id>: value, ... }
 // AGL, and the Route/Climb Winds tool.
 const SORTIE_FIELDS = [
   'sp-dep', 'sp-dep-d', 'sp-dep-hhmm', 'sp-ar', 'sp-ar-d', 'sp-ar-hhmm', 'sp-ll', 'sp-ll-d', 'sp-ll-hhmm', 'sp-rec', 'sp-rec-d', 'sp-rec-hhmm', 'sp-alt',
-  'xwind', 'tailwind', 'highda', 'agls',
+  'xwind', 'tailwind', 'highda', 'agls', 'nvg-mode',
   'winds-points', 'rof',
 ];
 
@@ -1435,7 +1489,7 @@ async function saveCurrentSortie() {
   // Capture every sortie input by id (empty values included, so loading
   // restores the exact setup — including a cleared route or takeoff time).
   const data = {};
-  for (const id of SORTIE_FIELDS) { const el = $(id); if (el) data[id] = (el.value || '').trim(); }
+  for (const id of SORTIE_FIELDS) { const el = $(id); if (el) data[id] = el.type === 'checkbox' ? el.checked : (el.value || '').trim(); }
   if (sortieMode === 'remote') {
     try {
       await fetch('/api/sorties', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, data }) });
@@ -1454,7 +1508,7 @@ async function loadSelectedSortie() {
   if (!s) return;
   // Restore each saved field by id. Keys present in the record (even empty)
   // overwrite, so a saved blank clears the field; absent keys are left as-is.
-  for (const id of SORTIE_FIELDS) { const el = $(id); if (el && id in s) el.value = s[id]; }
+  for (const id of SORTIE_FIELDS) { const el = $(id); if (el && id in s) { if (el.type === 'checkbox') el.checked = !!s[id]; else el.value = s[id]; } }
   // Reset any routes currently on the map so the load reflects exactly the
   // saved sortie (buildBrief re-looks-up the low-level route(s) below).
   activeRoutes = [];

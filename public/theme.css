@@ -268,6 +268,26 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .forecast-block .warnings { margin-top: 6px; }
 .cat-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 5px; }
 
+/* NVG illumination card block (computed sun/moon + AFI 11-214 LOW/HIGH call).
+   LOW illumination is a planning caution (not a GO/NO-GO driver). */
+.illum-block { margin-top: 10px; padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; }
+.illum-block.b-illlow { border-color: rgba(210,153,34,0.5); box-shadow: inset 0 0 0 1px rgba(210,153,34,0.12); }
+.illum-block.b-illhigh { border-color: rgba(90,130,220,0.5); box-shadow: inset 0 0 0 1px rgba(90,130,220,0.12); }
+.illum-block.daylight { border-style: dashed; }
+.illum-block .il-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 6px; }
+.illum-block .cat-chip.b-illlow { color: #f0c552; }
+.illum-block .cat-chip.b-illhigh { color: #8fb0f0; }
+.illum-block .fc-src { font-family: var(--mono); font-size: 10px; color: var(--text-faint); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+.illum-block .il-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 7px; }
+.illum-block .il-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; }
+.illum-block .il-cell .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); margin-bottom: 2px; }
+.illum-block .il-cell .v { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+.illum-block .il-cell .v small { color: var(--text-faint); }
+.illum-block .fc-line { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+.illum-block .fc-caveat { font-size: 11.5px; color: var(--text-dim); margin-top: 6px; }
+.illum-block .fc-caveat.crit { color: #f7b1ad; }
+.nvg-toggle { white-space: nowrap; }
+
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); display: flex; align-items: center; gap: 8px; }
 
 /* Collapsible card sections */
@@ -486,6 +506,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .tl-sw.tl-nowleg { background: transparent; outline: 2px solid var(--accent); outline-offset: -2px; }
 .tl-bird { font-family: var(--mono); font-size: 10px; font-weight: 800; color: #0a0e14; opacity: 0.75; }
 .tl-detail { font-family: var(--mono); font-size: 12px; color: var(--text); margin-top: 8px; min-height: 0; }
+
+/* NVG ILLUM timeline row: day / twilight / night-HIGH / night-LOW bands. The
+   night cells are dark; the glyph (☀ t H L) reads regardless of color. */
+.tl-illum-lbl { color: var(--text-dim); }
+.tl-c.tl-day, .tl-sw.tl-day { background: rgba(210,153,34,0.30); border-color: rgba(210,153,34,0.45); }
+.tl-c.tl-twi, .tl-sw.tl-twi { background: rgba(120,130,170,0.40); border-color: rgba(120,130,170,0.55); }
+.tl-c.tl-nh, .tl-sw.tl-nh { background: rgba(70,110,200,0.45); border-color: rgba(90,130,220,0.6); }
+.tl-c.tl-nl, .tl-sw.tl-nl { background: rgba(20,28,52,0.85); border-color: rgba(60,72,120,0.6); }
+.tl-c.tl-day, .tl-c.tl-twi, .tl-c.tl-nh, .tl-c.tl-nl { font-family: var(--mono); font-size: 11px; font-weight: 800; color: var(--text); }
 
 .map-section { margin-bottom: 22px; }
 .map-panel { position: relative; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }

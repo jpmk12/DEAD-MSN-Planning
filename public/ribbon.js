@@ -32,6 +32,11 @@ export function fieldPhase(b, limits) {
   if (xw != null) chips.push({ k: `XW ${xw}`, sev: xwSev(xw, limits.xwind) });
   if (cat) chips.push({ k: cat, sev: catSev(cat) });
   if (b.birdRisk?.level) chips.push({ k: `BIRD ${b.birdRisk.level[0]}`, sev: birdSev(b.birdRisk.level) });
+  // NVG illumination (computed) — LOW is a planning consideration (caution color),
+  // not a GO/NO-GO driver; daylight phases show nothing.
+  if (b.nvg && !b.nvg.daylight) {
+    chips.push({ k: `ILLUM ${b.nvg.illumClass[0]} ${b.nvg.illumMlx} mlx`, sev: b.nvg.illumClass === 'LOW' ? 'caution' : 'go' });
+  }
   // Current-only convective/SIGMET only when representative for this phase.
   if (b.phase?.hideCurrentOnly) {
     chips.push({ k: 'now-cast n/a', sev: 'info' });
