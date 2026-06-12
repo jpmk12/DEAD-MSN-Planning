@@ -18,6 +18,7 @@ import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 import { watchTaf } from './data/tafwatch.js';
+import { nvgIllum } from './core/astro.js';
 
 // Default pattern altitudes (ft AGL) reported in the wind section; configurable
 // per request. Each is shown with its MSL (field elev + AGL).
@@ -181,7 +182,8 @@ export function parseClosedRunways(notams) {
   return [...closed];
 }
 
-export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null) {
+export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null, opts = {}) {
+  const { nvg = false } = opts; // NVG sortie -> attach per-phase illumination
   const nowMs = Date.now();
   const startPerf = performance.now();
   // Per-source wall-clock timing (ms), so /api/diag and the [timing] log can show
@@ -443,6 +445,16 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       birdRisk,
       currentConditions,
       forecast,
+      // NVG illumination at this phase's time/place (computed). A BKN/OVC ceiling
+      // (forecast at ETA, else current) degrades the clear-sky value -> caveat.
+      nvg: (nvg && stop.when && lat != null && lon != null)
+        ? (() => {
+            const ill = nvgIllum(stop.when, lat, lon);
+            if (!ill) return null;
+            const ceil = (useForecast ? forecast?.ceilingFt : currentConditions?.ceilingFt) ?? null;
+            return { ...ill, cloudCeilingFt: ceil, cloudCaveat: ceil != null };
+          })()
+        : null,
       statusSource,
       status,
       statusReasons,
@@ -491,6 +503,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     generatedAt: new Date().toISOString(),
     targetTime: targetIso,
     sortie: isSortie,
+    nvg,
     // Per-source wall-clock (ms) for this brief; surfaced by /api/diag and the
     // [timing] log so the slowest live feed on the host is visible.
     diag: { timings },

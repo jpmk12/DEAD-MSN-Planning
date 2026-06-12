@@ -326,7 +326,8 @@ const server = createServer(async (req, res) => {
       // evaluated at its own time (departure ≠ recovery, even for an out-and-back
       // to the same field). Falls back to the flat id list when absent.
       const stops = parseStops(url.searchParams.get('stops'));
-      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined, whenIso, stops));
+      const nvg = url.searchParams.get('nvg') === '1';
+      sendJson(res, 200, await buildBrief(ids, offline, parseLimits(url), agls.length ? agls : undefined, whenIso, stops, { nvg }));
       return;
     }
 
@@ -352,7 +353,7 @@ const server = createServer(async (req, res) => {
       // CADDO10 offline demo: bundled fixture, fixed anchor time, labeled DEMO.
       if (url.searchParams.get('demo') === 'caddo10') {
         const fix = JSON.parse(await readFile(fileURLToPath(new URL('../data/fixtures/caddo10.json', import.meta.url)), 'utf8'));
-        const tl = await buildTimeline({ stops: fix.stops, routes: fix.routes, limits: parseLimits(url), inject: fix });
+        const tl = await buildTimeline({ stops: fix.stops, routes: fix.routes, limits: parseLimits(url), nvg: url.searchParams.get('nvg') === '1' || fix.nvg === true, inject: fix });
         sendJson(res, 200, { ...tl, demo: 'CADDO10', demoNote: fix._sources });
         return;
       }
@@ -360,7 +361,7 @@ const server = createServer(async (req, res) => {
       if (!stops) { sendJson(res, 400, { error: 'provide ?stops=ICAO@ISO@ROLE@Label|... (or ?demo=caddo10)' }); return; }
       const routes = parseRouteTokens(url.searchParams.get('routes'), url.searchParams.get('rwhen'));
       const offline = url.searchParams.get('offline') === '1';
-      sendJson(res, 200, await buildTimeline({ stops, routes, offline, limits: parseLimits(url) }));
+      sendJson(res, 200, await buildTimeline({ stops, routes, offline, nvg: url.searchParams.get('nvg') === '1', limits: parseLimits(url) }));
       return;
     }
 

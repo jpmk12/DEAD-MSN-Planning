@@ -14,6 +14,7 @@ import { metarConditions, DEFAULT_LIMITS } from './brief.js';
 import { getAirport } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { ahasRaw, parseAhasHourly, ahasAreaForIcao, ahasRouteType, ahasHasRoute } from './data/ahasapi.js';
+import { nvgIllum } from './core/astro.js';
 
 const HOUR_MS = 3600000;
 const METAR_GOVERNS_MIN = 90; // matches the brief's FUTURE_MIN horizon
@@ -140,7 +141,7 @@ async function ahasHourMap(type, area, whenIso) {
  * network: { now, airports:{icao:rec}, metars:{icao:rawText|obs}, tafs:{icao:raw},
  * birds:{key:{hourKey:LEVEL}} }.
  */
-export async function buildTimeline({ stops = [], routes = [], offline = false, limits = DEFAULT_LIMITS, inject = null }) {
+export async function buildTimeline({ stops = [], routes = [], offline = false, limits = DEFAULT_LIMITS, nvg = false, inject = null }) {
   const nowMs = inject?.now ? Date.parse(inject.now) : Date.now();
   const hours = hourRange(stops, nowMs);
   const fields = [...new Set(stops.map((s) => String(s.icao || '').toUpperCase()).filter(Boolean))];
@@ -183,9 +184,17 @@ export async function buildTimeline({ stops = [], routes = [], offline = false, 
       airport, obs: obsByIcao.get(icao) ?? null, tafRaw: tafByIcao.get(icao) ?? null,
       birdByHour, hours, nowMs, limits,
     });
+    // NVG illumination band per column (day/twilight/night + LOW/HIGH), computed
+    // for the field's location at each hour. Only when the NVG flag is on.
+    const illum = (nvg && airport && airport.lat != null)
+      ? hours.map((iso) => {
+          const g = nvgIllum(iso, airport.lat, airport.lon);
+          return g ? { t: iso, band: g.band, mlx: g.illumMlx, class: g.illumClass, moonUp: g.moon.up } : { t: iso, band: null };
+        })
+      : null;
     const roles = stops.filter((s) => String(s.icao).toUpperCase() === icao)
       .map((s) => ({ role: s.role || 'FIELD', label: s.label || icao, when: s.when || null }));
-    return { icao, found: !!airport, roles, cells };
+    return { icao, found: !!airport, roles, cells, illum };
   }));
 
   const routeRows = await Promise.all((routes || []).map(async (r) => {
@@ -201,6 +210,7 @@ export async function buildTimeline({ stops = [], routes = [], offline = false, 
   return {
     generatedAt: new Date().toISOString(),
     now: new Date(nowMs).toISOString(),
+    nvg,
     window: { from: hours[0], to: hours[hours.length - 1], hours },
     limits,
     fields: fieldRows,
