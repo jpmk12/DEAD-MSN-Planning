@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { hourRange, buildTimeline } from './timeline.js';
 
 const FIX = JSON.parse(readFileSync(fileURLToPath(new URL('../data/fixtures/caddo10.json', import.meta.url)), 'utf8'));
+const NIGHT = JSON.parse(readFileSync(fileURLToPath(new URL('../data/fixtures/caddo10n.json', import.meta.url)), 'utf8'));
 
 test('hourRange covers now + all stops, hourly, capped', () => {
   const nowMs = Date.parse('2026-06-11T12:00:00Z');
@@ -73,6 +74,33 @@ test('CADDO10 timeline: METAR governs near-now, TAF governs the window, degradat
 
   // Hours with no source are UNAVAILABLE (null), never fabricated.
   assert.ok(klts.cells.every((c) => c.status !== undefined));
+});
+
+test('CADDO10-NIGHT: NVG timeline carries an illumination band that goes day -> night LOW', async () => {
+  const tl = await buildTimeline({ stops: NIGHT.stops, routes: NIGHT.routes, nvg: NIGHT.nvg, inject: NIGHT });
+  assert.equal(tl.nvg, true);
+  const klts = tl.fields.find((f) => f.icao === 'KLTS');
+  assert.ok(Array.isArray(klts.illum), 'illum band present when nvg on');
+  const at = (hh) => klts.illum.find((g) => g.t.startsWith(`2026-06-12T${hh}`));
+
+  // 00Z/01Z the sun is still up (June, KLTS) -> daylight band.
+  assert.equal(at('00').band, 'day');
+  // Deep night (05Z ~ local midnight): night band, and with the moon below the
+  // horizon near the new moon the call is LOW (AFI 11-214 < 2.2 mlx).
+  const deep = at('05');
+  assert.equal(deep.band, 'night');
+  assert.equal(deep.class, 'LOW');
+  assert.ok(deep.mlx < 2.2, `mlx ${deep.mlx} should be LOW`);
+  assert.equal(deep.moonUp, false, 'moonless night drives the LOW call');
+
+  // The transition is monotonic-ish: a twilight column exists between them.
+  assert.ok(klts.illum.some((g) => g.band === 'twilight'), 'a twilight column appears');
+});
+
+test('NVG off -> no illumination band on the timeline (feature is opt-in)', async () => {
+  const tl = await buildTimeline({ stops: NIGHT.stops, routes: NIGHT.routes, inject: NIGHT });
+  assert.equal(tl.nvg, false);
+  assert.equal(tl.fields.find((f) => f.icao === 'KLTS').illum, null);
 });
 
 test('timeline cells are honest when a field has no data at an hour', async () => {

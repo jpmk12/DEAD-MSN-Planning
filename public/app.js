@@ -1688,10 +1688,12 @@ window.addEventListener('afterprint', () => {
 });
 
   prefillDatetimes();
-  // Timeline cell taps + the CADDO10 offline demo (?demo=caddo10).
+  // Timeline cell taps + the CADDO10 offline demos: ?demo=caddo10 (day divert)
+  // or ?demo=caddo10n (night NVG illumination).
   on('sec-timeline', 'click', onTimelineClick);
-  if (new URLSearchParams(location.search).get('demo') === 'caddo10') {
-    fetchTimeline(new URLSearchParams({ demo: 'caddo10' }));
+  const demo = new URLSearchParams(location.search).get('demo');
+  if (demo === 'caddo10' || demo === 'caddo10n') {
+    fetchTimeline(new URLSearchParams({ demo }));
   }
   // Tidy each 24-hour Zulu time field to HHMM when the user leaves it / hits Enter.
   TIME_PREFIXES.forEach((pre) => {

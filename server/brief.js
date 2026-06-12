@@ -19,6 +19,7 @@ import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 import { watchTaf } from './data/tafwatch.js';
 import { nvgIllum } from './core/astro.js';
+import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
 
 // Default pattern altitudes (ft AGL) reported in the wind section; configurable
 // per request. Each is shown with its MSL (field elev + AGL).
@@ -310,8 +311,26 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     return map;
   })());
 
-  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey] =
-    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP]);
+  // USNO cross-check (NVG only): authoritative rise/set/twilight + moon phase per
+  // unique field+date. Best-effort — failures yield null and the computed astro
+  // values stand. Keyed by "ICAO|YYYY-MM-DD" so stops sharing a field/day reuse it.
+  const usnoP = timed('usno', (async () => {
+    const map = new Map();
+    if (!nvg || offline) return map;
+    await Promise.all(stopList.map(async (s) => {
+      if (!s.when) return;
+      const ap = airportMap.get(s.icao);
+      if (!ap || ap.lat == null) return;
+      const key = `${s.icao}|${usnoDate(s.when)}`;
+      if (map.has(key)) return;
+      map.set(key, null); // reserve so concurrent stops don't double-fetch
+      map.set(key, await usnoOneDay(s.when, ap.lat, ap.lon, { offline }));
+    }));
+    return map;
+  })());
+
+  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey, usnoByKey] =
+    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP, usnoP]);
   timings.total = Math.round(performance.now() - startPerf);
   // Name the slow live feed in the host log (skip offline/test runs to avoid noise).
   if (!offline) {
@@ -451,8 +470,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
         ? (() => {
             const ill = nvgIllum(stop.when, lat, lon);
             if (!ill) return null;
+            const merged = mergeUsno(ill, usnoByKey.get(`${icao}|${usnoDate(stop.when)}`));
             const ceil = (useForecast ? forecast?.ceilingFt : currentConditions?.ceilingFt) ?? null;
-            return { ...ill, cloudCeilingFt: ceil, cloudCaveat: ceil != null };
+            return { ...merged, cloudCeilingFt: ceil, cloudCaveat: ceil != null };
           })()
         : null,
       statusSource,

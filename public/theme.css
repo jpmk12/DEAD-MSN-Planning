@@ -633,4 +633,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   .card .body { gap: 10px; }
   .raw, .metric, .comp .box, .rwy-row, .notam, .taf, .warn-item { background: #fff !important; }
   .status-led { border-width: 1.5px; }
+
+  /* NVG illumination block: keep it whole on the kneeboard and let its cells
+     print on white. The LOW/HIGH chip keeps its color (it carries the call). */
+  .illum-block { break-inside: avoid; border: 1px solid #999; }
+  .illum-block .il-cell { background: #fff !important; border-color: #bbb; }
+  .illum-block .cat-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Timeline ILLUM band cells must print their fill — the band IS the data. */
+  .tl-c.tl-day, .tl-c.tl-twi, .tl-c.tl-nh, .tl-c.tl-nl,
+  .tl-sw.tl-day, .tl-sw.tl-twi, .tl-sw.tl-nh, .tl-sw.tl-nl {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
 }

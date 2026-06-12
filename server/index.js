@@ -18,7 +18,7 @@ import { buildRoute } from './route.js';
 import { buildTimeline } from './timeline.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
-import { knownAirports } from './data/airports.js';
+import { knownAirports, getAirport } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { lastWeatherError } from './data/weather.js';
@@ -27,6 +27,8 @@ import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
 import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams } from './data/daip.js';
 import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './data/ahasapi.js';
+import { nvgIllum } from './core/astro.js';
+import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
 
 loadEnv(); // pick up FAA NOTAM credentials from .env if present
 
@@ -349,12 +351,47 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === '/api/illum') {
+      // NVG illumination for a place/time: computed sun/moon events, lunar
+      // position, ground millilux + AFI 11-214 LOW/HIGH. Accepts an explicit
+      // ?lat=&lon= or a ?icao= (resolved to its coordinates). ?usno=1 adds the
+      // USNO cross-check (authoritative event times) unless ?offline=1.
+      const offline = url.searchParams.get('offline') === '1';
+      const whenRaw = url.searchParams.get('when');
+      const when = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : new Date().toISOString();
+      let lat = null, lon = null, icao = null;
+      const latRaw = url.searchParams.get('lat');
+      const lonRaw = url.searchParams.get('lon');
+      if (latRaw != null && lonRaw != null && latRaw !== '' && lonRaw !== '') {
+        lat = Number(latRaw); lon = Number(lonRaw);
+      } else if (url.searchParams.get('icao')) {
+        icao = String(url.searchParams.get('icao')).trim().toUpperCase();
+        const ap = await getAirport(icao, offline);
+        if (ap && ap.lat != null) { lat = ap.lat; lon = ap.lon; }
+      }
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        sendJson(res, 400, { error: 'provide ?lat=&lon= or a known ?icao= (and optional ?when=ISO)' });
+        return;
+      }
+      const ill = nvgIllum(when, lat, lon);
+      if (!ill) { sendJson(res, 422, { error: 'illumination not computable for those coordinates' }); return; }
+      let out = ill;
+      if (url.searchParams.get('usno') === '1' && !offline) {
+        out = mergeUsno(ill, await usnoOneDay(when, lat, lon, { offline }));
+      }
+      sendJson(res, 200, { when, lat, lon, icao, ...out });
+      return;
+    }
+
     if (url.pathname === '/api/timeline') {
-      // CADDO10 offline demo: bundled fixture, fixed anchor time, labeled DEMO.
-      if (url.searchParams.get('demo') === 'caddo10') {
-        const fix = JSON.parse(await readFile(fileURLToPath(new URL('../data/fixtures/caddo10.json', import.meta.url)), 'utf8'));
+      // CADDO10 offline demos: bundled fixtures, fixed anchor time, labeled DEMO.
+      // `caddo10` = day divert demo; `caddo10n` = night NVG illumination demo.
+      const demo = url.searchParams.get('demo');
+      const demoFile = demo === 'caddo10' ? 'caddo10.json' : demo === 'caddo10n' ? 'caddo10n.json' : null;
+      if (demoFile) {
+        const fix = JSON.parse(await readFile(fileURLToPath(new URL(`../data/fixtures/${demoFile}`, import.meta.url)), 'utf8'));
         const tl = await buildTimeline({ stops: fix.stops, routes: fix.routes, limits: parseLimits(url), nvg: url.searchParams.get('nvg') === '1' || fix.nvg === true, inject: fix });
-        sendJson(res, 200, { ...tl, demo: 'CADDO10', demoNote: fix._sources });
+        sendJson(res, 200, { ...tl, demo: demo === 'caddo10n' ? 'CADDO10-NIGHT' : 'CADDO10', demoNote: fix._sources });
         return;
       }
       const stops = parseStops(url.searchParams.get('stops') ?? '');
