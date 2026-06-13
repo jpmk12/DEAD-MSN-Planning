@@ -25,6 +25,29 @@ test('routePhase: AHAS + worst leg crosswind, convective marked not-assessed', (
   assert.ok(p.chips.some((c) => c.k === 'CONV n/a' && c.sev === 'info'));
 });
 
+test('routePhase: along-route convective/SIGMET drives status when assessed', () => {
+  // Convective SIGMET crossing the route -> NO-GO.
+  const conv = routePhase({ id: 'IR-154', type: 'IR', routeWxChecked: true,
+    hazardWx: [{ type: 'SIGMET', hazard: 'CONVECTIVE', distanceNm: 0 }], convective: [] }, null, LIMITS);
+  assert.equal(conv.status, 'NO-GO');
+  assert.ok(conv.chips.some((c) => c.k.startsWith('CONV SIGMET') && c.sev === 'nogo'));
+
+  // A high SPC outlook category near the route -> CAUTION.
+  const enh = routePhase({ id: 'IR-154', type: 'IR', routeWxChecked: true,
+    hazardWx: [], convective: [{ risk: 'ENH', distanceNm: 12 }] }, null, LIMITS);
+  assert.equal(enh.status, 'CAUTION');
+
+  // Clear route, assessment ran -> GO with a "CONV clear" chip (not "n/a").
+  const clear = routePhase({ id: 'AR312L', type: 'AR', routeWxChecked: true, hazardWx: [], convective: [] }, null, LIMITS);
+  assert.equal(clear.status, 'GO');
+  assert.ok(clear.chips.some((c) => c.k === 'CONV clear'));
+  assert.ok(!clear.chips.some((c) => c.k === 'CONV n/a'));
+
+  // Not assessed (offline / no geometry) -> honest "CONV n/a".
+  const na = routePhase({ id: 'AR312L', type: 'AR' }, null, LIMITS);
+  assert.ok(na.chips.some((c) => c.k === 'CONV n/a' && c.sev === 'info'));
+});
+
 test('routePhase: AR cross-track wind aloft is informational, never gating', () => {
   // 80 kt cross-track wind at the AR block — normal aloft, NOT a landing limit.
   const d = { id: 'AR312L', type: 'AR', birdRisk: { level: 'LOW' },

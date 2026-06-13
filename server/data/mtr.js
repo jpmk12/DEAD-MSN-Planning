@@ -10,9 +10,31 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { bearingDeg, haversineNm } from '../core/geo.js';
 import { windComponents } from '../core/wind.js';
-import { geojsonToAirspace } from './airspace.js';
+import { geojsonToAirspace, distanceToGeometry } from './airspace.js';
 import { fetchWindsAloft, interpolateWind } from './windsaloft.js';
 import { fetchRouteRisk, segmentRisk } from './ahas.js';
+import { fetchConvective } from './convective.js';
+import { fetchAirSigmets } from './airsigmet.js';
+
+// How close a route's path must pass to a convective/SIGMET area to flag it.
+const CONV_ROUTE_NM = 25;
+const SIG_ROUTE_NM = 25;
+
+/** Hazard areas whose geometry the route path passes within `thresholdNm` of,
+ *  each tagged with the route's closest approach (distanceNm). */
+function hazardsAlongRoute(points, items, thresholdNm) {
+  const out = [];
+  for (const it of items || []) {
+    let min = Infinity;
+    for (const [la, lo] of points) {
+      const d = distanceToGeometry(la, lo, it.geometry);
+      if (d < min) min = d;
+      if (min === 0) break;
+    }
+    if (min <= thresholdNm) out.push({ ...it, distanceNm: Math.round(min) });
+  }
+  return out.sort((a, b) => a.distanceNm - b.distanceNm);
+}
 
 const FIXTURE_URL = new URL('../../data/fixtures/mtr-sample.json', import.meta.url);
 const AP1B_URL = new URL('../../data/mtr-ap1b.json', import.meta.url);
@@ -209,10 +231,31 @@ export async function buildMtrDetail(token, offline, targetIso) {
     }),
   );
 
+  // Convective outlook + SIGMETs whose area the route path crosses (live only;
+  // offline stays UNAVAILABLE so it's never implied from fixtures). Closes the
+  // ribbon's "CONV n/a" gap with an honest along-route assessment.
+  let convective = null, hazardWx = null, routeWxChecked = false;
+  if (!offline) {
+    const routePts = [];
+    for (const s of (mtr.segments || [])) for (const p of (s.points || [])) routePts.push(p);
+    if (routePts.length) {
+      const [conv, sig] = await Promise.all([
+        fetchConvective(false).catch(() => ({ convective: [] })),
+        fetchAirSigmets(false).catch(() => ({ airsigmets: [] })),
+      ]);
+      convective = hazardsAlongRoute(routePts, conv.convective, CONV_ROUTE_NM);
+      hazardWx = hazardsAlongRoute(routePts, sig.airsigmets, SIG_ROUTE_NM);
+      routeWxChecked = true;
+    }
+  }
+
   // Normalize the requested time to the AHAS Zulu run-hour so the UI can show
   // (and the user can verify) exactly which hour the bird risk was pulled for.
   const requestedIso = targetIso && !Number.isNaN(Date.parse(targetIso)) ? new Date(targetIso).toISOString() : null;
   return {
+    convective,
+    hazardWx,
+    routeWxChecked,
     found: true,
     id: base.id,
     type: base.type,

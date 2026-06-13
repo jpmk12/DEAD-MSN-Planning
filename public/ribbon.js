@@ -67,7 +67,25 @@ export function routePhase(d, when, limits) {
       ? { k: `XW ${worstXw} aloft`, sev: 'info' }
       : { k: `XW ${worstXw}`, sev: xwSev(worstXw, limits.xwind) });
   }
-  chips.push({ k: 'CONV n/a', sev: 'info' }); // convective-along-route not assessed (honest)
+  // Convective/SIGMET along the route path (assessed server-side from the leg
+  // geometry). Convective SIGMET on/near the route → NO-GO; a higher SPC outlook
+  // category or any other SIGMET → CAUTION; a lower outlook → info; clear → GO.
+  // When the check didn't run (offline / no geometry) stay honest: "CONV n/a".
+  if (d.routeWxChecked) {
+    const conv = d.convective || [];
+    const sig = d.hazardWx || [];
+    const convSig = sig.filter((h) => h.hazard === 'CONVECTIVE');
+    const otherSig = sig.filter((h) => h.hazard !== 'CONVECTIVE');
+    const HI = new Set(['ENH', 'MDT', 'HIGH']);
+    const hiConv = conv.filter((c) => HI.has(c.risk));
+    if (convSig.length) chips.push({ k: `CONV SIGMET ${convSig[0].distanceNm}NM`, sev: 'nogo' });
+    else if (hiConv.length) chips.push({ k: `CONV ${hiConv[0].risk} ${hiConv[0].distanceNm}NM`, sev: 'caution' });
+    else if (otherSig.length) chips.push({ k: `${otherSig[0].type} ${otherSig[0].distanceNm}NM`, sev: 'caution' });
+    else if (conv.length) chips.push({ k: `CONV ${conv[0].risk} ${conv[0].distanceNm}NM`, sev: 'info' });
+    else chips.push({ k: 'CONV clear', sev: 'go' });
+  } else {
+    chips.push({ k: 'CONV n/a', sev: 'info' }); // not assessed (offline / no geometry)
+  }
   const worst = chips.reduce((m, c) => (SEV_RANK[c.sev] > SEV_RANK[m] ? c.sev : m), 'go');
   const status = worst === 'nogo' ? 'NO-GO' : worst === 'caution' ? 'CAUTION' : 'GO';
   return { role: d.type || 'IR', id: d.id, when, source: 'AHAS+winds', status, chips, reason: null };
