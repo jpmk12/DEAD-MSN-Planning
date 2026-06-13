@@ -29,6 +29,26 @@ async function fetchRadarFrameIso(signal) {
 const BASE_URL = (z, x, y) => `https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
 const RADAR_URL = (z, x, y) => `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
 
+// RainViewer publishes time-stamped radar frames — the last ~2 h of observed
+// frames plus a ~30-min nowcast — each as its own tile path. We use these for an
+// animatable loop. (Public radar has no multi-hour forecast; the SPC convective
+// outlook overlay is the surrogate for sortie times beyond the nowcast horizon.)
+async function fetchRadarFrames(signal) {
+  try {
+    const r = await fetch('https://api.rainviewer.com/public/weather-maps.json', { signal, cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const host = j?.host || 'https://tilecache.rainviewer.com';
+    const past = (j?.radar?.past || []).filter((f) => f && f.path).map((f) => ({ time: f.time, path: f.path, kind: 'past' }));
+    const nowcast = (j?.radar?.nowcast || []).filter((f) => f && f.path).map((f) => ({ time: f.time, path: f.path, kind: 'nowcast' }));
+    const frames = [...past, ...nowcast];
+    if (!frames.length) return null;
+    return { host, frames, nowIdx: Math.max(0, past.length - 1) }; // last observed frame = "now"
+  } catch { return null; }
+}
+// A RainViewer frame's tile URL (256 px, color scheme 2 = NEXRAD-like, smoothed).
+const rvFrameUrl = (host, frame) => (z, x, y) => `${host}${frame.path}/256/${z}/${x}/${y}/2/1_1.png`;
+
 const TFR_COLORS = { VIP: '#f85149', SECURITY: '#f85149', HAZARD: '#d29922', STADIUM: '#37b6c3', DEFAULT: '#d29922' };
 const SUA_COLORS = { active: '#f85149', scheduled: '#d29922', cold: '#5b6878', DEFAULT: '#97a3b4' };
 
@@ -101,7 +121,7 @@ export function initMap(container, data) {
     <div class="lg-row"><span class="lg-poly" style="border-color:#d29922;background:rgba(210,153,34,.18)"></span> Convective outlook (TSTM→HIGH)</div>
     <div class="lg-row"><span class="lg-line" style="background:#3fb950"></span> Low-level (IR/VR) &nbsp; <span class="lg-line" style="background:#4aa3df"></span> A/R track</div>
     <div class="lg-row"><span class="lg-line" style="background:#f0b429"></span> Route of flight (connectors; A/R &amp; low-level portions take the colors above)</div>
-    <div class="lg-row lg-note">Radar = NEXRAD reflectivity overlay</div>`;
+    <div class="lg-row lg-note">Radar = NEXRAD reflectivity · animatable loop (−2 h → +30 min nowcast). No public multi-hour forecast — use the convective outlook for later sortie times.</div>`;
 
   const times = document.createElement('div');
   times.className = 'map-times';
@@ -122,9 +142,21 @@ export function initMap(container, data) {
 
   const attribution = document.createElement('div');
   attribution.className = 'map-attrib';
-  attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: IEM NEXRAD · time: RainViewer';
+  attribution.innerHTML = '© OpenStreetMap, © CARTO · radar: RainViewer / IEM NEXRAD';
 
-  container.append(viewport, controls, navc, times, legend, attribution);
+  // Radar animation bar (hidden until RainViewer frames load). Loops the last
+  // ~2 h of observed radar + ~30-min nowcast; beyond that, the SPC convective
+  // outlook overlay is the honest surrogate (no public multi-hour radar exists).
+  const radarbar = document.createElement('div');
+  radarbar.className = 'map-radarbar';
+  radarbar.style.display = 'none';
+  radarbar.innerHTML = `
+    <button data-act="rplay" title="Play / pause the radar loop">▶</button>
+    <input type="range" data-act="rframe" min="0" max="0" value="0" title="Scrub radar frames (−2 h … +30 min)">
+    <span class="rb-time" data-rtime>—</span>
+    <span class="rb-hint" title="Public radar has no multi-hour forecast. For sortie times past +30 min, use the SPC convective outlook overlay.">loop −2h→+30m · beyond: SPC outlook</span>`;
+
+  container.append(viewport, controls, navc, times, legend, attribution, radarbar);
 
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
@@ -137,7 +169,8 @@ export function initMap(container, data) {
   // Recenter target: the briefed airfields ("home"), so ⌂ returns to the fields
   // and zooms in on them rather than being dragged out by winds navaids/routes.
   const homePts = (data.home && data.home.length) ? data.home : focusPts;
-  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65 };
+  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65,
+    radarFrames: [], radarHost: '', radarIdx: 0, radarNowIdx: 0, radarPlaying: false };
 
   function unproject(px, py, z) {
     return { lat: tileYToLat(py / TILE, z), lon: tileXToLon(px / TILE, z) };
@@ -338,6 +371,13 @@ export function initMap(container, data) {
     }
   }
 
+  // Current radar tile source: the selected RainViewer frame when frames are
+  // loaded, else the static IEM NEXRAD layer (animation bar stays hidden).
+  function curRadarFn() {
+    const f = state.radarFrames[state.radarIdx];
+    return f ? rvFrameUrl(state.radarHost, f) : RADAR_URL;
+  }
+
   function render() {
     const z = state.zoom;
     const c = project(state.lat, state.lon, z);
@@ -345,9 +385,72 @@ export function initMap(container, data) {
     renderTileLayer(baseLayer, BASE_URL, z, topLeft);
     radarLayer.style.display = state.radar ? 'block' : 'none';
     radarLayer.style.opacity = state.opacity;
-    if (state.radar) renderTileLayer(radarLayer, RADAR_URL, z, topLeft);
+    if (state.radar) renderTileLayer(radarLayer, curRadarFn(), z, topLeft);
     renderOverlay(z, topLeft);
   }
+
+  // Re-render ONLY the radar layer (animation tick / scrub — base + overlay stay).
+  function renderRadar() {
+    if (!state.radar) return;
+    const z = state.zoom;
+    const c = project(state.lat, state.lon, z);
+    renderTileLayer(radarLayer, curRadarFn(), z, { x: c.x - w() / 2, y: c.y - h() / 2 });
+  }
+
+  function updateRadarTime() {
+    const el = radarbar.querySelector('[data-rtime]');
+    const f = state.radarFrames[state.radarIdx];
+    if (!el || !f) return;
+    const nowF = state.radarFrames[state.radarNowIdx];
+    const dm = nowF ? Math.round((f.time - nowF.time) / 60) : 0;
+    const rel = dm === 0 ? 'now' : dm < 0 ? `−${-dm}m` : `+${dm}m`;
+    el.textContent = `${zuluLocal(new Date(f.time * 1000).toISOString())} · ${rel}${f.kind === 'nowcast' ? ' nowcast' : ''}`;
+  }
+
+  let radarTimer = null;
+  function stopRadarLoop() {
+    if (radarTimer) { clearInterval(radarTimer); radarTimer = null; }
+    state.radarPlaying = false;
+    const b = radarbar.querySelector('[data-act="rplay"]');
+    if (b) b.textContent = '▶';
+  }
+  function playRadarLoop() {
+    if (!state.radarFrames.length) return;
+    state.radarPlaying = true;
+    const b = radarbar.querySelector('[data-act="rplay"]');
+    if (b) b.textContent = '⏸';
+    const slider = radarbar.querySelector('[data-act="rframe"]');
+    radarTimer = setInterval(() => {
+      // Pause a beat on the final frame so the loop reads clearly.
+      state.radarIdx = (state.radarIdx + 1) % state.radarFrames.length;
+      if (slider) slider.value = String(state.radarIdx);
+      updateRadarTime();
+      renderRadar();
+    }, 600);
+  }
+
+  // Load RainViewer frames, then enable the animation bar. Failure leaves the
+  // static IEM radar in place (bar hidden) — honest, never blank.
+  (async () => {
+    const rd = await fetchRadarFrames();
+    if (!rd) return;
+    state.radarHost = rd.host;
+    state.radarFrames = rd.frames;
+    state.radarNowIdx = rd.nowIdx;
+    state.radarIdx = rd.nowIdx;
+    const slider = radarbar.querySelector('[data-act="rframe"]');
+    if (slider) { slider.max = String(rd.frames.length - 1); slider.value = String(rd.nowIdx); }
+    radarbar.style.display = state.radar ? 'flex' : 'none';
+    updateRadarTime();
+    renderRadar();
+  })();
+
+  radarbar.addEventListener('click', (e) => {
+    if (e.target.dataset?.act === 'rplay') { state.radarPlaying ? stopRadarLoop() : playRadarLoop(); }
+  });
+  radarbar.addEventListener('input', (e) => {
+    if (e.target.dataset?.act === 'rframe') { stopRadarLoop(); state.radarIdx = Number(e.target.value); updateRadarTime(); renderRadar(); }
+  });
 
   // --- interaction ---
   let drag = null;
@@ -386,7 +489,12 @@ export function initMap(container, data) {
   navc.addEventListener('click', onNav);
   controls.addEventListener('input', (e) => {
     const act = e.target.dataset?.act;
-    if (act === 'radar') { state.radar = e.target.checked; render(); }
+    if (act === 'radar') {
+      state.radar = e.target.checked;
+      if (!state.radar) stopRadarLoop();
+      radarbar.style.display = (state.radar && state.radarFrames.length) ? 'flex' : 'none';
+      render();
+    }
     if (act === 'airspace') { state.airspace = e.target.checked; render(); }
     if (act === 'wx') { state.wx = e.target.checked; render(); }
     if (act === 'pireps') { state.pireps = e.target.checked; render(); }

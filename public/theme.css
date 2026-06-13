@@ -563,6 +563,14 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .map-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
 .map-attrib { position: absolute; bottom: 4px; left: 6px; z-index: 5; font-size: 9px; color: var(--text-faint); background: rgba(10, 14, 20, 0.6); padding: 1px 5px; border-radius: 4px; }
 
+/* Radar animation bar — play/scrub the RainViewer radar loop. */
+.map-radarbar { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 24px); padding: 5px 9px; background: rgba(14, 19, 27, 0.9); border: 1px solid var(--border-bright); border-radius: 9px; font-size: 11px; color: var(--text-dim); backdrop-filter: blur(4px); }
+.map-radarbar button[data-act="rplay"] { width: 26px; height: 24px; font-size: 12px; line-height: 1; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 6px; cursor: pointer; }
+.map-radarbar input[type="range"] { width: clamp(90px, 30vw, 220px); accent-color: var(--accent); }
+.map-radarbar .rb-time { font-family: var(--mono); font-size: 11px; color: var(--text); white-space: nowrap; }
+.map-radarbar .rb-hint { font-size: 9.5px; color: var(--text-faint); white-space: nowrap; }
+@media (max-width: 560px) { .map-radarbar .rb-hint { display: none; } }
+
 /* Zoom + recenter cluster */
 .map-nav { position: absolute; right: 10px; bottom: 22px; z-index: 5; display: flex; flex-direction: column; gap: 4px; }
 .map-nav button { width: 30px; height: 30px; font-size: 17px; line-height: 1; color: var(--text); background: rgba(14, 19, 27, 0.9); border: 1px solid var(--border-bright); border-radius: 7px; cursor: pointer; }
