@@ -297,6 +297,7 @@ export function nvgIllum(when, lat, lon) {
     illumMlx: g.mlx,
     illumClass: illumClass(g.mlx),
     moon: { fraction: ill.fraction, name: ill.name, altDeg: g.moonAltDeg, azDeg: g.moonAzDeg, up: g.moonAltDeg > -0.8 },
+    sun: { altDeg: g.sunAltDeg, azDeg: Math.round(sun.azDeg) },
     sunAltDeg: g.sunAltDeg,
     events: sunMoonEvents(when, lat, lon),
     source: 'computed',

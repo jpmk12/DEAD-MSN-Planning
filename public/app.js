@@ -495,10 +495,11 @@ function nvgBlock(brief) {
   if (!n) return '';
   const ev = n.events || {};
   const z = (iso) => (iso ? zuluLocal(iso) : '—');
+  const glare = glareShadowLine(brief);
   if (n.daylight) {
     return `<div class="illum-block daylight"><div class="il-h">🌙 NVG · ${brief.phase?.when ? zuluLocalHtml(brief.phase.when) : '—'}
       <span class="cat-chip">DAYLIGHT — illumination n/a</span></div>
-      <div class="fc-line">Sun up (alt ${n.sunAltDeg}°). Sunset ${esc(z(ev.sunset))} · EENT ${esc(z(ev.eent))}.</div></div>`;
+      <div class="fc-line">Sun up (alt ${n.sunAltDeg}°). Sunset ${esc(z(ev.sunset))} · EENT ${esc(z(ev.eent))}.</div>${glare}</div>`;
   }
   const cls = n.illumClass === 'HIGH' ? 'b-illhigh' : 'b-illlow';
   const moon = n.moon || {};
@@ -517,7 +518,38 @@ function nvgBlock(brief) {
       <div class="il-cell"><div class="k">Moon</div><div class="v">Rise ${esc(z(ev.moonrise))} · Set ${esc(z(ev.moonset))}</div></div>
       <div class="il-cell"><div class="k">Lunar position</div><div class="v">${moonState}</div></div>
       <div class="il-cell"><div class="k">Ground illum</div><div class="v"><b>${n.illumMlx} mlx</b> · ${esc(n.illumClass)}<br><small>clear-sky computed</small></div></div>
-    </div>${caveat}</div>`;
+    </div>${glare}${caveat}</div>`;
+}
+
+const azDiff = (a, b) => { const d = Math.abs(a - b) % 360; return Math.round(d > 180 ? 360 - d : d); };
+
+// Sun-glare (low sun near the approach course) and lunar geometry vs the
+// recommended runway / NVG terrain-shadow note. Pure geometry off the computed
+// sun/moon azimuth and the runway true heading — awareness only, not a limit.
+function glareShadowLine(brief) {
+  const n = brief.nvg;
+  if (!n) return '';
+  const a = brief.analysis;
+  const rwyIdent = brief.recommendedRunway || (a && a.active && a.active.ident) || null;
+  const rwy = a && rwyIdent ? (a.runways || []).find((r) => r.ident === rwyIdent) : null;
+  const hdg = rwy && rwy.trueHeading != null ? rwy.trueHeading : null;
+  const bits = [];
+  // Sun glare: low sun (−3°..+12°) within ±30° of the approach course.
+  if (n.sun && n.sun.altDeg > -3 && n.sun.altDeg < 12 && hdg != null) {
+    const d = azDiff(n.sun.azDeg, hdg);
+    if (d <= 30) bits.push(`☀ Sun-glare risk on approach RWY ${rwyIdent} — sun ${Math.round(n.sun.altDeg)}° up, ${d}° off the approach course`);
+  }
+  if (!n.daylight) {
+    if (n.moon && n.moon.up) {
+      let s = `🌙 Moon az ${n.moon.azDeg}° / alt +${n.moon.altDeg}°`;
+      if (hdg != null) s += ` · ${azDiff(n.moon.azDeg, hdg)}° off RWY ${rwyIdent} approach`;
+      if (n.moon.altDeg < 15) s += ' — low moon: long terrain shadows / uneven illumination';
+      bits.push(s);
+    } else if (n.moon) {
+      bits.push('🌙 Moon below horizon — no lunar illumination; expect flat light / unlit terrain under NVG');
+    }
+  }
+  return bits.length ? `<div class="glare-line">${bits.map(esc).join('<br>')}</div>` : '';
 }
 
 function forecastBlock(brief) {
