@@ -3,7 +3,7 @@
 
 import { initMap } from './map.js';
 import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
-import { buildRibbonModel, roleTag as rbRoleTag } from './ribbon.js';
+import { buildRibbonModel, roleTag as rbRoleTag, sigTip, AWC_SIGMET_URL, SPC_OUTLOOK_URL } from './ribbon.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -1282,6 +1282,13 @@ function renderTimeline(tl) {
 
   const routeRows = (tl.routes || []).map((r) => {
     const entryCol = colIndexFor(r.when);
+    // AR refueling tracks: AHAS (bird) doesn't apply — show the entry marker only,
+    // with a muted "n/a" note instead of UNAVAILABLE bird cells.
+    if (r.ahas === false) {
+      const cells = r.cells.map((c, ci) =>
+        `<div class="tl-c tl-na" title="${esc(zuluLocal(c.t))} · AHAS n/a (AR track)">${ci === entryCol ? '<span class="tl-mark" title="Route entry time">E</span>' : ''}</div>`).join('');
+      return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>AHAS n/a</small></div>${cells}</div>`;
+    }
     const cells = r.cells.map((c, ci) =>
       `<div class="tl-c ${c.bird ? TL_BIRD_CLASS[c.bird] : 'tl-na'}" title="${esc(zuluLocal(c.t))} · AHAS bird risk ${esc(c.bird || 'UNAVAILABLE')}">${ci === entryCol ? '<span class="tl-mark" title="Route entry time">E</span>' : (c.bird ? `<span class="tl-bird">${esc(c.bird[0])}</span>` : '')}</div>`).join('');
     return `<div class="tl-row"><div class="tl-lbl">${esc(r.id)} <small>birds</small></div>${cells}</div>`;
@@ -1343,12 +1350,16 @@ function mtrDetailCard(d) {
     const alt = s.altText || (s.floorFt != null ? `${s.floorFt.toLocaleString()}–${(s.ceilingFt ?? 0).toLocaleString()} ${s.agl ? 'AGL' : 'MSL'}` : '—');
     const wd = s.widthLeftNm != null ? ` · ${s.widthLeftNm}/${s.widthRightNm} NM` : '';
     const w = s.wind;
+    const temp = w && w.tempC != null ? ` · ${w.tempC > 0 ? '+' : ''}${w.tempC}°C` : '';
     const wind = w
-      ? `${String(w.dirTrue).padStart(3, '0')}/${w.speedKt} → HW ${w.headwindKt} · XW ${w.crosswindKt}${w.crosswindSide !== 'none' ? ' ' + w.crosswindSide[0].toUpperCase() : ''}`
+      ? `${String(w.dirTrue).padStart(3, '0')}/${w.speedKt} → HW ${w.headwindKt} · XW ${w.crosswindKt}${w.crosswindSide !== 'none' ? ' ' + w.crosswindSide[0].toUpperCase() : ''}${temp}`
       : '—';
     const xwHi = w && Math.abs(w.crosswindKt) >= 20;
+    const ice = s.icing
+      ? `<span class="mtr-ice ice-${esc(s.icing.severity.toLowerCase())}" title="Structural icing potential at the block altitude (${s.icing.tempC}°C${s.icing.rhPct != null ? `, RH ${s.icing.rhPct}%` : ''}) — temp/RH-based, needs visible moisture">ICE ${esc(s.icing.severity)}</span>`
+      : '';
     return `<div class="mtr-seg">
-      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}${esc(wd)}</span> ${birdBadge(s.birdRisk)}</div>
+      <div class="mtr-seg-h">${esc(s.name)} <span class="rwy-len">${esc(s.lengthNm)} NM · brg ${s.bearing != null ? String(s.bearing).padStart(3, '0') + '°' : '—'} · ${esc(alt)}${esc(wd)}</span> ${ice}${d.ahasApplies ? birdBadge(s.birdRisk) : ''}</div>
       <div class="mtr-seg-w ${xwHi ? 'hi' : ''}">leg wind @${w ? w.altFt.toLocaleString() + ' ft' : '—'}: ${esc(wind)}</div>
     </div>`;
   }).join('');
@@ -1363,11 +1374,15 @@ function mtrDetailCard(d) {
     if (req) bits.push(`route entry ${esc(zuluLocal(req, { date: true }))}`);
     return bits.length ? `<div class="mtr-when">${bits.join(' · ')}</div>` : '';
   })();
-  const routeBird = bv
-    ? `<div class="mtr-bird" style="color:${BIRD_COLOR[bv.level]}">⚠ AHAS bird risk: <b>${esc(bv.level)}</b> — ${esc(bv.note || '')}</div>${ahasWhen}`
-    : (d.windsAt
-        ? `<div class="mtr-bird" style="color:var(--text-dim)">AHAS bird risk: UNAVAILABLE — no data returned for route entry ${esc(zuluLocal(d.windsAt, { date: true }))} (nothing fabricated)</div>`
-        : '');
+  // AHAS is a low-level bird/wildlife product — it does NOT apply to AR tracks.
+  const routeBird = d.ahasApplies === false
+    ? '<div class="mtr-bird" style="color:var(--text-faint)">AHAS bird risk: n/a — air-refueling track (AHAS is a low-level product; no published bird route)</div>'
+    : bv
+      ? `<div class="mtr-bird" style="color:${BIRD_COLOR[bv.level]}">⚠ AHAS bird risk: <b>${esc(bv.level)}</b> — ${esc(bv.note || '')}</div>${ahasWhen}`
+      : (d.windsAt
+          ? `<div class="mtr-bird" style="color:var(--text-dim)">AHAS bird risk: UNAVAILABLE — no data returned for route entry ${esc(zuluLocal(d.windsAt, { date: true }))} (nothing fabricated)</div>`
+          : '');
+  const wxHaz = routeWxBlock(d);
   const refuel = d.refuelAlt ? `<div class="mtr-bird" style="color:var(--accent)">⛽ Refueling altitude: <b>${esc(d.refuelAlt)}</b> — leg winds below are at this block</div>` : '';
   // Available turn points + the flown portion (entry/exit). Lets users see what
   // they can fly and how to request a portion (e.g. IR-154.C-M).
@@ -1381,8 +1396,32 @@ function mtrDetailCard(d) {
     : '';
   return `<div class="card"><div class="head">
       <div><div class="icao">${esc(d.id)}${d.portion ? ` <span class="mtr-portion">${esc(d.portion)}</span>` : ''}</div><div class="name">${esc(d.type)} · ${esc(d.name)}${d.agency ? ' · ' + esc(d.agency) : ''}</div></div>
-      <div class="spacer"></div>${d.birdRisk ? birdBadge(d.birdRisk.level) : ''}<span class="chev card-chev">▾</span></div>
-    <div class="body">${refuel}${routeBird}${portionLine}<div class="mtr-segs">${segs}</div></div></div>`;
+      <div class="spacer"></div>${d.ahasApplies && d.birdRisk ? birdBadge(d.birdRisk.level) : ''}<span class="chev card-chev">▾</span></div>
+    <div class="body">${refuel}${wxHaz}${routeBird}${portionLine}<div class="mtr-segs">${segs}</div></div></div>`;
+}
+
+// Convective/SIGMET-along-route + worst icing for a route detail card. Honest:
+// "n/a" when the live check didn't run (offline / no geometry). Hazards link to
+// the authoritative product (AWC SIGMET viewer / SPC outlook).
+function routeWxBlock(d) {
+  const rows = [];
+  if (d.icing) {
+    rows.push(`<div class="mtr-wx ice-${esc(d.icing.severity.toLowerCase())}">❄ Icing <b>${esc(d.icing.severity)}</b> at block — ${d.icing.tempC}°C${d.icing.rhPct != null ? ` · RH ${d.icing.rhPct}%` : ''} <small>(temp/RH-based; needs visible moisture)</small></div>`);
+  }
+  if (d.routeWxChecked) {
+    const sig = d.hazardWx || [], conv = d.convective || [];
+    for (const h of sig.slice(0, 3)) {
+      const crit = h.hazard === 'CONVECTIVE' ? ' crit' : '';
+      rows.push(`<div class="mtr-wx${crit}">⚠ <a href="${esc(AWC_SIGMET_URL)}" target="_blank" rel="noopener" title="${esc(sigTip(h) || '')}">${esc(h.type)}${h.hazard ? ' ' + esc(h.hazard) : ''} · ${esc(h.distanceNm)} NM from route ↗</a></div>`);
+    }
+    for (const c of conv.slice(0, 2)) {
+      rows.push(`<div class="mtr-wx">⛈ <a href="${esc(SPC_OUTLOOK_URL)}" target="_blank" rel="noopener" title="SPC convective outlook ${esc(c.label || c.risk)}">Convective outlook ${esc(c.risk)} · ${esc(c.distanceNm)} NM from route ↗</a></div>`);
+    }
+    if (!sig.length && !conv.length) rows.push('<div class="mtr-wx ok">✓ No convective/SIGMET within 25 NM of the route path</div>');
+  } else if (!d.icing) {
+    rows.push('<div class="mtr-wx" style="color:var(--text-faint)">Convective/SIGMET along route: not assessed (offline)</div>');
+  }
+  return rows.length ? `<div class="mtr-wxblock">${rows.join('')}</div>` : '';
 }
 
 const RC_CLASS = { IR: 'rc-ir', VR: 'rc-vr', AR: 'rc-ar' };

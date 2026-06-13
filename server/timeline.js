@@ -204,7 +204,8 @@ export async function buildTimeline({ stops = [], routes = [], offline = false, 
     const area = type && ahasHasRoute(id) ? String(id).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
     const birdByHour = await birdFor(id, type, area);
     const cells = hours.map((iso) => ({ t: iso, bird: birdByHour ? (birdByHour[hourKey(iso)] ?? null) : null }));
-    return { id, when, cells };
+    // AHAS (bird) is a low-level product — it does not apply to AR refueling tracks.
+    return { id, when, cells, ahas: type != null };
   }));
 
   return {

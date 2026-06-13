@@ -117,3 +117,14 @@ test('buildMtrDetail honors an entry/exit token (IR-154.C-M)', async () => {
   assert.ok(part.points.includes('A') && part.points.includes('Q'));
   assert.ok(part.geometry.points.length >= 2 && part.geometry.points.length < 17);
 });
+
+test('buildMtrDetail: AR track has no AHAS (bird) data — it is a low-level product', async () => {
+  const d = await buildMtrDetail('AR197H', true);
+  assert.equal(d.found, true);
+  assert.equal(d.type, 'AR');
+  assert.equal(d.ahasApplies, false);
+  assert.equal(d.birdRisk, null);
+  assert.ok(d.segments.every((s) => s.birdRisk == null), 'no per-leg bird level on AR');
+  // Each leg carries an icing slot (null or a severity object) from the block temp.
+  assert.ok(d.segments.every((s) => 'icing' in s));
+});

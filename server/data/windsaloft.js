@@ -191,6 +191,35 @@ export function thermalSummary(profile) {
   return { freezingLevelFt: freezingLevelFt(profile), icing: icingLayers(profile) };
 }
 
+/** Linearly interpolate a numeric per-level field (e.g. tempC, rhPct) at an MSL
+ *  altitude, ignoring levels that lack the field. Null when none are available. */
+export function interpolateScalar(profile, targetFt, key) {
+  const s = (profile || []).filter((p) => typeof p[key] === 'number').sort((a, b) => a.altFt - b.altFt);
+  if (!s.length) return null;
+  if (targetFt <= s[0].altFt) return s[0][key];
+  if (targetFt >= s[s.length - 1].altFt) return s[s.length - 1][key];
+  for (let i = 0; i < s.length - 1; i++) {
+    if (s[i].altFt <= targetFt && s[i + 1].altFt >= targetFt) {
+      const f = (targetFt - s[i].altFt) / (s[i + 1].altFt - s[i].altFt);
+      return s[i][key] + (s[i + 1][key] - s[i][key]) * f;
+    }
+  }
+  return s[s.length - 1][key];
+}
+
+/** Structural-icing call at one point: classic 0..−20 °C band with moisture
+ *  (RH ≥ rhMin when available). Returns { severity, tempC, rhPct } or null when
+ *  not icing-suspect / no temperature. Same severity scale as icingLayers. */
+export function icingAt(tempC, rhPct, { rhMin = 70 } = {}) {
+  if (typeof tempC !== 'number') return null;
+  const moist = rhPct == null || rhPct >= rhMin;
+  if (!(tempC <= 0 && tempC >= -20 && moist)) return null;
+  const inWorstTemp = tempC <= -2 && tempC >= -15;
+  const wet = rhPct != null && rhPct >= 85;
+  const severity = inWorstTemp && wet ? 'MODERATE' : (inWorstTemp || wet ? 'LIGHT' : 'TRACE');
+  return { severity, tempC: Math.round(tempC * 10) / 10, rhPct: rhPct != null ? Math.round(rhPct) : null };
+}
+
 async function loadFixture() {
   return JSON.parse(await readFile(fileURLToPath(FIXTURE_URL), 'utf8'));
 }

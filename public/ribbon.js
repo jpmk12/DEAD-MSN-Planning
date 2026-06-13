@@ -99,6 +99,12 @@ export function routePhase(d, when, limits) {
   } else {
     chips.push({ k: 'CONV n/a', sev: 'info' }); // not assessed (offline / no geometry)
   }
+  // Structural-icing potential at the route's block altitude (winds-aloft temp/RH).
+  // Awareness — MODERATE flags caution; lighter is informational. Never NO-GO.
+  if (d.icing) {
+    chips.push({ k: `ICE ${d.icing.severity}`, sev: d.icing.severity === 'MODERATE' ? 'caution' : 'info',
+      tip: `Structural icing potential at block: ${d.icing.tempC}°C${d.icing.rhPct != null ? `, RH ${d.icing.rhPct}%` : ''} — temp/RH-based, needs visible moisture` });
+  }
   const worst = chips.reduce((m, c) => (SEV_RANK[c.sev] > SEV_RANK[m] ? c.sev : m), 'go');
   const status = worst === 'nogo' ? 'NO-GO' : worst === 'caution' ? 'CAUTION' : 'GO';
   return { role: d.type || 'IR', id: d.id, when, source: 'AHAS+winds', status, chips, reason: null };

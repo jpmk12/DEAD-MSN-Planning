@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { bearingDeg, haversineNm } from '../core/geo.js';
 import { windComponents } from '../core/wind.js';
 import { geojsonToAirspace, distanceToGeometry } from './airspace.js';
-import { fetchWindsAloft, interpolateWind } from './windsaloft.js';
+import { fetchWindsAloft, interpolateWind, interpolateScalar, icingAt } from './windsaloft.js';
 import { fetchRouteRisk, segmentRisk } from './ahas.js';
 import { fetchConvective } from './convective.js';
 import { fetchAirSigmets } from './airsigmet.js';
@@ -198,6 +198,7 @@ export async function buildMtrDetail(token, offline, targetIso) {
         : (seg.ceilingFt ?? seg.floorFt ?? 1500);
 
       let wind = null;
+      let icing = null;
       if (mid) {
         // Sample winds AT the block altitude (e.g. FL250 for an AR FL240–260
         // track). Pass elevFt=0 so the near-surface AGL levels stay near the
@@ -207,14 +208,24 @@ export async function buildMtrDetail(token, offline, targetIso) {
         const w = await fetchWindsAloft(mid[0], mid[1], 0, offline, targetIso).catch(() => null);
         const lvl = w && w.profile.length ? interpolateWind(w.profile, targetAlt) : null;
         if (lvl && bearing != null) {
+          // Temperature + icing potential at the block altitude (same source as
+          // the winds). Relevant on AR tracks (FL200+) and route climb alike.
+          const tempC = w ? interpolateScalar(w.profile, targetAlt, 'tempC') : null;
+          const rhPct = w ? interpolateScalar(w.profile, targetAlt, 'rhPct') : null;
+          icing = icingAt(tempC, rhPct);
           const c = windComponents(bearing, lvl.dirTrue, lvl.speedKt);
           wind = {
             altFt: Math.round(targetAlt), dirTrue: lvl.dirTrue, speedKt: lvl.speedKt,
             headwindKt: Math.round(c.headwindKt), crosswindKt: Math.round(c.crosswindKt), crosswindSide: c.crosswindSide,
+            tempC: typeof tempC === 'number' ? Math.round(tempC * 10) / 10 : null,
+            rhPct: typeof rhPct === 'number' ? Math.round(rhPct) : null,
             live: w.live,
           };
         }
       }
+      // AHAS (bird/wildlife) is a low-level product — it does NOT apply to AR
+      // refueling tracks (flown at altitude). Never attach a bird level there.
+      const isAr = base.type === 'AR';
       return {
         name: seg.name || 'leg',
         floorFt: seg.floorFt ?? null,
@@ -226,7 +237,8 @@ export async function buildMtrDetail(token, offline, targetIso) {
         bearing,
         lengthNm: Math.round(segLengthNm(pts)),
         wind,
-        birdRisk: segmentRisk(routeRisk, seg.name) ?? (routeRisk ? routeRisk.level : null),
+        icing,
+        birdRisk: isAr ? null : (segmentRisk(routeRisk, seg.name) ?? (routeRisk ? routeRisk.level : null)),
       };
     }),
   );
@@ -252,10 +264,16 @@ export async function buildMtrDetail(token, offline, targetIso) {
   // Normalize the requested time to the AHAS Zulu run-hour so the UI can show
   // (and the user can verify) exactly which hour the bird risk was pulled for.
   const requestedIso = targetIso && !Number.isNaN(Date.parse(targetIso)) ? new Date(targetIso).toISOString() : null;
+  // Route-level worst icing across the legs (for the ribbon chip + card summary).
+  const ICE_RANK = { TRACE: 1, LIGHT: 2, MODERATE: 3 };
+  const worstIcing = segments.reduce((m, s) => (s.icing && (!m || ICE_RANK[s.icing.severity] > ICE_RANK[m.severity]) ? s.icing : m), null);
   return {
     convective,
     hazardWx,
     routeWxChecked,
+    // AHAS (bird/wildlife) is a low-level product; it does not apply to AR tracks.
+    ahasApplies: base.type !== 'AR',
+    icing: worstIcing,
     found: true,
     id: base.id,
     type: base.type,

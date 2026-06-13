@@ -132,3 +132,30 @@ test('thermalSummary is null without temperatures, populated with them', () => {
   const t = thermalSummary(thermProfile);
   assert.ok(t && t.freezingLevelFt > 0 && t.icing.length === 1);
 });
+
+import { interpolateScalar, icingAt } from './windsaloft.js';
+
+test('interpolateScalar linearly interpolates a per-level field, skipping nulls', () => {
+  const prof = [
+    { altFt: 1000, tempC: 10 },
+    { altFt: 5000, tempC: 2 },
+    { altFt: 9000, tempC: -6, rhPct: 80 },
+  ];
+  assert.equal(interpolateScalar(prof, 3000, 'tempC'), 6); // halfway 1k..5k
+  assert.equal(interpolateScalar(prof, 500, 'tempC'), 10);  // clamps low
+  assert.equal(interpolateScalar(prof, 99000, 'tempC'), -6); // clamps high
+  // rhPct only present on one level -> returns it (single-sample), null if none.
+  assert.equal(interpolateScalar(prof, 9000, 'rhPct'), 80);
+  assert.equal(interpolateScalar(prof, 3000, 'mystery'), null);
+});
+
+test('icingAt flags the 0..-20C moist band with a severity, else null', () => {
+  assert.equal(icingAt(5, 90), null);          // too warm
+  assert.equal(icingAt(-25, 90), null);        // too cold
+  assert.equal(icingAt(-5, 30), null);         // dry
+  assert.equal(icingAt(-8, 50), null);                // dry (RH < 70) -> not suspect
+  assert.equal(icingAt(-8, 90).severity, 'MODERATE'); // cold band + wet
+  assert.equal(icingAt(-8, 75).severity, 'LIGHT');    // cold band, moist but not wet
+  assert.equal(icingAt(-1, null).severity, 'TRACE');  // edge of band, RH unknown
+  assert.equal(icingAt(null, 90), null);       // no temperature
+});

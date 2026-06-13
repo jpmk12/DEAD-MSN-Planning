@@ -470,6 +470,21 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 /* ---- MTR detail ---------------------------------------------------------- */
 .bird-badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-bright); white-space: nowrap; }
 .mtr-bird { font-size: 12.5px; margin-bottom: 4px; }
+/* Route weather-hazards block (convective/SIGMET along route + icing). */
+.mtr-wxblock { margin: 4px 0 8px; display: flex; flex-direction: column; gap: 3px; }
+.mtr-wx { font-size: 12px; color: var(--text-dim); }
+.mtr-wx a { color: inherit; text-decoration: none; }
+.mtr-wx a:hover { text-decoration: underline; filter: brightness(1.2); }
+.mtr-wx.crit { color: #f7b1ad; }
+.mtr-wx.ok { color: var(--go, #3fb950); }
+.mtr-wx small { color: var(--text-faint); }
+.mtr-wx.ice-moderate { color: #f7b1ad; }
+.mtr-wx.ice-light { color: #f0c552; }
+.mtr-wx.ice-trace { color: var(--text-dim); }
+.mtr-ice { font-family: var(--mono); font-size: 10px; font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 5px; }
+.mtr-ice.ice-moderate { color: #f7b1ad; border-color: rgba(248,81,73,0.5); }
+.mtr-ice.ice-light { color: #f0c552; border-color: rgba(210,153,34,0.5); }
+.mtr-ice.ice-trace { color: var(--text-dim); border-color: var(--border); }
 .mtr-when { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
 .mtr-when b { color: var(--accent); }
 .mtr-segs { display: flex; flex-direction: column; gap: 8px; }
