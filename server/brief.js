@@ -15,7 +15,7 @@ import { fetchRouteRisk } from './data/ahas.js';
 import { fetchPireps } from './data/pireps.js';
 import { decodeTaf, tafAt, flightCategory, parseVisSm, parseCeilingFt } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
-import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
+import { fetchWindsAloft, interpolateWind, thermalSummary } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 import { watchTaf } from './data/tafwatch.js';
 import { nvgIllum } from './core/astro.js';
@@ -460,6 +460,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       convective,
       mtrs,
       windsAloft,
+      // Freezing level + structural-icing band(s) from the temp/RH profile at
+      // this phase's time (climb-out + en-route awareness). null when no temps.
+      thermal: windsAloft && windsAloft.profile.length ? thermalSummary(windsAloft.profile) : null,
       patternWinds,
       birdRisk,
       currentConditions,

@@ -94,3 +94,41 @@ test('nearestLevel picks the closest altitude', () => {
   const profile = [{ altFt: 2574 }, { altFt: 2902 }, { altFt: 4781 }];
   assert.equal(nearestLevel(profile, 3800).altFt, 2902); // 4781 vs 2902 -> 2902 closer to 3800? |4781-3800|=981, |2902-3800|=898
 });
+
+import { freezingLevelFt, icingLayers, thermalSummary } from './windsaloft.js';
+
+const thermProfile = [
+  { altFt: 1000, tempC: 12, rhPct: 60 },
+  { altFt: 5000, tempC: 4, rhPct: 80 },   // above freezing
+  { altFt: 9000, tempC: -3, rhPct: 90 },  // icing: cold + wet
+  { altFt: 14000, tempC: -10, rhPct: 88 },// icing: cold + wet
+  { altFt: 20000, tempC: -25, rhPct: 95 },// too cold (< -20) -> out of band
+];
+
+test('freezingLevelFt interpolates the 0C crossing', () => {
+  // Between 5000 ft (+4) and 9000 ft (-3): 0C at 5000 + 4000*(4/7) ~= 7286 ft.
+  const fl = freezingLevelFt(thermProfile);
+  assert.ok(Math.abs(fl - 7286) < 30, `freezing level ${fl}`);
+  // Surface already below freezing -> the lowest level's altitude.
+  assert.equal(freezingLevelFt([{ altFt: 2000, tempC: -1 }, { altFt: 8000, tempC: -8 }]), 2000);
+  // Whole column above freezing -> null.
+  assert.equal(freezingLevelFt([{ altFt: 1000, tempC: 9 }, { altFt: 9000, tempC: 2 }]), null);
+  // No temps -> null.
+  assert.equal(freezingLevelFt([{ altFt: 1000 }]), null);
+});
+
+test('icingLayers flags the 0..-20C moist band, not the too-cold level', () => {
+  const bands = icingLayers(thermProfile);
+  assert.equal(bands.length, 1);
+  assert.equal(bands[0].baseFt, 9000);
+  assert.equal(bands[0].topFt, 14000); // -25C level excluded (below -20)
+  assert.equal(bands[0].severity, 'MODERATE'); // cold (worst band) + wet
+  // Dry air in the band -> not suspect (RH below threshold).
+  assert.equal(icingLayers([{ altFt: 9000, tempC: -5, rhPct: 30 }]).length, 0);
+});
+
+test('thermalSummary is null without temperatures, populated with them', () => {
+  assert.equal(thermalSummary([{ altFt: 1000, dirTrue: 240, speedKt: 10 }]), null);
+  const t = thermalSummary(thermProfile);
+  assert.ok(t && t.freezingLevelFt > 0 && t.icing.length === 1);
+});

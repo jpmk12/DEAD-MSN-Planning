@@ -229,8 +229,9 @@ function windsAloftSection(brief) {
     .reverse()
     .map((p) => {
       const lbl = p.altFt >= 1000 ? (p.altFt / 1000).toFixed(1) + 'k' : String(p.altFt);
+      const temp = p.tempC != null ? ` · ${p.tempC > 0 ? '+' : ''}${p.tempC}°C` : '';
       return `<div class="as-row"><span class="cat cat-LIGHTING">${esc(lbl)}</span>
-        <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt</div></div></div>`;
+        <div><div class="txt">${esc(p.altFt.toLocaleString())} ft MSL — ${String(p.dirTrue).padStart(3, '0')}°/${p.speedKt} kt${esc(temp)}</div></div></div>`;
     })
     .join('');
   // Honesty (R2): if the requested phase time is beyond the forecast window, the
@@ -238,7 +239,29 @@ function windsAloftSection(brief) {
   const clamp = wa.clamped
     ? `<div class="when" style="margin-bottom:6px;color:var(--warn,#d29922)">⚠ Beyond winds-aloft forecast horizon — showing the latest available (${esc(zuluLocal(wa.time))}), NOT your phase time. Verify with an official source.</div>`
     : (wa.time ? `<div class="when" style="margin-bottom:6px">forecast ${esc(zuluLocal(wa.time))} · pattern/departure band</div>` : '');
-  return `${clamp}<div class="notams">${rows}</div>`;
+  return `${clamp}${thermalLine(brief.thermal)}<div class="notams">${rows}</div>`;
+}
+
+// Freezing level + structural-icing band(s) from the temp/RH profile. Honest:
+// temperature/RH-based, so it flags POTENTIAL icing (needs visible moisture).
+function thermalLine(th) {
+  if (!th) return '';
+  const fl = th.freezingLevelFt != null
+    ? `Freezing level <b>${th.freezingLevelFt.toLocaleString()} ft MSL</b>`
+    : 'Freezing level above sampled column';
+  const ic = (th.icing || []);
+  let icHtml;
+  if (!ic.length) {
+    icHtml = '<span class="thm-ok">no icing band (0 to −20°C) with moisture</span>';
+  } else {
+    icHtml = ic.map((b) => {
+      const sevCls = b.severity === 'MODERATE' ? 'thm-mod' : b.severity === 'LIGHT' ? 'thm-lt' : 'thm-tr';
+      const rh = b.maxRhPct != null ? ` · RH ${b.maxRhPct}%` : '';
+      return `<span class="thm-band ${sevCls}">Icing ${esc(b.severity)} ${b.baseFt.toLocaleString()}–${b.topFt.toLocaleString()} ft (min ${b.minTempC}°C${rh})</span>`;
+    }).join(' ');
+  }
+  return `<div class="thermal-line"><span class="thm-h">❄ Thermal</span> ${fl} · ${icHtml}
+    <span class="thm-note">temp/RH-based — actual icing needs visible moisture</span></div>`;
 }
 
 const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };

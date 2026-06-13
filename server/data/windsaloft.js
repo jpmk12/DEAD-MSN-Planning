@@ -41,8 +41,8 @@ const HEIGHT_LEVELS = [
 ];
 
 const VARS = [
-  ...HEIGHT_LEVELS.flatMap((l) => [`wind_speed_${l.key}`, `wind_direction_${l.key}`]),
-  ...PRESSURE_LEVELS.flatMap((l) => [`wind_speed_${l.key}`, `wind_direction_${l.key}`]),
+  ...HEIGHT_LEVELS.flatMap((l) => [`wind_speed_${l.key}`, `wind_direction_${l.key}`, `temperature_${l.key}`]),
+  ...PRESSURE_LEVELS.flatMap((l) => [`wind_speed_${l.key}`, `wind_direction_${l.key}`, `temperature_${l.key}`, `relative_humidity_${l.key}`]),
 ];
 
 /** Open-Meteo forecast_days to request so the window reaches the target time
@@ -85,15 +85,21 @@ export function parseProfile(json, idx, elevFt) {
   const H = json?.hourly;
   if (!H || idx < 0) return [];
   const out = [];
-  const push = (altFt, kind, speedKey, dirKey) => {
-    const speed = H[speedKey]?.[idx];
-    const dir = H[dirKey]?.[idx];
+  const push = (altFt, kind, key) => {
+    const speed = H[`wind_speed_${key}`]?.[idx];
+    const dir = H[`wind_direction_${key}`]?.[idx];
     if (typeof speed === 'number' && typeof dir === 'number') {
-      out.push({ altFt: Math.round(altFt), kind, dirTrue: Math.round(dir), speedKt: Math.round(speed) });
+      const tempC = H[`temperature_${key}`]?.[idx];
+      const rh = H[`relative_humidity_${key}`]?.[idx];
+      out.push({
+        altFt: Math.round(altFt), kind, dirTrue: Math.round(dir), speedKt: Math.round(speed),
+        tempC: typeof tempC === 'number' ? Math.round(tempC * 10) / 10 : null,
+        rhPct: typeof rh === 'number' ? Math.round(rh) : null,
+      });
     }
   };
-  for (const l of HEIGHT_LEVELS) push(elevFt + l.aglFt, 'agl', `wind_speed_${l.key}`, `wind_direction_${l.key}`);
-  for (const l of PRESSURE_LEVELS) push(l.altMsl, 'msl', `wind_speed_${l.key}`, `wind_direction_${l.key}`);
+  for (const l of HEIGHT_LEVELS) push(elevFt + l.aglFt, 'agl', l.key);
+  for (const l of PRESSURE_LEVELS) push(l.altMsl, 'msl', l.key);
   return out.sort((a, b) => a.altFt - b.altFt);
 }
 
@@ -129,6 +135,60 @@ export function interpolateWind(profile, targetFt) {
   let dir = (Math.atan2(-u, -v) * 180) / Math.PI;
   dir = ((Math.round(dir) % 360) + 360) % 360;
   return { dirTrue: dir, speedKt };
+}
+
+/**
+ * Lowest freezing level (MSL ft) from a temp-bearing profile: the altitude where
+ * temperature crosses 0 °C, linearly interpolated. If the surface is already
+ * below freezing the lowest level's altitude is returned (freezing at/below it);
+ * if the whole column is above freezing → null (no freezing level in range).
+ */
+export function freezingLevelFt(profile) {
+  const s = (profile || []).filter((p) => typeof p.tempC === 'number').sort((a, b) => a.altFt - b.altFt);
+  if (s.length < 1) return null;
+  if (s[0].tempC <= 0) return s[0].altFt; // already at/below freezing at the bottom
+  for (let i = 0; i < s.length - 1; i++) {
+    if (s[i].tempC > 0 && s[i + 1].tempC <= 0) {
+      const f = (s[i].tempC - 0) / (s[i].tempC - s[i + 1].tempC);
+      return Math.round(s[i].altFt + (s[i + 1].altFt - s[i].altFt) * f);
+    }
+  }
+  return null; // entire sampled column above freezing
+}
+
+/**
+ * Structural-icing layers from a temp+RH profile. A level is icing-suspect when
+ * its temperature is in the classic structural-icing band (0 to −20 °C) AND
+ * there is enough moisture (RH ≥ `rhMin`, when RH is available). Contiguous
+ * suspect levels are merged into bands with a coarse severity from temperature
+ * (worst around −2 to −12 °C) and RH. Temperature/clear-sky based — actual icing
+ * needs visible moisture; flag accordingly in the UI.
+ */
+export function icingLayers(profile, { rhMin = 70 } = {}) {
+  const s = (profile || []).filter((p) => typeof p.tempC === 'number').sort((a, b) => a.altFt - b.altFt);
+  const suspect = (p) => p.tempC <= 0 && p.tempC >= -20 && (p.rhPct == null || p.rhPct >= rhMin);
+  const bands = [];
+  let cur = null;
+  for (const p of s) {
+    if (suspect(p)) {
+      if (!cur) cur = { baseFt: p.altFt, topFt: p.altFt, minTempC: p.tempC, maxRh: p.rhPct ?? 0 };
+      else { cur.topFt = p.altFt; cur.minTempC = Math.min(cur.minTempC, p.tempC); cur.maxRh = Math.max(cur.maxRh, p.rhPct ?? 0); }
+    } else if (cur) { bands.push(cur); cur = null; }
+  }
+  if (cur) bands.push(cur);
+  return bands.map((b) => {
+    const inWorstTemp = b.minTempC <= -2 && b.minTempC >= -15;
+    const wet = b.maxRh >= 85;
+    const severity = inWorstTemp && wet ? 'MODERATE' : (inWorstTemp || wet ? 'LIGHT' : 'TRACE');
+    return { baseFt: b.baseFt, topFt: b.topFt, minTempC: Math.round(b.minTempC * 10) / 10, maxRhPct: b.maxRh || null, severity };
+  });
+}
+
+/** Compact freezing-level + icing summary for a profile (null when no temps). */
+export function thermalSummary(profile) {
+  const hasTemp = (profile || []).some((p) => typeof p.tempC === 'number');
+  if (!hasTemp) return null;
+  return { freezingLevelFt: freezingLevelFt(profile), icing: icingLayers(profile) };
 }
 
 async function loadFixture() {
