@@ -75,3 +75,17 @@ test('nvgIllum returns a complete, labeled, computed picture', () => {
   assert.ok(n.events.sunset && n.events.bmnt);
   assert.equal(nvgIllum('x', null, null), null);
 });
+
+test('moon rise/set are always populated for a night that spans UTC midnight', () => {
+  // A night sortie 01Z..07Z: the relevant moonrise/moonset can land on adjacent
+  // UTC days. Anchoring on the instant must still return both events.
+  for (const when of ['2026-06-12T05:00:00Z', '2026-06-29T03:00:00Z', '2026-01-15T23:30:00Z']) {
+    const ev = sunMoonEvents(when, ...KLTS);
+    assert.ok(ev.moonrise, `moonrise present @ ${when}`);
+    assert.ok(ev.moonset, `moonset present @ ${when}`);
+    // The chosen events are within ~a day of the phase time (nearest crossings).
+    const dt = (iso) => Math.abs(Date.parse(iso) - Date.parse(when)) / 3600000;
+    assert.ok(dt(ev.moonrise) <= 15, `moonrise near phase @ ${when}`);
+    assert.ok(dt(ev.moonset) <= 15, `moonset near phase @ ${when}`);
+  }
+});

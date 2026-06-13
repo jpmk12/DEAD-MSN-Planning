@@ -25,13 +25,26 @@ export function toUtcDate(iso) {
 export const hhZ = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) : ''; };
 export const hhL = (iso) => { const d = toUtcDate(iso); return d ? pad2(d.getHours()) + pad2(d.getMinutes()) : ''; };
 
-// "1430Z · 0930 CDT". With {date:true}, prefix the day-of-month on each side
-// (the local calendar day can differ from the UTC day): "05 1430Z · 04 2330 CST".
+// "1430Z (0930 CDT)". With {date:true}, prefix the day-of-month on each side
+// (the local calendar day can differ from the UTC day): "05 1430Z (04 2330 CST)".
+// The local conversion is parenthesized (not a faint middot) so it reads clearly.
 export function zuluLocal(iso, { date = false } = {}) {
   if (!iso) return '';
   const d = toUtcDate(iso);
   if (!d) return String(iso);
   const zd = date ? pad2(d.getUTCDate()) + ' ' : '';
   const ld = date ? pad2(d.getDate()) + ' ' : '';
-  return `${zd}${hhZ(iso)}Z · ${ld}${hhL(iso)} ${TZ_ABBR}`;
+  return `${zd}${hhZ(iso)}Z (${ld}${hhL(iso)} ${TZ_ABBR})`;
+}
+
+// HTML variant for prominent on-screen labels: the local conversion is wrapped
+// in a styled span (`.t-loc`) so it stands out next to the Zulu time. Inputs are
+// formatted date/time only (no user content), so the result is safe to inject.
+export function zuluLocalHtml(iso, { date = false } = {}) {
+  if (!iso) return '';
+  const d = toUtcDate(iso);
+  if (!d) return String(iso);
+  const zd = date ? pad2(d.getUTCDate()) + ' ' : '';
+  const ld = date ? pad2(d.getDate()) + ' ' : '';
+  return `${zd}${hhZ(iso)}Z <span class="t-loc">(${ld}${hhL(iso)} ${TZ_ABBR})</span>`;
 }

@@ -2,7 +2,7 @@
 // Talks to the zero-dependency Node API and renders the EFB-style brief.
 
 import { initMap } from './map.js';
-import { zuluLocal, hhZ, hhL, TZ_ABBR } from './timefmt.js';
+import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
 import { buildRibbonModel, roleTag as rbRoleTag } from './ribbon.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
@@ -453,7 +453,7 @@ function phaseBanner(brief) {
   const note = p.hideCurrentOnly
     ? '<div class="phase-caveat">Winds aloft, TAF, AHAS birds &amp; airspace are tailored to this time. Current METAR/PIREP/SIGMET shown elsewhere reflect now, not this phase.</div>'
     : '';
-  return `<div class="${cls}">⏱ Planned ${esc(zuluLocal(p.when, { date: true }))}${lead ? ` · ${esc(lead)}` : ''}</div>${note}`;
+  return `<div class="${cls}">⏱ Planned ${zuluLocalHtml(p.when, { date: true })}${lead ? ` · ${esc(lead)}` : ''}</div>${note}`;
 }
 
 const CAT_COLOR = { VFR: '#3fb950', MVFR: '#4aa3df', IFR: '#f85149', LIFR: '#c77dff' };
@@ -473,7 +473,7 @@ function nvgBlock(brief) {
   const ev = n.events || {};
   const z = (iso) => (iso ? zuluLocal(iso) : '—');
   if (n.daylight) {
-    return `<div class="illum-block daylight"><div class="il-h">🌙 NVG · ${esc(z(brief.phase?.when))}
+    return `<div class="illum-block daylight"><div class="il-h">🌙 NVG · ${brief.phase?.when ? zuluLocalHtml(brief.phase.when) : '—'}
       <span class="cat-chip">DAYLIGHT — illumination n/a</span></div>
       <div class="fc-line">Sun up (alt ${n.sunAltDeg}°). Sunset ${esc(z(ev.sunset))} · EENT ${esc(z(ev.eent))}.</div></div>`;
   }
@@ -486,7 +486,7 @@ function nvgBlock(brief) {
     ? `<div class="fc-caveat crit">⚠ BKN/OVC ceiling ${n.cloudCeilingFt ? n.cloudCeilingFt.toLocaleString() + ' ft' : ''} at this time — cloud cover reduces effective illumination below the clear-sky value.</div>`
     : '';
   return `<div class="illum-block ${cls}">
-    <div class="il-h">🌙 Illumination · ${esc(z(brief.phase?.when))}
+    <div class="il-h">🌙 Illumination · ${brief.phase?.when ? zuluLocalHtml(brief.phase.when) : '—'}
       <span class="cat-chip ${cls}">${esc(n.illumClass)} ILLUM · ${n.illumMlx} mlx</span>
       <span class="fc-src">computed${n.source && n.source !== 'computed' ? ' · ' + esc(n.source) : ''}</span></div>
     <div class="il-grid">
@@ -514,9 +514,9 @@ function forecastBlock(brief) {
     ? `<div class="fc-caveat">TEMPO/PROB: ${f.caveats.map((c) => esc(c.label) + (c.flightCategory ? ` (${esc(c.flightCategory)})` : '')).join(' · ')}</div>` : '';
   const validity = f.withinValidity === false
     ? '<div class="fc-caveat crit">⚠ Phase time is outside the TAF validity window — forecast not assured; verify with an updated TAF.</div>' : '';
-  const when = brief.phase?.when ? zuluLocal(brief.phase.when, { date: true }) : '';
+  const when = brief.phase?.when ? zuluLocalHtml(brief.phase.when, { date: true }) : '';
   return `<div class="forecast-block ${drives ? 'is-source' : ''}">
-    <div class="fc-h">Forecast at ETA ${when ? `<span class="fc-when">${esc(when)}</span>` : ''} ${cat}${drives ? '<span class="fc-src">drives status</span>' : ''}</div>
+    <div class="fc-h">Forecast at ETA ${when ? `<span class="fc-when">${when}</span>` : ''} ${cat}${drives ? '<span class="fc-src">drives status</span>' : ''}</div>
     <div class="fc-line">TAF: ${esc(fmtFcWind(f.wind))}${cv.length ? ' · ' + cv.join(' · ') : ''}${rwy}</div>
     ${validity}${caveatHtml}${warnHtml}</div>`;
 }
@@ -1178,7 +1178,7 @@ function renderTimeline(tl) {
   el.innerHTML = `
     <div class="tool-head"><span class="tool-title">Sortie Timeline</span> ${demo}
       ${stepH > 1 ? `<span class="tl-demo" title="Long sortie — columns are ${stepH}-hourly so the full window through landing always fits">${stepH}-hourly</span>` : ''}
-      <span class="tl-range">${esc(zuluLocal(hours[0], { date: true }))} – ${esc(zuluLocal(hours[hours.length - 1]))}</span></div>
+      <span class="tl-range">${zuluLocalHtml(hours[0], { date: true })} – ${zuluLocalHtml(hours[hours.length - 1])}</span></div>
     <div class="tl-grid" style="--tlcols:${hours.length}">${head}${fieldRows}${routeRows}</div>
     <div class="tl-legend">
       <span class="tl-leg-h">Cell color — that hour's call:</span>

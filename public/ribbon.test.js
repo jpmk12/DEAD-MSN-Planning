@@ -25,6 +25,17 @@ test('routePhase: AHAS + worst leg crosswind, convective marked not-assessed', (
   assert.ok(p.chips.some((c) => c.k === 'CONV n/a' && c.sev === 'info'));
 });
 
+test('routePhase: AR cross-track wind aloft is informational, never gating', () => {
+  // 80 kt cross-track wind at the AR block — normal aloft, NOT a landing limit.
+  const d = { id: 'AR312L', type: 'AR', birdRisk: { level: 'LOW' },
+    segments: [{ wind: { crosswindKt: 80 } }] };
+  const p = routePhase(d, '2026-06-11T17:00:00Z', LIMITS);
+  assert.equal(p.status, 'GO'); // strong wind aloft does not force NO-GO on AR
+  const xw = p.chips.find((c) => c.k.startsWith('XW'));
+  assert.equal(xw.sev, 'info');
+  assert.match(xw.k, /aloft/);
+});
+
 test('buildRibbonModel orders dep → AR → LL → recovery → alternate and carries status', () => {
   const data = { airfields: [
     { icao: 'KLTS', status: 'GO', statusSource: 'TAF@ETA',

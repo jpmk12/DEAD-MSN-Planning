@@ -268,6 +268,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .forecast-block .warnings { margin-top: 6px; }
 .cat-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 5px; }
 
+/* Local-time conversion shown next to a Zulu time — brighter/bold so it reads
+   clearly instead of blending into the Zulu string. */
+.t-loc { font-weight: 700; color: var(--accent); white-space: nowrap; }
+
 /* NVG illumination card block (computed sun/moon + AFI 11-214 LOW/HIGH call).
    LOW illumination is a planning caution (not a GO/NO-GO driver). */
 .illum-block { margin-top: 10px; padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; }

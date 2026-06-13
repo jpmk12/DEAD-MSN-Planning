@@ -150,10 +150,38 @@ function crossing(kind, targetAltDeg, going, dateMs, lat, lon, windowH = 24, sta
 
 /** UTC-midnight ms of the date containing `when`. */
 const utcMidnight = (when) => { const d = new Date(when instanceof Date ? when.getTime() : (typeof when === 'number' ? when : Date.parse(when))); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+const toMs = (when) => (when instanceof Date ? when.getTime() : (typeof when === 'number' ? when : Date.parse(when)));
 
 /**
- * All sun/moon events for the UTC day containing `when`, as ISO strings (null
- * when the event doesn't occur). Computed locally; label as such.
+ * The body's crossing of `targetAltDeg` (rise/set direction `going`) NEAREST to
+ * `when`, searching ±`spanH`/2 hours around it. Used for the moon, whose rise or
+ * set relevant to a night sortie often falls on an adjacent UTC day — anchoring
+ * on the instant (not the UTC midnight) guarantees the event is found and shown.
+ */
+function nearestCrossing(kind, targetAltDeg, going, when, lat, lon, spanH = 30) {
+  const center = toMs(when);
+  const f = (ms) => altOf(kind, ms, lat, lon) - targetAltDeg;
+  const stepMs = 10 * 60000;
+  let best = null;
+  let prev = f(center - (spanH / 2) * 3600000);
+  for (let t = center - (spanH / 2) * 3600000 + stepMs; t <= center + (spanH / 2) * 3600000; t += stepMs) {
+    const cur = f(t);
+    if ((going === 'up' && prev <= 0 && cur > 0) || (going === 'down' && prev >= 0 && cur < 0)) {
+      let lo = t - stepMs, hi = t, flo = prev;
+      for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2, fm = f(mid); if ((flo <= 0) === (fm <= 0)) { lo = mid; flo = fm; } else hi = mid; }
+      const hit = Math.round((lo + hi) / 2);
+      if (best == null || Math.abs(hit - center) < Math.abs(best - center)) best = hit;
+    }
+    prev = cur;
+  }
+  return best;
+}
+
+/**
+ * All sun/moon events relevant to `when`, as ISO strings (null when the event
+ * doesn't occur). Sun events are taken for the UTC day; moon rise/set are taken
+ * as the crossings NEAREST the instant, so a night sortie spanning UTC midnight
+ * still always shows a moonrise and a moonset. Computed locally; label as such.
  */
 export function sunMoonEvents(when, lat, lon) {
   const day = utcMidnight(when);
@@ -165,8 +193,8 @@ export function sunMoonEvents(when, lat, lon) {
     civilDusk: iso(crossing('sun', EVENT_ALT.civilDusk, 'down', day, lat, lon)),
     bmnt: iso(crossing('sun', EVENT_ALT.bmnt, 'up', day, lat, lon)),
     eent: iso(crossing('sun', EVENT_ALT.eent, 'down', day, lat, lon)),
-    moonrise: iso(crossing('moon', EVENT_ALT.moonrise, 'up', day, lat, lon)),
-    moonset: iso(crossing('moon', EVENT_ALT.moonset, 'down', day, lat, lon)),
+    moonrise: iso(nearestCrossing('moon', EVENT_ALT.moonrise, 'up', when, lat, lon)),
+    moonset: iso(nearestCrossing('moon', EVENT_ALT.moonset, 'down', when, lat, lon)),
   };
 }
 

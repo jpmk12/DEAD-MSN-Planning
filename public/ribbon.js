@@ -56,9 +56,17 @@ export function fieldPhase(b, limits) {
 /** An MTR/AR route phase hazard summary (birds + worst leg crosswind). */
 export function routePhase(d, when, limits) {
   const worstXw = routeWorstXw(d);
+  const isAr = d.type === 'AR';
   const chips = [];
   if (d.birdRisk?.level) chips.push({ k: `BIRD ${d.birdRisk.level}`, sev: birdSev(d.birdRisk.level) });
-  if (worstXw != null) chips.push({ k: `XW ${worstXw}`, sev: xwSev(worstXw, limits.xwind) });
+  // On an AR track the cross-track wind aloft is awareness, not a landing limit —
+  // it must NOT drive GO/NO-GO, so show it informational. Low-level (IR/VR) keeps
+  // the crosswind-vs-limit severity.
+  if (worstXw != null) {
+    chips.push(isAr
+      ? { k: `XW ${worstXw} aloft`, sev: 'info' }
+      : { k: `XW ${worstXw}`, sev: xwSev(worstXw, limits.xwind) });
+  }
   chips.push({ k: 'CONV n/a', sev: 'info' }); // convective-along-route not assessed (honest)
   const worst = chips.reduce((m, c) => (SEV_RANK[c.sev] > SEV_RANK[m] ? c.sev : m), 'go');
   const status = worst === 'nogo' ? 'NO-GO' : worst === 'caution' ? 'CAUTION' : 'GO';
