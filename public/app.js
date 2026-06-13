@@ -1118,8 +1118,47 @@ function renderRibbon(data, routes, limits) {
     <div class="tool-head"><span class="tool-title">Mission Hazard Ribbon</span> ${summary}
       <span class="rb-note">the sortie as flown · forecast at each phase time</span></div>
     <div class="rb-track">${phases.map(seg).join('')}</div>
-    <div class="rb-foot">Per-phase worst-case from the same engine as the cards (wind/runway, ceiling-vis vs your minimums, AHAS birds, convective/SIGMET when representative). “CONV n/a” = convective-along-route not yet assessed. Verify with official sources.</div>`;
+    <div class="rb-foot">Per-phase worst-case from the same engine as the cards (wind/runway, ceiling-vis vs your minimums, AHAS birds, convective/SIGMET when representative). “CONV n/a” = convective-along-route not yet assessed. Verify with official sources.</div>
+    ${nvgTrendStrip(data.nvgTrend, phases)}`;
   el.hidden = false;
+}
+
+// NVG illumination trend sparkline: clear-sky ground illuminance (log mlx) across
+// the sortie window, with day/twilight/night band shading and the AFI 11-214
+// 2.2 mlx LOW/HIGH threshold line. Computed astronomy — verify with official src.
+const BAND_FILL = { day: 'rgba(210,153,34,0.20)', twilight: 'rgba(120,130,170,0.22)', night: 'rgba(20,28,52,0.55)' };
+function nvgTrendStrip(trend, phases) {
+  if (!trend || !Array.isArray(trend.points) || trend.points.length < 2) return '';
+  const W = 600, H = 64, padL = 4, padR = 4, padT = 6, padB = 14;
+  const from = Date.parse(trend.from), to = Date.parse(trend.to), span = to - from || 1;
+  const x = (iso) => padL + ((Date.parse(iso) - from) / span) * (W - padL - padR);
+  // log10(mlx) clamped to [0.05 .. 200] mlx -> [-1.3 .. 2.3].
+  const lo = -1.3, hi = 2.3;
+  const y = (mlx) => {
+    const v = Math.max(lo, Math.min(hi, Math.log10(Math.max(mlx, 0.05))));
+    return padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  };
+  const pts = trend.points;
+  // Band shading rects between consecutive samples.
+  const bands = pts.slice(0, -1).map((p, i) => {
+    const x0 = x(p.t), x1 = x(pts[i + 1].t);
+    return `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0 + 0.5).toFixed(1)}" height="${H - padT - padB}" fill="${BAND_FILL[p.band] || 'none'}"/>`;
+  }).join('');
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.mlx).toFixed(1)}`).join(' ');
+  const thrY = y(2.2).toFixed(1);
+  // Phase-time markers (D/A/L etc.) along the axis.
+  const marks = (phases || []).filter((p) => p.when && Date.parse(p.when) >= from && Date.parse(p.when) <= to)
+    .map((p) => `<line x1="${x(p.when).toFixed(1)}" y1="${padT}" x2="${x(p.when).toFixed(1)}" y2="${H - padB}" class="nt-mark"/>
+      <text x="${x(p.when).toFixed(1)}" y="${H - 3}" class="nt-mtext">${esc(rbRoleTag(p.role)[0])}</text>`).join('');
+  return `<div class="nvg-trend">
+    <div class="nt-h">🌙 Illumination trend <small>${esc(trend.icao)} · clear-sky mlx (log) · dashed = 2.2 mlx LOW/HIGH (AFI 11-214) · computed</small></div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="nt-svg" role="img" aria-label="Illumination trend across the sortie">
+      ${bands}
+      <line x1="${padL}" y1="${thrY}" x2="${W - padR}" y2="${thrY}" class="nt-thr"/>
+      <path d="${line}" class="nt-line"/>
+      ${marks}
+    </svg>
+  </div>`;
 }
 
 // ---- Sortie timeline (hour-by-hour conditions per field across the window) --

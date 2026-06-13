@@ -283,6 +283,16 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .thm-ok { color: var(--go, #3fb950); }
 .thm-note { color: var(--text-faint); font-size: 10.5px; }
 
+/* NVG illumination trend sparkline (in the ribbon section). */
+.nvg-trend { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.nvg-trend .nt-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 4px; }
+.nvg-trend .nt-h small { text-transform: none; letter-spacing: 0; color: var(--text-faint); font-size: 10.5px; }
+.nt-svg { width: 100%; height: 64px; display: block; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
+.nt-line { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.nt-thr { stroke: #f0c552; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.nt-mark { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.nt-mtext { fill: var(--text-dim); font: 700 9px var(--mono); text-anchor: middle; }
+
 /* NVG illumination card block (computed sun/moon + AFI 11-214 LOW/HIGH call).
    LOW illumination is a planning caution (not a GO/NO-GO driver). */
 .illum-block { margin-top: 10px; padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; }

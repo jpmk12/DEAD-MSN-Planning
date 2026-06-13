@@ -248,6 +248,32 @@ export function illumClass(mlx) {
   return mlx >= 2.2 ? 'HIGH' : 'LOW';
 }
 
+/**
+ * Lightweight illumination at an instant — millilux + LOW/HIGH, day/twilight/
+ * night band, and whether the moon is up. Skips the (costly) rise/set event
+ * search, so it's cheap enough to sample across a whole sortie for a trend.
+ */
+export function illumPoint(when, lat, lon) {
+  const g = groundIlluminanceMlx(when, lat, lon);
+  const band = g.sunAltDeg > -0.833 ? 'day' : g.sunAltDeg > -12 ? 'twilight' : 'night';
+  return { mlx: g.mlx, class: illumClass(g.mlx), band, moonUp: g.moonAltDeg > -0.8, sunAltDeg: g.sunAltDeg, moonAltDeg: g.moonAltDeg };
+}
+
+/**
+ * Illumination trend: an array of { t, mlx, class, band, moonUp } sampled every
+ * `stepMin` minutes from `fromIso` to `toIso` at a place. For the NVG sparkline
+ * across the sortie window. Caps the sample count so a long sortie stays cheap.
+ */
+export function illumTrend(fromIso, toIso, lat, lon, stepMin = 30, maxPoints = 48) {
+  const from = toMs(fromIso), to = toMs(toIso);
+  if (lat == null || lon == null || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
+  let stepMs = stepMin * 60000;
+  if ((to - from) / stepMs > maxPoints) stepMs = Math.ceil((to - from) / maxPoints / 60000) * 60000;
+  const out = [];
+  for (let t = from; t <= to; t += stepMs) out.push({ t: new Date(t).toISOString(), ...illumPoint(t, lat, lon) });
+  return out;
+}
+
 /** True when the sun is up (daylight — NVG illumination n/a). */
 export function isDaylight(when, lat, lon) {
   return sunAltAz(when, lat, lon).altDeg > -0.833;

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sunMoonEvents, moonIllumination, moonAltAz, groundIlluminanceMlx,
-  illumClass, isDaylight, nvgIllum, EVENT_ALT,
+  illumClass, isDaylight, nvgIllum, EVENT_ALT, illumPoint, illumTrend,
 } from './astro.js';
 
 const KLTS = [34.667, -99.268];
@@ -88,4 +88,20 @@ test('moon rise/set are always populated for a night that spans UTC midnight', (
     assert.ok(dt(ev.moonrise) <= 15, `moonrise near phase @ ${when}`);
     assert.ok(dt(ev.moonset) <= 15, `moonset near phase @ ${when}`);
   }
+});
+
+test('illumTrend samples the window and tracks the day->night drop', () => {
+  // Evening into night at KLTS: 00Z (sun up) -> 06Z (deep night).
+  const pts = illumTrend('2026-06-12T00:00:00Z', '2026-06-12T06:00:00Z', ...KLTS, 30);
+  assert.ok(pts.length >= 10 && pts.length <= 48);
+  assert.equal(pts[0].band, 'day');
+  const last = pts[pts.length - 1];
+  assert.equal(last.band, 'night');
+  assert.ok(last.mlx < pts[0].mlx, 'illumination falls from day to night');
+  // illumPoint agrees with a direct sample and skips the events search.
+  const p = illumPoint('2026-06-12T06:00:00Z', ...KLTS);
+  assert.equal(p.class, illumClass(p.mlx));
+  assert.ok(!('events' in p));
+  // Bad/empty window -> empty array.
+  assert.equal(illumTrend('2026-06-12T06:00:00Z', '2026-06-12T00:00:00Z', ...KLTS).length, 0);
 });

@@ -18,7 +18,7 @@ import { raimOutlook } from './data/raim.js';
 import { fetchWindsAloft, interpolateWind, thermalSummary } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 import { watchTaf } from './data/tafwatch.js';
-import { nvgIllum } from './core/astro.js';
+import { nvgIllum, illumTrend } from './core/astro.js';
 import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
 
 // Default pattern altitudes (ft AGL) reported in the wind section; configurable
@@ -498,6 +498,21 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   // crosswind, then flight category) — "which alternate do I plan?".
   const alternates = rankAlternates(airfields, limits);
 
+  // NVG illumination trend across the sortie window, sampled at the departure
+  // field, for the sparkline. Only when NVG is on and there are timed stops.
+  let nvgTrend = null;
+  if (nvg) {
+    const whenMsList = stopList.map((s) => Date.parse(s.when)).filter(Number.isFinite);
+    const dep = stopList.find((s) => s.role === 'DEPARTURE') || stopList[0];
+    const depAp = dep ? airportMap.get(dep.icao) : null;
+    if (whenMsList.length && depAp && depAp.lat != null) {
+      const from = new Date(Math.min(...whenMsList) - 3600000).toISOString();
+      const to = new Date(Math.max(...whenMsList) + 3600000).toISOString();
+      const points = illumTrend(from, to, depAp.lat, depAp.lon, 30);
+      if (points.length) nvgTrend = { icao: dep.icao, from, to, points };
+    }
+  }
+
   // TAF degradation watch: did an amended TAF push any briefed phase toward
   // CAUTION/NO-GO since the last brief? Compared AT each phase's time. Skipped
   // offline (tests) so fixture runs don't accumulate watch state.
@@ -527,6 +542,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     targetTime: targetIso,
     sortie: isSortie,
     nvg,
+    nvgTrend,
     // Per-source wall-clock (ms) for this brief; surfaced by /api/diag and the
     // [timing] log so the slowest live feed on the host is visible.
     diag: { timings },
