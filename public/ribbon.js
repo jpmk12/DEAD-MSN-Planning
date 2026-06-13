@@ -12,6 +12,18 @@ export const catSev = (c) => (c === 'LIFR' ? 'nogo' : c === 'IFR' || c === 'MVFR
 export const birdSev = (l) => (l === 'SEVERE' ? 'nogo' : l === 'MODERATE' ? 'caution' : l ? 'go' : 'info');
 export const xwSev = (kt, lim) => (kt == null ? 'info' : kt >= lim ? 'nogo' : kt >= 0.6 * lim ? 'caution' : 'go');
 
+// Authoritative sources for the hazard chips, so a warning links out for detail.
+export const AWC_SIGMET_URL = 'https://aviationweather.gov/gfa/#sigmet'; // graphical SIGMET/AIRMET viewer
+export const SPC_OUTLOOK_URL = 'https://www.spc.noaa.gov/products/outlook/'; // SPC convective outlooks
+
+/** Tooltip text for a SIGMET/AIRMET chip — the decoded label plus the raw
+ *  product text (the authoritative detail), and its valid-until time. */
+export function sigTip(h) {
+  if (!h) return null;
+  return [h.label || h.type, h.validTo ? `valid to ${h.validTo}` : null, h.raw]
+    .filter(Boolean).join(' · ');
+}
+
 /** Worst crosswind across an MTR's legs (the route's wind hazard), or null. */
 export function routeWorstXw(d) {
   let max = null;
@@ -41,10 +53,11 @@ export function fieldPhase(b, limits) {
   if (b.phase?.hideCurrentOnly) {
     chips.push({ k: 'now-cast n/a', sev: 'info' });
   } else {
-    const tsBad = (b.convective || []).some((c) => c.distanceNm === 0) || (b.hazardWx || []).some((h) => h.hazard === 'CONVECTIVE');
-    const sig = (b.hazardWx || []).length > 0;
-    if (tsBad) chips.push({ k: 'TS', sev: 'nogo' });
-    else if (sig) chips.push({ k: 'SIGMET', sev: 'caution' });
+    const convSig = (b.hazardWx || []).find((h) => h.hazard === 'CONVECTIVE');
+    const tsBad = (b.convective || []).some((c) => c.distanceNm === 0) || !!convSig;
+    const firstSig = (b.hazardWx || [])[0];
+    if (tsBad) chips.push({ k: 'TS', sev: 'nogo', tip: convSig ? sigTip(convSig) : 'Convective outlook overhead', href: convSig ? AWC_SIGMET_URL : SPC_OUTLOOK_URL });
+    else if (firstSig) chips.push({ k: 'SIGMET', sev: 'caution', tip: sigTip(firstSig), href: AWC_SIGMET_URL });
   }
   return {
     role: b.phase?.role || 'FIELD', id: b.icao, when: b.phase?.when || null,
@@ -78,10 +91,10 @@ export function routePhase(d, when, limits) {
     const otherSig = sig.filter((h) => h.hazard !== 'CONVECTIVE');
     const HI = new Set(['ENH', 'MDT', 'HIGH']);
     const hiConv = conv.filter((c) => HI.has(c.risk));
-    if (convSig.length) chips.push({ k: `CONV SIGMET ${convSig[0].distanceNm}NM`, sev: 'nogo' });
-    else if (hiConv.length) chips.push({ k: `CONV ${hiConv[0].risk} ${hiConv[0].distanceNm}NM`, sev: 'caution' });
-    else if (otherSig.length) chips.push({ k: `${otherSig[0].type} ${otherSig[0].distanceNm}NM`, sev: 'caution' });
-    else if (conv.length) chips.push({ k: `CONV ${conv[0].risk} ${conv[0].distanceNm}NM`, sev: 'info' });
+    if (convSig.length) chips.push({ k: `CONV SIGMET ${convSig[0].distanceNm}NM`, sev: 'nogo', tip: sigTip(convSig[0]), href: AWC_SIGMET_URL });
+    else if (hiConv.length) chips.push({ k: `CONV ${hiConv[0].risk} ${hiConv[0].distanceNm}NM`, sev: 'caution', tip: `SPC convective outlook: ${hiConv[0].label || hiConv[0].risk} · ${hiConv[0].distanceNm} NM from route`, href: SPC_OUTLOOK_URL });
+    else if (otherSig.length) chips.push({ k: `${otherSig[0].type} ${otherSig[0].distanceNm}NM`, sev: 'caution', tip: sigTip(otherSig[0]), href: AWC_SIGMET_URL });
+    else if (conv.length) chips.push({ k: `CONV ${conv[0].risk} ${conv[0].distanceNm}NM`, sev: 'info', tip: `SPC convective outlook: ${conv[0].label || conv[0].risk} · ${conv[0].distanceNm} NM from route`, href: SPC_OUTLOOK_URL });
     else chips.push({ k: 'CONV clear', sev: 'go' });
   } else {
     chips.push({ k: 'CONV n/a', sev: 'info' }); // not assessed (offline / no geometry)

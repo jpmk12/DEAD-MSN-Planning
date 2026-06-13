@@ -28,9 +28,13 @@ test('routePhase: AHAS + worst leg crosswind, convective marked not-assessed', (
 test('routePhase: along-route convective/SIGMET drives status when assessed', () => {
   // Convective SIGMET crossing the route -> NO-GO.
   const conv = routePhase({ id: 'IR-154', type: 'IR', routeWxChecked: true,
-    hazardWx: [{ type: 'SIGMET', hazard: 'CONVECTIVE', distanceNm: 0 }], convective: [] }, null, LIMITS);
+    hazardWx: [{ type: 'SIGMET', hazard: 'CONVECTIVE', distanceNm: 0, label: 'Convective', raw: 'CONVECTIVE SIGMET 21C ... TOPS FL450', validTo: '2026-06-13T05:00:00Z' }], convective: [] }, null, LIMITS);
   assert.equal(conv.status, 'NO-GO');
-  assert.ok(conv.chips.some((c) => c.k.startsWith('CONV SIGMET') && c.sev === 'nogo'));
+  const convChip = conv.chips.find((c) => c.k.startsWith('CONV SIGMET'));
+  assert.ok(convChip && convChip.sev === 'nogo');
+  // The warning links to the authoritative source and carries the raw text tip.
+  assert.match(convChip.href, /aviationweather\.gov/);
+  assert.match(convChip.tip, /CONVECTIVE SIGMET 21C/);
 
   // A high SPC outlook category near the route -> CAUTION.
   const enh = routePhase({ id: 'IR-154', type: 'IR', routeWxChecked: true,

@@ -1129,7 +1129,14 @@ function renderRibbon(data, routes, limits) {
   const seg = (p, i) => {
     const roleTag = rbRoleTag(p.role);
     const clear = p.status === 'GO' && !p.chips.some((c) => c.sev === 'caution' || c.sev === 'nogo');
-    const chips = p.chips.map((c) => `<span class="rb-chip sev-${c.sev}">${esc(c.k)}</span>`).join('');
+    const chips = p.chips.map((c) => {
+      const cls = `rb-chip sev-${c.sev}`;
+      const title = c.tip ? ` title="${esc(c.tip)}"` : '';
+      // Chips with a source link become anchors (open the authoritative product).
+      return c.href
+        ? `<a class="${cls} rb-chip-link" href="${esc(c.href)}" target="_blank" rel="noopener"${title}>${esc(c.k)} ↗</a>`
+        : `<span class="${cls}"${title}>${esc(c.k)}</span>`;
+    }).join('');
     const when = p.when ? zuluLocal(p.when) : '';
     return `${i ? '<div class="rb-arrow">▸</div>' : ''}
       <div class="rb-phase ${STAT[p.status] || 'rb-na'}" title="${esc(`${roleTag} ${p.id} ${when} · ${p.status}${p.reason ? ' — ' + p.reason : ''} · ${p.source}`)}">
@@ -1171,25 +1178,37 @@ function nvgTrendStrip(trend, phases) {
     return padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
   };
   const pts = trend.points;
-  // Band shading rects between consecutive samples.
+  const bandName = { day: 'Daylight', twilight: 'Twilight', night: 'Night' };
+  // Band shading rects between consecutive samples — each with a hover tooltip
+  // (<title>) naming the band, time and the illuminance at that point.
   const bands = pts.slice(0, -1).map((p, i) => {
     const x0 = x(p.t), x1 = x(pts[i + 1].t);
-    return `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0 + 0.5).toFixed(1)}" height="${H - padT - padB}" fill="${BAND_FILL[p.band] || 'none'}"/>`;
+    const tip = `${zuluLocal(p.t)} · ${bandName[p.band] || p.band} · ${p.mlx} mlx ${p.class}${p.moonUp ? ' · moon up' : ''}`;
+    return `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0 + 0.5).toFixed(1)}" height="${H - padT - padB}" fill="${BAND_FILL[p.band] || 'none'}"><title>${esc(tip)}</title></rect>`;
   }).join('');
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.mlx).toFixed(1)}`).join(' ');
   const thrY = y(2.2).toFixed(1);
   // Phase-time markers (D/A/L etc.) along the axis.
   const marks = (phases || []).filter((p) => p.when && Date.parse(p.when) >= from && Date.parse(p.when) <= to)
     .map((p) => `<line x1="${x(p.when).toFixed(1)}" y1="${padT}" x2="${x(p.when).toFixed(1)}" y2="${H - padB}" class="nt-mark"/>
-      <text x="${x(p.when).toFixed(1)}" y="${H - 3}" class="nt-mtext">${esc(rbRoleTag(p.role)[0])}</text>`).join('');
+      <text x="${x(p.when).toFixed(1)}" y="${H - 3}" class="nt-mtext">${esc(rbRoleTag(p.role)[0])}<title>${esc(`${rbRoleTag(p.role)} ${p.id} ${zuluLocal(p.when)}`)}</title></text>`).join('');
+  const lg = (sw, txt) => `<span class="nt-li">${sw} ${esc(txt)}</span>`;
   return `<div class="nvg-trend">
-    <div class="nt-h">🌙 Illumination trend <small>${esc(trend.icao)} · clear-sky mlx (log) · dashed = 2.2 mlx LOW/HIGH (AFI 11-214) · computed</small></div>
+    <div class="nt-h">🌙 Illumination trend <small>${esc(trend.icao)} · clear-sky ground illuminance over the sortie · computed — hover for values</small></div>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="nt-svg" role="img" aria-label="Illumination trend across the sortie">
       ${bands}
-      <line x1="${padL}" y1="${thrY}" x2="${W - padR}" y2="${thrY}" class="nt-thr"/>
-      <path d="${line}" class="nt-line"/>
+      <line x1="${padL}" y1="${thrY}" x2="${W - padR}" y2="${thrY}" class="nt-thr"><title>2.2 mlx — AFI 11-214 LOW/HIGH boundary</title></line>
+      <path d="${line}" class="nt-line"><title>Ground illuminance (clear-sky), log scale</title></path>
       ${marks}
     </svg>
+    <div class="nt-legend">
+      ${lg('<i class="nt-sw nt-day"></i>', 'Daylight')}
+      ${lg('<i class="nt-sw nt-twi"></i>', 'Twilight')}
+      ${lg('<i class="nt-sw nt-night"></i>', 'Night')}
+      ${lg('<i class="nt-swline"></i>', 'Illuminance (mlx, log scale ↑)')}
+      ${lg('<i class="nt-swdash"></i>', '2.2 mlx — LOW / HIGH (AFI 11-214)')}
+      ${lg('<b class="nt-swmark">D</b>', 'phase time')}
+    </div>
   </div>`;
 }
 
