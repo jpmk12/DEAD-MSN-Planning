@@ -989,37 +989,6 @@ async function buildBrief() {
   await runBrief({ ids, limits: lim, extra: { stops: stopsParam }, button: 'go' });
 }
 
-// The phase field a quick-chip drops into: whichever airfield field was focused
-// last (Departure / Recovery / Alternates), defaulting to Departure.
-let chipTarget = 'sp-dep';
-function trackChipTarget() {
-  ['sp-dep', 'sp-rec', 'sp-alt'].forEach((id) => {
-    const el = $(id);
-    if (el) el.addEventListener('focus', () => { chipTarget = id; });
-  });
-}
-
-async function loadQuickChips() {
-  try {
-    const res = await fetch('/api/airfields');
-    const { airfields } = await res.json();
-    $('quick').innerHTML = airfields.map((a) => `<span class="chip" data-icao="${a}">+ ${a}</span>`).join('');
-    $('quick').querySelectorAll('.chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        // Departure/Recovery take a single field; Alternates can take several.
-        const target = $(chipTarget) || $('sp-dep');
-        const icao = chip.dataset.icao;
-        if (target.id === 'sp-alt') {
-          const cur = splitIds(target.value);
-          if (!cur.includes(icao)) target.value = [...cur, icao].join(' ');
-        } else {
-          target.value = icao;
-        }
-      });
-    });
-  } catch { /* server may be down; chips are optional */ }
-}
-
 // ---- Route / climb winds tool ----------------------------------------------
 function windsProfileCard(pt) {
   if (!pt.found) {
@@ -1854,7 +1823,6 @@ window.addEventListener('afterprint', () => {
     on(`${pre}-hhmm`, 'blur', () => { normalizeHhmm(el); updateQuickLinks(); });
     on(`${pre}-hhmm`, 'keydown', (e) => { if (e.key === 'Enter') { normalizeHhmm(el); buildBrief(); } });
   });
-  trackChipTarget();
   updateQuickLinks();
   // Keep the toolbar links in sync with the departure field/time and the
   // low-level routes/entry time (AHAS + Build PDF include route bird-risk).
@@ -1891,7 +1859,6 @@ window.addEventListener('afterprint', () => {
   initSorties();
   on('winds-go', 'click', getRouteWinds);
   on('winds-points', 'keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
-  loadQuickChips();
   // No auto-brief on load: let the user set fields/dates/times first, then pull
   // once on Build Brief — avoids a wasted live fan-out against the defaults.
   const res = $('results');
