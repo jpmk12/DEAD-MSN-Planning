@@ -15,10 +15,12 @@ import { fetchWindsAloft, interpolateWind, interpolateScalar, icingAt } from './
 import { fetchRouteRisk, segmentRisk } from './ahas.js';
 import { fetchConvective } from './convective.js';
 import { fetchAirSigmets } from './airsigmet.js';
+import { fetchPireps } from './pireps.js';
 
 // How close a route's path must pass to a convective/SIGMET area to flag it.
 const CONV_ROUTE_NM = 25;
 const SIG_ROUTE_NM = 25;
+const PIREP_ROUTE_NM = 50; // PIREPs are sparse points — a wider net than area products
 
 /** Hazard areas whose geometry the route path passes within `thresholdNm` of,
  *  each tagged with the route's closest approach (distanceNm). */
@@ -32,6 +34,20 @@ function hazardsAlongRoute(points, items, thresholdNm) {
       if (min === 0) break;
     }
     if (min <= thresholdNm) out.push({ ...it, distanceNm: Math.round(min) });
+  }
+  return out.sort((a, b) => a.distanceNm - b.distanceNm);
+}
+
+/** Icing/turbulence/urgent PIREPs near the route path AND near its altitude band
+ *  (± 4000 ft buffer; reports with unknown altitude are kept). Sorted nearest-first. */
+function pirepsAlongRoute(points, pireps, thresholdNm, band) {
+  const out = [];
+  for (const p of pireps || []) {
+    if (!(p.turb || p.ice || p.urgent)) continue; // only the actionable hazards
+    if (p.altFt != null && band && (p.altFt < band.minFt - 4000 || p.altFt > band.maxFt + 4000)) continue;
+    let min = Infinity;
+    for (const [la, lo] of points) { const d = haversineNm(la, lo, p.lat, p.lon); if (d < min) min = d; }
+    if (min <= thresholdNm) out.push({ ...p, distanceNm: Math.round(min) });
   }
   return out.sort((a, b) => a.distanceNm - b.distanceNm);
 }
@@ -243,20 +259,31 @@ export async function buildMtrDetail(token, offline, targetIso) {
     }),
   );
 
-  // Convective outlook + SIGMETs whose area the route path crosses (live only;
-  // offline stays UNAVAILABLE so it's never implied from fixtures). Closes the
-  // ribbon's "CONV n/a" gap with an honest along-route assessment.
-  let convective = null, hazardWx = null, routeWxChecked = false;
+  // Convective outlook + SIGMETs + icing/turbulence PIREPs whose area/point the
+  // route path crosses (live only; offline stays UNAVAILABLE so it's never implied
+  // from fixtures). Closes the ribbon's "CONV n/a" gap with an honest along-route
+  // assessment, and surfaces pilot-reported icing/turb on the route itself.
+  let convective = null, hazardWx = null, pireps = null, routeWxChecked = false;
   if (!offline) {
     const routePts = [];
     for (const s of (mtr.segments || [])) for (const p of (s.points || [])) routePts.push(p);
     if (routePts.length) {
-      const [conv, sig] = await Promise.all([
+      // Route altitude band (for PIREP altitude relevance) and a bbox to scope
+      // the PIREP fetch to the route's vicinity.
+      const floors = (mtr.segments || []).map((s) => s.floorFt).filter((n) => typeof n === 'number');
+      const ceils = (mtr.segments || []).map((s) => s.ceilingFt).filter((n) => typeof n === 'number');
+      const band = (floors.length || ceils.length)
+        ? { minFt: floors.length ? Math.min(...floors) : 0, maxFt: ceils.length ? Math.max(...ceils) : 60000 } : null;
+      const lats = routePts.map((p) => p[0]), lons = routePts.map((p) => p[1]);
+      const bbox = `${Math.min(...lats) - 2},${Math.min(...lons) - 2},${Math.max(...lats) + 2},${Math.max(...lons) + 2}`;
+      const [conv, sig, pir] = await Promise.all([
         fetchConvective(false).catch(() => ({ convective: [] })),
         fetchAirSigmets(false).catch(() => ({ airsigmets: [] })),
+        fetchPireps(false, bbox).catch(() => ({ pireps: [] })),
       ]);
       convective = hazardsAlongRoute(routePts, conv.convective, CONV_ROUTE_NM);
       hazardWx = hazardsAlongRoute(routePts, sig.airsigmets, SIG_ROUTE_NM);
+      pireps = pirepsAlongRoute(routePts, pir.pireps, PIREP_ROUTE_NM, band);
       routeWxChecked = true;
     }
   }
@@ -270,6 +297,7 @@ export async function buildMtrDetail(token, offline, targetIso) {
   return {
     convective,
     hazardWx,
+    pireps,
     routeWxChecked,
     // AHAS (bird/wildlife) is a low-level product; it does not apply to AR tracks.
     ahasApplies: base.type !== 'AR',

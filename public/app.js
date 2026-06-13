@@ -3,7 +3,7 @@
 
 import { initMap } from './map.js';
 import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
-import { buildRibbonModel, roleTag as rbRoleTag, sigTip, AWC_SIGMET_URL, SPC_OUTLOOK_URL } from './ribbon.js';
+import { buildRibbonModel, roleTag as rbRoleTag, sigTip, pirepTip, pirepKind, AWC_SIGMET_URL, SPC_OUTLOOK_URL, AWC_PIREP_URL } from './ribbon.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -1386,7 +1386,13 @@ function routeWxBlock(d) {
     for (const c of conv.slice(0, 2)) {
       rows.push(`<div class="mtr-wx">⛈ <a href="${esc(SPC_OUTLOOK_URL)}" target="_blank" rel="noopener" title="SPC convective outlook ${esc(c.label || c.risk)}">Convective outlook ${esc(c.risk)} · ${esc(c.distanceNm)} NM from route ↗</a></div>`);
     }
-    if (!sig.length && !conv.length) rows.push('<div class="mtr-wx ok">✓ No convective/SIGMET within 25 NM of the route path</div>');
+    const pir = d.pireps || [];
+    for (const p of pir.slice(0, 4)) {
+      const crit = p.urgent ? ' crit' : '';
+      const fl = p.altFt != null ? ` · FL${Math.round(p.altFt / 100)}` : '';
+      rows.push(`<div class="mtr-wx${crit}">✈ <a href="${esc(AWC_PIREP_URL)}" target="_blank" rel="noopener" title="${esc(pirepTip(p) || '')}">PIREP ${esc(pirepKind(p))}${esc(fl)} · ${esc(p.distanceNm)} NM from route ↗</a></div>`);
+    }
+    if (!sig.length && !conv.length && !pir.length) rows.push('<div class="mtr-wx ok">✓ No convective/SIGMET/PIREP within range of the route path</div>');
   } else if (!d.icing) {
     rows.push('<div class="mtr-wx" style="color:var(--text-faint)">Convective/SIGMET along route: not assessed (offline)</div>');
   }

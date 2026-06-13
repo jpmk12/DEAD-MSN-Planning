@@ -15,6 +15,7 @@ export const xwSev = (kt, lim) => (kt == null ? 'info' : kt >= lim ? 'nogo' : kt
 // Authoritative sources for the hazard chips, so a warning links out for detail.
 export const AWC_SIGMET_URL = 'https://aviationweather.gov/gfa/#sigmet'; // graphical SIGMET/AIRMET viewer
 export const SPC_OUTLOOK_URL = 'https://www.spc.noaa.gov/products/outlook/'; // SPC convective outlooks
+export const AWC_PIREP_URL = 'https://aviationweather.gov/gfa/#pirep'; // graphical PIREP viewer
 
 /** Tooltip text for a SIGMET/AIRMET chip — the decoded label plus the raw
  *  product text (the authoritative detail), and its valid-until time. */
@@ -22,6 +23,16 @@ export function sigTip(h) {
   if (!h) return null;
   return [h.label || h.type, h.validTo ? `valid to ${h.validTo}` : null, h.raw]
     .filter(Boolean).join(' · ');
+}
+
+/** Short kind tag for a PIREP (icing / turbulence / urgent). */
+export const pirepKind = (p) => (p.ice ? 'ICE' : p.turb ? 'TURB' : p.urgent ? 'URGENT' : 'PIREP');
+
+/** Tooltip text for a PIREP chip — hazard, flight level, obs time, raw report. */
+export function pirepTip(p) {
+  if (!p) return null;
+  return [p.hazard || pirepKind(p), p.altFt != null ? `FL${Math.round(p.altFt / 100)}` : null,
+    p.obsTime ? `obs ${p.obsTime}` : null, p.rawText].filter(Boolean).join(' · ');
 }
 
 /** Worst crosswind across an MTR's legs (the route's wind hazard), or null. */
@@ -104,6 +115,11 @@ export function routePhase(d, when, limits) {
   if (d.icing) {
     chips.push({ k: `ICE ${d.icing.severity}`, sev: d.icing.severity === 'MODERATE' ? 'caution' : 'info',
       tip: `Structural icing potential at block: ${d.icing.tempC}°C${d.icing.rhPct != null ? `, RH ${d.icing.rhPct}%` : ''} — temp/RH-based, needs visible moisture` });
+  }
+  // Pilot-reported icing/turbulence on/near the route (nearest one). Awareness.
+  if (d.pireps && d.pireps.length) {
+    const p = d.pireps[0];
+    chips.push({ k: `PIREP ${pirepKind(p)} ${p.distanceNm}NM`, sev: 'caution', tip: pirepTip(p), href: AWC_PIREP_URL });
   }
   const worst = chips.reduce((m, c) => (SEV_RANK[c.sev] > SEV_RANK[m] ? c.sev : m), 'go');
   const status = worst === 'nogo' ? 'NO-GO' : worst === 'caution' ? 'CAUTION' : 'GO';

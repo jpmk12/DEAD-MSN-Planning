@@ -52,6 +52,22 @@ test('routePhase: along-route convective/SIGMET drives status when assessed', ()
   assert.ok(na.chips.some((c) => c.k === 'CONV n/a' && c.sev === 'info'));
 });
 
+test('routePhase: icing/turbulence PIREPs on route show a caution chip with source + raw', () => {
+  const d = { id: 'IR-154', type: 'IR', routeWxChecked: true, hazardWx: [], convective: [],
+    pireps: [{ ice: true, turb: false, urgent: false, hazard: 'Icing', altFt: 3000, distanceNm: 12,
+      obsTime: '2026-06-13T05:00:00Z', rawText: 'KLTS UA /FL030 /TP C17 /IC MOD RIME' }] };
+  const p = routePhase(d, null, LIMITS);
+  assert.equal(p.status, 'CAUTION');
+  const chip = p.chips.find((c) => c.k.startsWith('PIREP'));
+  assert.equal(chip.k, 'PIREP ICE 12NM');
+  assert.equal(chip.sev, 'caution');
+  assert.match(chip.href, /aviationweather\.gov/);
+  assert.match(chip.tip, /MOD RIME/);
+  // No PIREPs -> no PIREP chip.
+  const none = routePhase({ id: 'IR-154', type: 'IR', routeWxChecked: true, hazardWx: [], convective: [], pireps: [] }, null, LIMITS);
+  assert.ok(!none.chips.some((c) => c.k.startsWith('PIREP')));
+});
+
 test('routePhase: AR cross-track wind aloft is informational, never gating', () => {
   // 80 kt cross-track wind at the AR block — normal aloft, NOT a landing limit.
   const d = { id: 'AR312L', type: 'AR', birdRisk: { level: 'LOW' },
