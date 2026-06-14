@@ -268,6 +268,22 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .forecast-block .warnings { margin-top: 6px; }
 .cat-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 5px; }
 
+/* Local / Global mode tabs */
+.tabbar { display: flex; gap: 4px; margin: 10px 0 4px; border-bottom: 1px solid var(--border); }
+.tabbar .tab { font: 600 13px var(--font, inherit); color: var(--text-dim); background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; padding: 8px 16px; cursor: pointer; }
+.tabbar .tab:hover { color: var(--text); }
+.tabbar .tab.active { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+
+/* Global / strategic route view */
+.g-summary { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin: 4px 0 10px; font-size: 14px; color: var(--text); }
+.g-summary span { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
+.g-legs { overflow-x: auto; margin-bottom: 14px; }
+.g-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+.g-table th { text-align: left; color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.g-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; }
+.g-table tbody tr:hover { background: var(--panel-2); }
+.g-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+
 /* Runway surface condition (FICON/RCR) block. */
 .rwycond-block { margin-top: 10px; padding: 8px 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; }
 .rwycond-block .rc-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); margin-bottom: 5px; }

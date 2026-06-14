@@ -52,6 +52,12 @@
         <span id="notam-source" class="pill">—</span>
       </header>
 
+      <nav class="tabbar" id="tabbar" aria-label="Planning mode">
+        <button type="button" class="tab active" data-tab="local">Local Training</button>
+        <button type="button" class="tab" data-tab="global">Global / Strategic</button>
+      </nav>
+
+      <div id="local-view">
       <nav class="quicklinks" id="quicklinks" aria-label="External references">
         <span class="ql-label">Quick Links</span>
         <a id="ql-daip" class="ql" target="_blank" rel="noopener" title="DAIP NOTAMs">DAIP NOTAMs</a>
@@ -178,6 +184,29 @@
       <div id="mtr-results" class="route-results"></div>
 
       <div id="results-rest"></div>
+      </div><!-- /#local-view -->
+
+      <section id="global-view" hidden>
+        <section class="controls">
+          <p class="sortie-hint">Strategic / oceanic route — enter <b>ICAO waypoints in order</b> (origin → en-route → destination). <b>All times are Zulu (UTC).</b> Legs are great-circle with wind-corrected ETAs; each stop is briefed at its ETA (weather, NOTAMs, day/night &amp; NVG). AHAS birds and AP/1B routes are US-only and show n/a abroad.</p>
+          <div class="row">
+            <div class="field grow">
+              <label for="g-route">Route — ICAO waypoints (space or comma separated)</label>
+              <input id="g-route" type="text" placeholder="KCHS TNCM LPLA ETAR" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div class="field"><label for="g-depart-d">Depart date (Z)</label><input id="g-depart-d" class="sp-date" type="date" /></div>
+            <div class="field num"><label for="g-depart-hhmm">Time (Z)</label><input id="g-depart-hhmm" class="sp-hhmm" type="text" inputmode="numeric" maxlength="4" placeholder="HHMM" pattern="([01][0-9]|2[0-3])[0-5][0-9]" autocomplete="off" /></div>
+            <div class="field num"><label for="g-tas">Cruise TAS (kt)</label><input id="g-tas" type="number" value="450" min="60" max="600" /></div>
+            <div class="field num"><label for="g-alt">Cruise alt</label><input id="g-alt" type="text" value="FL350" title="FLxxx or feet MSL (winds clamp at ~FL340)" autocomplete="off" /></div>
+            <label class="toggle" title="Add sun/moon illumination (AFI 11-214) at each stop's ETA"><input type="checkbox" id="g-nvg" /> 🌙 NVG</label>
+            <button id="g-go" class="go">Plan Route</button>
+          </div>
+          <div id="global-status" class="rof-status"></div>
+        </section>
+        <div id="global-results"></div>
+      </section>
 
       <footer class="footer">
         Planning aid only — verify with official sources. Limits are user-set placeholders, not -1/TO values.

@@ -1488,6 +1488,68 @@ async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
   }
 }
 
+// ---- Global / strategic route view -----------------------------------------
+// A second tab sharing the weather/winds/astro/airfield engine, but with a
+// leg-and-track model (great-circle legs, wind-corrected ETAs) instead of the
+// local phase model. Reuses card() for each stop's brief.
+function setMode(mode) {
+  const local = $('local-view'), global = $('global-view');
+  if (local) local.hidden = mode !== 'local';
+  if (global) global.hidden = mode !== 'global';
+  document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
+  try { localStorage.setItem('dead-mode', mode); } catch { /* storage blocked */ }
+}
+
+async function runGlobal() {
+  const ids = splitIds(val('g-route'));
+  const statusEl = $('global-status');
+  if (ids.length < 2) { if (statusEl) statusEl.textContent = 'Enter at least two ICAO waypoints (e.g. KCHS TNCM LPLA ETAR).'; return; }
+  normalizeHhmm($('g-depart-hhmm'));
+  const depart = zuluToIso('g-depart');
+  const tas = Number(val('g-tas')) || 450;
+  const alt = (val('g-alt') || 'FL350').trim();
+  const params = new URLSearchParams({ route: ids.join(' '), tas: String(tas), alt });
+  if (depart) params.set('depart', depart);
+  if ($('g-nvg')?.checked) params.set('nvg', '1');
+  if (statusEl) statusEl.textContent = '';
+  $('global-results').innerHTML = '<div class="loading"><div class="spinner"></div>Planning route — winds &amp; weather at each stop…</div>';
+  try {
+    const res = await fetch(`/api/global?${params}`);
+    const data = await res.json();
+    if (data.error) { $('global-results').innerHTML = `<div class="errbox">${esc(data.error)}</div>`; return; }
+    renderGlobal(data);
+  } catch (err) {
+    $('global-results').innerHTML = `<div class="errbox">Failed to plan route: ${esc(err.message)}</div>`;
+  }
+}
+
+const fmtHm = (min) => `${Math.floor((min || 0) / 60)}h${String((min || 0) % 60).padStart(2, '0')}`;
+
+function renderGlobal(data) {
+  const limits = readLimits();
+  const r = data.route || {};
+  const miss = (r.missing || []).length
+    ? `<div class="missing-card">Unresolved ICAO(s): ${r.missing.map(esc).join(', ')} — check spelling, or the field isn't in the dataset yet.</div>` : '';
+  const t = data.totals || {};
+  const flLabel = r.altFt ? `FL${Math.round(r.altFt / 100)}` : '';
+  const head = `<div class="g-summary"><b>${esc((r.ids || []).join(' → '))}</b>
+    <span>${(t.distanceNm || 0).toLocaleString()} NM · ${fmtHm(t.timeMin)} · TAS ${esc(r.tasKt)} kt @ ${esc(flLabel)}</span></div>`;
+  const legRows = (data.legs || []).map((l) => {
+    let w = '—';
+    if (l.wind) {
+      const hw = Math.round(l.wind.headwindKt);
+      const comp = hw >= 0 ? `HW ${hw}` : `TW ${-hw}`;
+      w = `${String(l.wind.dirTrue).padStart(3, '0')}/${l.wind.speedKt} · ${comp}`;
+    }
+    return `<tr><td>${esc(l.fromId)}→${esc(l.toId)}</td><td>${l.distanceNm.toLocaleString()} NM</td><td>${String(l.bearingTrue).padStart(3, '0')}°T</td><td>${l.gsKt} kt</td><td>${fmtHm(l.eteMin)}</td><td>${esc(zuluLocal(l.etaIso))}</td><td>${esc(w)}</td></tr>`;
+  }).join('');
+  const legTable = legRows
+    ? `<div class="g-legs"><table class="g-table"><thead><tr><th>Leg</th><th>Dist</th><th>Course</th><th>GS</th><th>ETE</th><th>ETA (Z / local)</th><th>Wind @alt</th></tr></thead><tbody>${legRows}</tbody></table>
+       <div class="g-note">Great-circle legs; groundspeed = TAS minus the along-track wind at cruise (winds clamp at ~FL340). Verify fuel/ETP/ETOPS with official planning.</div></div>` : '';
+  const cards = (data.airfields || []).map((af) => card(af, limits)).join('');
+  $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
+}
+
 // Build the map's "valid times" caption from the brief data. Radar is a live
 // NEXRAD mosaic (no exact scan time exposed), so it's stamped with the brief
 // time rounded to the ~5-min update cadence as a fallback; the map refines this
@@ -1755,6 +1817,19 @@ function init() {
     const sec = document.getElementById(head.dataset.collapse);
     if (sec) sec.classList.toggle('collapsed');
   });
+
+  // Local / Global tab switch (restores the last-used mode).
+  const tabbar = $('tabbar');
+  if (tabbar) tabbar.addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setMode(b.dataset.tab); });
+  on('g-go', 'click', runGlobal);
+  on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
+  on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
+  { // prefill the global depart date/time with "now" (Zulu)
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    if ($('g-depart-d') && !$('g-depart-d').value) $('g-depart-d').value = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+    if ($('g-depart-hhmm') && !$('g-depart-hhmm').value) $('g-depart-hhmm').value = `${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+  }
+  try { setMode(localStorage.getItem('dead-mode') === 'global' ? 'global' : 'local'); } catch { /* default local */ }
 
   // Pill tooltips: tap a data-source pill to explain LIVE/UNAVAILABLE (works on touch);
   // tap anywhere else to dismiss.

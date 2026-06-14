@@ -18,6 +18,8 @@ import { buildRoute } from './route.js';
 import { buildTimeline } from './timeline.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
+import { legGeometry, scheduleLegs, groundspeed } from './core/legs.js';
+import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { knownAirports, getAirport } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
@@ -303,6 +305,69 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(502, { 'Content-Type': 'text/plain' }).end(`reference unavailable: ${String(e).slice(0, 200)}`);
       }
+      return;
+    }
+
+    if (url.pathname === '/api/global') {
+      // Strategic/global route: ordered ICAO waypoints -> great-circle legs with
+      // wind-corrected ETAs, plus a per-stop brief (weather/NOTAM/NVG at each ETA).
+      const ids = (url.searchParams.get('route') ?? '')
+        .split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+      if (ids.length < 2) { sendJson(res, 400, { error: 'provide ?route=KCHS TNCM LPLA ETAR (2+ ICAOs)' }); return; }
+      const offline = url.searchParams.get('offline') === '1';
+      const nvg = url.searchParams.get('nvg') === '1';
+      const tasKt = Math.max(60, Math.min(600, Number(url.searchParams.get('tas')) || 450));
+      const altRaw = url.searchParams.get('alt') || 'FL350';
+      const flMatch = String(altRaw).match(/FL\s*(\d{2,3})/i);
+      const altFt = Math.max(1000, Math.min(45000, flMatch ? Number(flMatch[1]) * 100 : (Number(String(altRaw).replace(/[^\d]/g, '')) || 35000)));
+      const departRaw = url.searchParams.get('depart');
+      const departIso = departRaw && !Number.isNaN(Date.parse(departRaw)) ? new Date(departRaw).toISOString() : new Date().toISOString();
+
+      // Resolve each waypoint to coordinates (curated -> global bundle -> live).
+      const resolved = await Promise.all(ids.map(async (id) => {
+        const ap = await getAirport(id, offline);
+        return ap && ap.lat != null ? { id, lat: ap.lat, lon: ap.lon, name: ap.name } : { id, missing: true };
+      }));
+      const waypoints = resolved.filter((w) => !w.missing);
+      const missing = resolved.filter((w) => w.missing).map((w) => w.id);
+      if (waypoints.length < 2) {
+        sendJson(res, 200, { route: { departIso, tasKt, altFt }, missing, legs: [], stops: [], airfields: [], note: 'Need at least two resolvable ICAOs.' });
+        return;
+      }
+
+      const legs = legGeometry(waypoints);
+      // Two-pass schedule: TAS-only to get approx leg times, sample winds at each
+      // leg midpoint/altitude for that time, then reschedule with groundspeeds.
+      const prelim = scheduleLegs(legs, departIso, tasKt);
+      const legWinds = await Promise.all(legs.map(async (leg, i) => {
+        if (offline) return null;
+        const w = await fetchWindsAloft(leg.midLat, leg.midLon, 0, false, prelim.legs[i].startIso).catch(() => null);
+        const lvl = w && w.profile.length ? interpolateWind(w.profile, altFt) : null;
+        return lvl ? { ...lvl, live: w.live } : null;
+      }));
+      const gsByLeg = legs.map((leg, i) => groundspeed(tasKt, leg.bearingTrue, legWinds[i]));
+      const sched = scheduleLegs(legs, departIso, tasKt, gsByLeg);
+      // Attach the leg wind (and headwind component) for display.
+      sched.legs.forEach((leg, i) => {
+        const wind = legWinds[i];
+        if (wind) leg.wind = { altFt, dirTrue: wind.dirTrue, speedKt: wind.speedKt, headwindKt: tasKt - leg.gsKt, live: wind.live };
+      });
+
+      // Per-stop brief at each ETA (reuses the full weather/NOTAM/NVG engine).
+      const stops = sched.stops.map((s, i) => ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === sched.stops.length - 1 ? 'Destination' : `Stop ${i}`) }));
+      const uniqueIds = [...new Set(waypoints.map((w) => w.id))];
+      const brief = await buildBrief(uniqueIds, offline, parseLimits(url), undefined, null, stops, { nvg });
+
+      sendJson(res, 200, {
+        generatedAt: new Date().toISOString(),
+        route: { ids, departIso, tasKt, altFt, missing },
+        legs: sched.legs,
+        totals: { distanceNm: sched.totalNm, timeMin: sched.totalMin },
+        stops: sched.stops,
+        airfields: brief.airfields,
+        live: brief.live,
+        nvg,
+      });
       return;
     }
 
