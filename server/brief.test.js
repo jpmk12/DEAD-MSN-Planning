@@ -61,3 +61,23 @@ test('rankAlternates orders by status, then worst-case crosswind, then category'
   assert.equal(r[0].crosswindKt, 4);
   assert.ok(r[2].reasons.length >= 1);
 });
+
+import { parseRunwayConditions, parseClosedRunways } from './brief.js';
+
+test('parseRunwayConditions extracts FICON/RwyCC/RCR/braking with severity', () => {
+  const n = (text) => ({ text });
+  // RwyCC triplet — worst digit drives severity (5/5/2 -> caution; 1/1/1 -> bad).
+  const t1 = parseRunwayConditions([n('RWY 18/36 FICON 5/5/2 OBSERVED AT 1200Z')]);
+  assert.equal(t1[0].runway, '18/36');
+  assert.equal(t1[0].condition, 'RwyCC 5/5/2');
+  assert.equal(t1[0].severity, 'caution');
+  assert.equal(parseRunwayConditions([n('RWY 04 FICON 1/1/1')])[0].severity, 'bad');
+  assert.equal(parseRunwayConditions([n('RWY 04 FICON 6/6/6')])[0].severity, 'ok');
+  // Word braking action.
+  assert.equal(parseRunwayConditions([n('RWY 22 BRAKING ACTION POOR')])[0].severity, 'bad');
+  assert.equal(parseRunwayConditions([n('RWY 22 BA GOOD')])[0].severity, 'ok');
+  // RCR numeric.
+  assert.equal(parseRunwayConditions([n('RWY 13 RCR 04')])[0].severity, 'bad');
+  // Non-condition NOTAMs are ignored.
+  assert.equal(parseRunwayConditions([n('RWY 18 EDGE LGT U/S')]).length, 0);
+});

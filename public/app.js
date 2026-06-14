@@ -566,6 +566,19 @@ function glareShadowLine(brief) {
   return bits.length ? `<div class="glare-line">${bits.map(esc).join('<br>')}</div>` : '';
 }
 
+// Runway surface condition (FICON / RwyCC / RCR / braking action) from NOTAMs —
+// winter/contamination ops. Shown only when a condition NOTAM is present.
+function rwyCondBlock(brief) {
+  const rc = brief.runwayConditions || [];
+  if (!rc.length) return '';
+  const rows = rc.map((c) => {
+    const cls = c.severity === 'bad' ? 'rc-bad' : c.severity === 'ok' ? 'rc-ok' : 'rc-caution';
+    const rwy = c.runway ? `RWY ${esc(c.runway)}` : 'RWY';
+    return `<div class="rc-item ${cls}" title="${esc(c.raw)}"><span class="rc-ico">🧊</span> ${rwy}: <b>${esc(c.condition)}</b></div>`;
+  }).join('');
+  return `<div class="rwycond-block"><div class="rc-h">Runway condition (FICON/RCR) — from NOTAM; verify current</div>${rows}</div>`;
+}
+
 function forecastBlock(brief) {
   const f = brief.forecast;
   if (!f) return '';
@@ -627,6 +640,7 @@ function card(brief, limits, altRank) {
   } else {
     body += `<div class="warn-item crit"><span class="ico">⚠</span><span>METAR unavailable — live weather source not reachable. Wind, runway, and density-altitude analysis are not shown (no data is fabricated).</span></div>`;
   }
+  body += rwyCondBlock(brief);
   body += forecastBlock(brief);
   body += nvgBlock(brief);
 

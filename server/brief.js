@@ -183,6 +183,42 @@ export function parseClosedRunways(notams) {
   return [...closed];
 }
 
+/**
+ * Runway surface condition from FICON / RCR / braking-action NOTAMs (winter &
+ * contamination ops). Extracts the runway, a normalized condition, and a coarse
+ * severity from the NOTAM text — never fabricated, only what the NOTAM states.
+ * Returns [{ runway, condition, severity, raw }]. severity: POOR/NIL → 'bad',
+ * MEDIUM → 'caution', GOOD → 'ok'; a bare RwyCC triplet is rated by its worst digit.
+ */
+export function parseRunwayConditions(notams) {
+  const out = [];
+  for (const n of notams) {
+    const t = n.text || '';
+    if (!/\bFICON\b|\bRCR\b|\bBRAKING\b|\bBA\b/i.test(t)) continue;
+    const rwy = (t.match(/RWY\s+([0-9LRC/]+)/i)?.[1] || '').toUpperCase() || null;
+    const triplet = t.match(/\b([0-6])\/([0-6])\/([0-6])\b/);          // RwyCC per third (0=NIL..6=dry)
+    const word = t.match(/\b(NIL|POOR|MEDIUM TO POOR|MEDIUM|MED|GOOD TO MEDIUM|GOOD)\b/i)?.[1];
+    const rcr = t.match(/\bRCR\s*(\d{1,2})\b/i)?.[1];
+    let condition = null, severity = 'caution';
+    if (triplet) {
+      const worst = Math.min(Number(triplet[1]), Number(triplet[2]), Number(triplet[3]));
+      condition = `RwyCC ${triplet[0]}`;
+      severity = worst <= 1 ? 'bad' : worst <= 3 ? 'caution' : 'ok';
+    } else if (word) {
+      const w = word.toUpperCase();
+      condition = w;
+      severity = /NIL|POOR/.test(w) && !/GOOD/.test(w) ? 'bad' : /GOOD/.test(w) && !/POOR|MED/.test(w) ? 'ok' : 'caution';
+    } else if (rcr) {
+      condition = `RCR ${rcr}`;
+      severity = Number(rcr) <= 5 ? 'bad' : Number(rcr) <= 11 ? 'caution' : 'ok';
+    } else {
+      condition = 'FICON'; // contamination NOTAM without a parsed code — flag for read
+    }
+    out.push({ runway: rwy, condition, severity, raw: t });
+  }
+  return out;
+}
+
 export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null, opts = {}) {
   const { nvg = false } = opts; // NVG sortie -> attach per-phase illumination
   const nowMs = Date.now();
@@ -453,6 +489,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       tafDecoded: decodeTaf(tafs.get(icao)),
       notams,
       closedRunways,
+      runwayConditions: parseRunwayConditions(notams),
       recommendedRunway,
       airspace: { tfrs, sua, raim },
       hazardWx,
