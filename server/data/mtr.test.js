@@ -2,7 +2,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bearingDeg } from '../core/geo.js';
 import { pointToPolylineNm } from './airspace.js';
-import { normalizeId, routeLine, lookupMtr, buildMtrDetail, parseMtrToken, labeledPoints, sliceRoute } from './mtr.js';
+import { normalizeId, routeLine, lookupMtr, buildMtrDetail, parseMtrToken, labeledPoints, sliceRoute, altOverlaps } from './mtr.js';
+
+test('altOverlaps: a high-altitude SIGMET is filtered off a surface low-level route', () => {
+  const lowRoute = { minFt: 500, maxFt: 1500 };
+  const arBlock = { minFt: 20000, maxFt: 22000 };
+  // FL300–450 turbulence SIGMET: above a surface route -> excluded; near the AR block -> kept.
+  const highSig = { lowFt: 30000, hiFt: 45000 };
+  assert.equal(altOverlaps(highSig, lowRoute), false, 'FL300+ SIGMET off a surface route');
+  assert.equal(altOverlaps(highSig, arBlock), false, 'FL300+ still above a FL210 block (beyond pad)');
+  // SFC–FL180 AIRMET: overlaps a low-level route.
+  assert.equal(altOverlaps({ lowFt: 0, hiFt: 18000 }, lowRoute), true);
+  // A SIGMET with unknown altitude is kept (can't honestly exclude).
+  assert.equal(altOverlaps({ lowFt: null, hiFt: null }, lowRoute), true);
+  // No band -> no filtering (e.g. convective outlook path).
+  assert.equal(altOverlaps(highSig, null), true);
+  // Within the generous pad: FL240 base vs FL210 block top -> kept (conservative).
+  assert.equal(altOverlaps({ lowFt: 24000, hiFt: 28000 }, arBlock), true);
+});
 
 const near = (a, b, eps) => assert.ok(Math.abs(a - b) <= eps, `${a} ~ ${b}`);
 

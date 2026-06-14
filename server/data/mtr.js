@@ -22,11 +22,26 @@ const CONV_ROUTE_NM = 25;
 const SIG_ROUTE_NM = 25;
 const PIREP_ROUTE_NM = 50; // PIREPs are sparse points — a wider net than area products
 
-/** Hazard areas whose geometry the route path passes within `thresholdNm` of,
- *  each tagged with the route's closest approach (distanceNm). */
-function hazardsAlongRoute(points, items, thresholdNm) {
+/** True when a hazard's altitude band overlaps the route's band (± pad). Items
+ *  with no altitude info (both ends null) are kept — can't honestly exclude them.
+ *  The pad is generous so a low-level route (AGL block) is never wrongly cleared
+ *  of a near-altitude advisory; it only filters out clearly-non-overlapping ones
+ *  (e.g. an FL300+ SIGMET on a surface route). */
+export function altOverlaps(item, band, pad = 5000) {
+  if (!band) return true;
+  const lo = typeof item.lowFt === 'number' ? item.lowFt : 0;
+  const hi = typeof item.hiFt === 'number' ? item.hiFt : Infinity;
+  return lo <= band.maxFt + pad && hi >= band.minFt - pad;
+}
+
+/** Hazard areas whose geometry the route path passes within `thresholdNm` of AND
+ *  (when `band` is given) whose altitude band overlaps the route's. Each tagged
+ *  with the route's closest approach (distanceNm). Pass band=null for products
+ *  with no meaningful altitude (e.g. SPC convective outlook = surface risk). */
+function hazardsAlongRoute(points, items, thresholdNm, band = null) {
   const out = [];
   for (const it of items || []) {
+    if (band && !altOverlaps(it, band)) continue; // skip advisories above/below the route
     let min = Infinity;
     for (const [la, lo] of points) {
       const d = distanceToGeometry(la, lo, it.geometry);
@@ -281,8 +296,8 @@ export async function buildMtrDetail(token, offline, targetIso) {
         fetchAirSigmets(false).catch(() => ({ airsigmets: [] })),
         fetchPireps(false, bbox).catch(() => ({ pireps: [] })),
       ]);
-      convective = hazardsAlongRoute(routePts, conv.convective, CONV_ROUTE_NM);
-      hazardWx = hazardsAlongRoute(routePts, sig.airsigmets, SIG_ROUTE_NM);
+      convective = hazardsAlongRoute(routePts, conv.convective, CONV_ROUTE_NM); // surface risk — no alt filter
+      hazardWx = hazardsAlongRoute(routePts, sig.airsigmets, SIG_ROUTE_NM, band); // SIGMET/AIRMET carry an alt band
       pireps = pirepsAlongRoute(routePts, pir.pireps, PIREP_ROUTE_NM, band);
       routeWxChecked = true;
     }
