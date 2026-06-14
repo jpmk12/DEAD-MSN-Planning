@@ -1558,6 +1558,50 @@ function renderGlobal(data) {
        <div class="g-note">Great-circle legs; GS = TAS minus along-track wind (clamps ~FL340). ETP = equal-time point between the leg's endpoints (continue vs turn-back GS); diversions are the nearest fields with a ≥${data.route?.minRwy || 7000} ft runway to the ETP. Verify fuel/ETOPS/ETP with official planning.</div></div>` : '';
   const cards = (data.airfields || []).map((af) => card(af, limits)).join('');
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
+  lastGlobalData = data;
+  paintGlobalMap();
+}
+
+// The Global tab's map: the planned route (gold), oceanic tracks (NAT violet /
+// PACOTS orange), stops (GO/CAUTION/NO-GO), and diversion fields (markers).
+let lastGlobalData = null;   // latest /api/global response
+let globalTracks = [];       // [{...track, sys:'NAT'|'PAC'}] from /api/tracks
+
+function paintGlobalMap() {
+  const el = $('global-map');
+  if (!el) return;
+  const data = lastGlobalData;
+  // Route line from the leg endpoints (origin then each leg's arrival).
+  const legs = data?.legs || [];
+  const routePts = legs.length
+    ? [[legs[0].fromLat, legs[0].fromLon], ...legs.map((l) => [l.toLat, l.toLon])].filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b))
+    : [];
+  const routeOfFlight = routePts.length >= 2 ? { geometry: { points: routePts } } : null;
+  const airfields = (data?.airfields || []).filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon))
+    .map((a) => ({ icao: a.icao, lat: a.lat, lon: a.lon, status: a.status }));
+  // Diversion fields (dedup) as navaid-style markers.
+  const seen = new Set(airfields.map((a) => a.icao));
+  const navaids = [];
+  for (const l of legs) for (const d of (l.diversions || [])) {
+    if (d.lat == null || seen.has(d.icao)) continue;
+    seen.add(d.icao); navaids.push({ icao: d.icao, lat: d.lat, lon: d.lon, type: 'fix' });
+  }
+  // Oceanic tracks as line overlays (map's mtr layer).
+  const mtrs = globalTracks
+    .filter((t) => t.geometry?.points?.length >= 2)
+    .map((t) => ({ id: `${t.sys}${t.id}`, type: t.sys, geometry: t.geometry }));
+  if (!routeOfFlight && !airfields.length && !mtrs.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const trackPts = mtrs.flatMap((m) => m.geometry.points.map(([lat, lon]) => ({ lat, lon })));
+  // Frame the route if there is one; otherwise frame the tracks.
+  const focus = routePts.length
+    ? [...airfields, ...routePts.map(([lat, lon]) => ({ lat, lon }))]
+    : trackPts;
+  currentMap = initMap(el, {
+    airfields, navaids, routeOfFlight, mtrs,
+    home: airfields.length ? airfields : trackPts, focus,
+    validity: globalTracks.length ? [{ k: 'Oceanic tracks', v: `${globalTracks.length} loaded` }] : [],
+  });
 }
 
 function trackTable(title, sys) {
@@ -1584,6 +1628,11 @@ async function loadNatTracks() {
   try {
     const data = await (await fetch('/api/tracks?system=both')).json();
     el.innerHTML = trackTable('North Atlantic (NAT-OTS)', data.nat) + trackTable('Pacific (PACOTS)', data.pacots);
+    globalTracks = [
+      ...((data.nat?.tracks || []).map((t) => ({ ...t, sys: 'NAT' }))),
+      ...((data.pacots?.tracks || []).map((t) => ({ ...t, sys: 'PAC' }))),
+    ];
+    paintGlobalMap();
   } catch (err) {
     el.innerHTML = `<div class="errbox">Failed to load oceanic tracks: ${esc(err.message)}</div>`;
   }

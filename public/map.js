@@ -67,7 +67,7 @@ export function initMap(container, data) {
   const routeOfFlight = data.routeOfFlight || null;
   const validity = data.validity || [];
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
-  const MTR_COLOR = { IR: '#3fb950', VR: '#3fb950', AR: '#4aa3df' }; // low-level (IR/VR) green, A/R blue
+  const MTR_COLOR = { IR: '#3fb950', VR: '#3fb950', AR: '#4aa3df', NAT: '#b39ddb', PAC: '#e8833a' }; // low-level green, A/R blue, NAT violet, PACOTS orange
 
   container.innerHTML = '';
   container.classList.add('map-panel');
@@ -251,7 +251,7 @@ export function initMap(container, data) {
       for (const m of mtrs) {
         const pts = m.geometry?.points;
         if (!pts || pts.length < 2) continue;
-        const color = MTR_COLOR[m.type] || '#4aa3df';
+        const color = m.color || MTR_COLOR[m.type] || '#4aa3df';
         const d = pts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', d);
