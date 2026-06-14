@@ -184,11 +184,40 @@ export function icingLayers(profile, { rhMin = 70 } = {}) {
   });
 }
 
-/** Compact freezing-level + icing summary for a profile (null when no temps). */
+/** Profile level with the strongest wind (the jet core if within range), or null. */
+export function maxWindLevel(profile) {
+  const s = (profile || []).filter((p) => typeof p.speedKt === 'number');
+  if (!s.length) return null;
+  const m = s.reduce((best, p) => (p.speedKt > best.speedKt ? p : best));
+  return { altFt: m.altFt, speedKt: m.speedKt, dirTrue: m.dirTrue };
+}
+
+/** Tropopause altitude (MSL ft): the lowest level (above ~FL150, to skip surface
+ *  inversions) where the temperature lapse rate drops below 2 °C/km — the WMO
+ *  definition, approximated on the coarse forecast levels. Null when the column
+ *  is still cooling at the profile top (tropopause is above our ceiling, ~FL340). */
+export function tropopauseFt(profile) {
+  const s = (profile || []).filter((p) => typeof p.tempC === 'number').sort((a, b) => a.altFt - b.altFt);
+  for (let i = 0; i < s.length - 1; i++) {
+    const dzKm = (s[i + 1].altFt - s[i].altFt) * 0.0003048;
+    if (dzKm <= 0) continue;
+    const lapse = (s[i].tempC - s[i + 1].tempC) / dzKm; // °C/km, positive = cooling with height
+    if (s[i].altFt >= 15000 && lapse < 2) return s[i].altFt;
+  }
+  return null;
+}
+
+/** Compact winds-aloft summary: freezing level + icing (when temps present), the
+ *  tropopause, and the max-wind level. Null only when the profile is empty. */
 export function thermalSummary(profile) {
-  const hasTemp = (profile || []).some((p) => typeof p.tempC === 'number');
-  if (!hasTemp) return null;
-  return { freezingLevelFt: freezingLevelFt(profile), icing: icingLayers(profile) };
+  if (!(profile || []).length) return null;
+  const hasTemp = profile.some((p) => typeof p.tempC === 'number');
+  return {
+    freezingLevelFt: hasTemp ? freezingLevelFt(profile) : null,
+    icing: hasTemp ? icingLayers(profile) : [],
+    tropopauseFt: hasTemp ? tropopauseFt(profile) : null,
+    maxWind: maxWindLevel(profile),
+  };
 }
 
 /** Linearly interpolate a numeric per-level field (e.g. tempC, rhPct) at an MSL

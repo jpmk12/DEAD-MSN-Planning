@@ -58,7 +58,8 @@ export function fieldPhase(b, limits) {
   // NVG illumination (computed) — LOW is a planning consideration (caution color),
   // not a GO/NO-GO driver; daylight phases show nothing.
   if (b.nvg && !b.nvg.daylight) {
-    chips.push({ k: `ILLUM ${b.nvg.illumClass[0]} ${b.nvg.illumMlx} mlx`, sev: b.nvg.illumClass === 'LOW' ? 'caution' : 'go' });
+    chips.push({ k: `ILLUM ${b.nvg.illumClass[0]} ${b.nvg.illumMlx} mlx`, sev: b.nvg.illumClass === 'LOW' ? 'caution' : 'go',
+      tip: `AFI 11-214: HIGH ≥ 2.2 mlx, LOW < 2.2 mlx · clear-sky computed${b.nvg.source && b.nvg.source !== 'computed' ? ' (' + b.nvg.source + ')' : ''} — verify with USNO/mission brief` });
   }
   // Current-only convective/SIGMET only when representative for this phase.
   if (b.phase?.hideCurrentOnly) {

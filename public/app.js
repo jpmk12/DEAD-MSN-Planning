@@ -242,26 +242,39 @@ function windsAloftSection(brief) {
   return `${clamp}${thermalLine(brief.thermal)}<div class="notams">${rows}</div>`;
 }
 
-// Freezing level + structural-icing band(s) from the temp/RH profile. Honest:
-// temperature/RH-based, so it flags POTENTIAL icing (needs visible moisture).
+// Winds-aloft thermal/structure line: max-wind level + tropopause (for AR block
+// selection), freezing level, and structural-icing band(s). Honest — icing is
+// temperature/RH-based (needs visible moisture); tropopause/freezing computed.
 function thermalLine(th) {
   if (!th) return '';
-  const fl = th.freezingLevelFt != null
-    ? `Freezing level <b>${th.freezingLevelFt.toLocaleString()} ft MSL</b>`
-    : 'Freezing level above sampled column';
-  const ic = (th.icing || []);
-  let icHtml;
-  if (!ic.length) {
-    icHtml = '<span class="thm-ok">no icing band (0 to −20°C) with moisture</span>';
-  } else {
-    icHtml = ic.map((b) => {
-      const sevCls = b.severity === 'MODERATE' ? 'thm-mod' : b.severity === 'LIGHT' ? 'thm-lt' : 'thm-tr';
-      const rh = b.maxRhPct != null ? ` · RH ${b.maxRhPct}%` : '';
-      return `<span class="thm-band ${sevCls}">Icing ${esc(b.severity)} ${b.baseFt.toLocaleString()}–${b.topFt.toLocaleString()} ft (min ${b.minTempC}°C${rh})</span>`;
-    }).join(' ');
+  const bits = [];
+  if (th.maxWind) {
+    bits.push(`Max wind <b>${String(th.maxWind.dirTrue).padStart(3, '0')}°/${th.maxWind.speedKt} kt</b> @ ${th.maxWind.altFt.toLocaleString()} ft`);
   }
-  return `<div class="thermal-line"><span class="thm-h">❄ Thermal</span> ${fl} · ${icHtml}
-    <span class="thm-note">temp/RH-based — actual icing needs visible moisture</span></div>`;
+  if (th.tropopauseFt != null) {
+    bits.push(`<span title="Lowest level where the lapse rate drops below 2°C/km (WMO), computed from the forecast profile">Tropopause ~<b>${th.tropopauseFt.toLocaleString()} ft</b></span>`);
+  } else {
+    bits.push('<span title="Temperature is still falling at the profile top (~FL340) — the tropopause is above the sampled column" class="thm-note">Tropopause &gt; FL340</span>');
+  }
+  // Freezing + icing only when temperatures were available.
+  if (th.freezingLevelFt != null || (th.icing && th.icing.length) || th.tropopauseFt != null) {
+    const fl = th.freezingLevelFt != null
+      ? `Freezing level <b>${th.freezingLevelFt.toLocaleString()} ft MSL</b>`
+      : 'Freezing level above sampled column';
+    bits.push(fl);
+    const ic = th.icing || [];
+    if (!ic.length) {
+      bits.push('<span class="thm-ok" title="No layer in the 0 to −20°C band with RH ≥ 70% in the forecast profile">no icing band</span>');
+    } else {
+      bits.push(ic.map((b) => {
+        const sevCls = b.severity === 'MODERATE' ? 'thm-mod' : b.severity === 'LIGHT' ? 'thm-lt' : 'thm-tr';
+        const rh = b.maxRhPct != null ? ` · RH ${b.maxRhPct}%` : '';
+        return `<span class="thm-band ${sevCls}" title="Structural-icing potential: 0 to −20°C band with RH ≥ 70% (≥ 85% = wet). Temp/RH-based — needs visible moisture.">Icing ${esc(b.severity)} ${b.baseFt.toLocaleString()}–${b.topFt.toLocaleString()} ft (min ${b.minTempC}°C${rh})</span>`;
+      }).join(' '));
+    }
+  }
+  return `<div class="thermal-line"><span class="thm-h">❄ Aloft</span> ${bits.join(' · ')}
+    <span class="thm-note">computed from the forecast profile — icing needs visible moisture; verify with G-AIRMET/SIGMET</span></div>`;
 }
 
 const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPROACH', ENH: 'cat-RUNWAY', MDT: 'cat-RUNWAY', HIGH: 'cat-RUNWAY' };
@@ -512,7 +525,7 @@ function nvgBlock(brief) {
     : '';
   return `<div class="illum-block ${cls}">
     <div class="il-h">🌙 Illumination · ${brief.phase?.when ? zuluLocalHtml(brief.phase.when) : '—'}
-      <span class="cat-chip ${cls}">${esc(n.illumClass)} ILLUM · ${n.illumMlx} mlx</span>
+      <span class="cat-chip ${cls}" title="AFI 11-214: HIGH ≥ 2.2 mlx, LOW &lt; 2.2 mlx. Clear-sky ground illuminance, computed${n.source && n.source !== 'computed' ? ' (' + esc(n.source) + ')' : ''} — verify with USNO / mission brief.">${esc(n.illumClass)} ILLUM · ${n.illumMlx} mlx</span>
       <span class="fc-src">computed${n.source && n.source !== 'computed' ? ' · ' + esc(n.source) : ''}</span></div>
     <div class="il-grid">
       <div class="il-cell"><div class="k">Sun</div><div class="v">Set ${esc(z(ev.sunset))} · <b>EENT ${esc(z(ev.eent))}</b><br><small>BMNT ${esc(z(ev.bmnt))} · Rise ${esc(z(ev.sunrise))}</small></div></div>

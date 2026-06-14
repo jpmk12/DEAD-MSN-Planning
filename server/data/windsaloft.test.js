@@ -127,13 +127,49 @@ test('icingLayers flags the 0..-20C moist band, not the too-cold level', () => {
   assert.equal(icingLayers([{ altFt: 9000, tempC: -5, rhPct: 30 }]).length, 0);
 });
 
-test('thermalSummary is null without temperatures, populated with them', () => {
-  assert.equal(thermalSummary([{ altFt: 1000, dirTrue: 240, speedKt: 10 }]), null);
+test('thermalSummary: empty profile -> null; no-temp profile -> maxWind only; full -> all', () => {
+  assert.equal(thermalSummary([]), null);
+  // No temperatures: freezing/icing/tropopause null/empty, but maxWind still works.
+  const noTemp = thermalSummary([{ altFt: 1000, dirTrue: 240, speedKt: 10 }, { altFt: 9000, dirTrue: 260, speedKt: 45 }]);
+  assert.equal(noTemp.freezingLevelFt, null);
+  assert.equal(noTemp.icing.length, 0);
+  assert.equal(noTemp.tropopauseFt, null);
+  assert.equal(noTemp.maxWind.speedKt, 45);
+  // Full profile.
   const t = thermalSummary(thermProfile);
   assert.ok(t && t.freezingLevelFt > 0 && t.icing.length === 1);
 });
 
-import { interpolateScalar, icingAt } from './windsaloft.js';
+import { interpolateScalar, icingAt, maxWindLevel, tropopauseFt } from './windsaloft.js';
+
+test('maxWindLevel finds the strongest wind level (jet core)', () => {
+  const prof = [
+    { altFt: 2000, dirTrue: 240, speedKt: 15 },
+    { altFt: 18000, dirTrue: 260, speedKt: 60 },
+    { altFt: 34000, dirTrue: 270, speedKt: 120 },
+  ];
+  const m = maxWindLevel(prof);
+  assert.equal(m.altFt, 34000);
+  assert.equal(m.speedKt, 120);
+  assert.equal(maxWindLevel([]), null);
+});
+
+test('tropopauseFt finds where the lapse rate drops below 2C/km, else null', () => {
+  // Steady ~6.5C/km cooling to ~FL300, then near-isothermal above = tropopause.
+  const prof = [
+    { altFt: 1000, tempC: 12 },
+    { altFt: 10000, tempC: -6 },   // ~6.5C/km
+    { altFt: 20000, tempC: -25 },  // ~6.3C/km
+    { altFt: 30000, tempC: -44 },  // ~6.3C/km
+    { altFt: 34000, tempC: -45 },  // ~0.8C/km -> isothermal -> trop at 30000
+  ];
+  assert.equal(tropopauseFt(prof), 30000);
+  // Still cooling at the top -> tropopause above the profile -> null.
+  const cooling = [
+    { altFt: 1000, tempC: 12 }, { altFt: 18000, tempC: -25 }, { altFt: 34000, tempC: -55 },
+  ];
+  assert.equal(tropopauseFt(cooling), null);
+});
 
 test('interpolateScalar linearly interpolates a per-level field, skipping nulls', () => {
   const prof = [
