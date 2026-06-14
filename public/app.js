@@ -1493,11 +1493,12 @@ async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
 // leg-and-track model (great-circle legs, wind-corrected ETAs) instead of the
 // local phase model. Reuses card() for each stop's brief.
 function setMode(mode) {
-  const views = { local: 'local-view', global: 'global-view', hubs: 'hubs-view' };
+  const views = { local: 'local-view', global: 'global-view', hubs: 'hubs-view', oceanic: 'oceanic-view' };
   for (const [m, id] of Object.entries(views)) { const el = $(id); if (el) el.hidden = mode !== m; }
   document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
   try { localStorage.setItem('dead-mode', mode); } catch { /* storage blocked */ }
-  if (mode === 'hubs' && !hubsLoaded) { hubsLoaded = true; loadHubs(); }
+  if (mode === 'hubs' && !boardsLoaded.hubs) { boardsLoaded.hubs = true; loadHubs(); }
+  if (mode === 'oceanic' && !boardsLoaded.oceanic) { boardsLoaded.oceanic = true; loadOceanic(); }
 }
 
 async function runGlobal() {
@@ -1562,23 +1563,27 @@ function renderGlobal(data) {
   paintGlobalMap();
 }
 
-// ---- AMC hub status board --------------------------------------------------
-let hubsLoaded = false;
-const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'ATLANTIC', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
+// ---- Status boards (AMC hubs, Oceanic divert) ------------------------------
+// A field set rendered as region-grouped, worst-first status tiles. Both tabs
+// share the same renderer; only the ?set= and target containers differ.
+const boardsLoaded = {};
+const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'CANADA', 'GREENLAND', 'ICELAND', 'ATLANTIC', 'AZORES', 'IRELAND', 'UK', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
 const HUB_SEV = { 'NO-GO': 0, CAUTION: 1, GO: 2, 'NO-DATA': 3 };
 
-async function loadHubs() {
-  const el = $('hubs-results'); const st = $('hubs-status');
-  el.innerHTML = '<div class="loading"><div class="spinner"></div>Briefing AMC hubs…</div>';
+async function loadBoard(set, resId, statusId, noun) {
+  const el = $(resId); const st = $(statusId);
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Briefing ${esc(noun)}…</div>`;
   if (st) st.textContent = '';
   try {
-    const data = await (await fetch('/api/hubs')).json();
-    renderHubBoard(data);
-    if (st) st.textContent = `${data.hubs.length} hubs · WX ${data.live ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.notamsLive ? 'LIVE' : 'UNAVAIL'} · ${zuluLocal(data.generatedAt)}`;
+    const data = await (await fetch(`/api/hubs?set=${encodeURIComponent(set)}`)).json();
+    renderHubBoard(data, resId);
+    if (st) st.textContent = `${data.hubs.length} fields · WX ${data.live ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.notamsLive ? 'LIVE' : 'UNAVAIL'} · ${zuluLocal(data.generatedAt)}`;
   } catch (err) {
-    el.innerHTML = `<div class="errbox">Failed to load hubs: ${esc(err.message)}</div>`;
+    el.innerHTML = `<div class="errbox">Failed to load ${esc(noun)}: ${esc(err.message)}</div>`;
   }
 }
+const loadHubs = () => loadBoard('amc', 'hubs-results', 'hubs-status', 'AMC hubs');
+const loadOceanic = () => loadBoard('oceanic', 'oceanic-results', 'oceanic-status', 'divert fields');
 
 function hubTile(h) {
   const cls = h.status === 'NO-GO' ? 'nogo' : h.status === 'CAUTION' ? 'caution' : h.status === 'GO' ? 'go' : 'nodata';
@@ -1596,7 +1601,7 @@ function hubTile(h) {
     ${closed || fc ? `<div class="hub-flags">${closed}${fc}</div>` : ''}</div>`;
 }
 
-function renderHubBoard(data) {
+function renderHubBoard(data, resId) {
   const byRegion = new Map();
   for (const h of data.hubs || []) {
     if (!byRegion.has(h.region)) byRegion.set(h.region, []);
@@ -1608,7 +1613,7 @@ function renderHubBoard(data) {
     const tiles = byRegion.get(r).sort((a, b) => (HUB_SEV[a.status] ?? 9) - (HUB_SEV[b.status] ?? 9) || a.icao.localeCompare(b.icao));
     return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map(hubTile).join('')}</div></div>`;
   }).join('');
-  $('hubs-results').innerHTML = out || '<div class="g-note">No hubs configured.</div>';
+  $(resId).innerHTML = out || '<div class="g-note">No fields configured.</div>';
 }
 
 // The Global tab's map: the planned route (gold), oceanic tracks (NAT violet /
@@ -1961,6 +1966,7 @@ function init() {
   on('g-go', 'click', runGlobal);
   on('nat-go', 'click', loadNatTracks);
   on('hubs-go', 'click', loadHubs);
+  on('oceanic-go', 'click', loadOceanic);
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)
@@ -1968,7 +1974,7 @@ function init() {
     if ($('g-depart-d') && !$('g-depart-d').value) $('g-depart-d').value = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
     if ($('g-depart-hhmm') && !$('g-depart-hhmm').value) $('g-depart-hhmm').value = `${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
   }
-  try { setMode(localStorage.getItem('dead-mode') === 'global' ? 'global' : 'local'); } catch { /* default local */ }
+  try { const m = localStorage.getItem('dead-mode'); setMode(['global', 'hubs', 'oceanic'].includes(m) ? m : 'local'); } catch { /* default local */ }
 
   // Pill tooltips: tap a data-source pill to explain LIVE/UNAVAILABLE (works on touch);
   // tap anywhere else to dismiss.

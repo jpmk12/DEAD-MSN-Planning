@@ -1,0 +1,16 @@
+{
+  "_comment": "North Atlantic oceanic divert / gateway fields for the status board. Grouped by area. Edit freely.",
+  "hubs": [
+    { "icao": "CYQX", "name": "Gander Intl", "region": "CANADA" },
+    { "icao": "CYYR", "name": "Goose Bay", "region": "CANADA" },
+    { "icao": "CYYT", "name": "St. John's Intl", "region": "CANADA" },
+    { "icao": "BGSF", "name": "Kangerlussuaq", "region": "GREENLAND" },
+    { "icao": "BIKF", "name": "Keflavik", "region": "ICELAND" },
+    { "icao": "LPLA", "name": "Lajes Field", "region": "AZORES" },
+    { "icao": "LPAZ", "name": "Santa Maria", "region": "AZORES" },
+    { "icao": "EINN", "name": "Shannon", "region": "IRELAND" },
+    { "icao": "EIDW", "name": "Dublin", "region": "IRELAND" },
+    { "icao": "EGPK", "name": "Prestwick", "region": "UK" },
+    { "icao": "EGUN", "name": "RAF Mildenhall", "region": "UK" }
+  ]
+}

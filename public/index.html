@@ -54,8 +54,9 @@
 
       <nav class="tabbar" id="tabbar" aria-label="Planning mode">
         <button type="button" class="tab active" data-tab="local">Local Training</button>
-        <button type="button" class="tab" data-tab="global">Global / Strategic</button>
+        <button type="button" class="tab" data-tab="global">Global</button>
         <button type="button" class="tab" data-tab="hubs">AMC Hubs</button>
+        <button type="button" class="tab" data-tab="oceanic">Oceanic Divert</button>
       </nav>
 
       <div id="local-view">
@@ -225,6 +226,15 @@
             <span id="hubs-status" class="sp-note"></span></div>
         </section>
         <div id="hubs-results"></div>
+      </section>
+
+      <section id="oceanic-view" hidden>
+        <section class="controls">
+          <p class="sortie-hint">North Atlantic oceanic divert / gateway fields — current weather (flight category, ceiling/vis) and field closures at the key trans-Atlantic divert bases, at a glance. Status uses your planning limits. <b>Tap a tile for its METAR / driving reason.</b></p>
+          <div class="row"><button id="oceanic-go" class="go secondary">Refresh divert fields</button>
+            <span id="oceanic-status" class="sp-note"></span></div>
+        </section>
+        <div id="oceanic-results"></div>
       </section>
 
       <footer class="footer">

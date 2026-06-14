@@ -311,11 +311,13 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/hubs') {
-      // AMC mobility-hub status board: one brief over the curated hub list,
-      // condensed to a per-field status line. Grouped/sorted client-side.
+      // Status board: one brief over a curated field list, condensed to a per-field
+      // status line. ?set=amc (mobility hubs) | oceanic (N. Atlantic divert bases).
       const offline = url.searchParams.get('offline') === '1';
+      const SETS = { amc: 'amc-hubs.json', oceanic: 'oceanic-divert.json' };
+      const file = SETS[url.searchParams.get('set')] || SETS.amc;
       let hubList = [];
-      try { hubList = JSON.parse(await readFile(fileURLToPath(new URL('../data/amc-hubs.json', import.meta.url)), 'utf8')).hubs || []; } catch { hubList = []; }
+      try { hubList = JSON.parse(await readFile(fileURLToPath(new URL(`../data/${file}`, import.meta.url)), 'utf8')).hubs || []; } catch { hubList = []; }
       const meta = new Map(hubList.map((h) => [h.icao.toUpperCase(), h]));
       const icaos = hubList.map((h) => h.icao.toUpperCase());
       const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url)) : { airfields: [], live: {} };
