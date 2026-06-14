@@ -282,7 +282,8 @@ const CONV_CLASS = { TSTM: 'cat-LIGHTING', MRGL: 'cat-APPROACH', SLGT: 'cat-APPR
 function hazardWxSection(brief) {
   const wx = brief.hazardWx || [];
   const conv = brief.convective || [];
-  if (!wx.length && !conv.length) return '';
+  const gairmets = brief.gairmets || [];
+  if (!wx.length && !conv.length && !gairmets.length) return '';
   const wxRows = wx.map((h) => {
     const cls = h.hazard === 'CONVECTIVE' ? 'cat-RUNWAY' : h.type === 'SIGMET' ? 'cat-APPROACH' : 'cat-LIGHTING';
     const dist = h.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(h.distanceNm) + ' NM';
@@ -297,7 +298,15 @@ function hazardWxSection(brief) {
     return `<div class="as-row${c.distanceNm === 0 ? ' as-over' : ''}"><span class="cat ${CONV_CLASS[c.risk] || 'cat-LIGHTING'}">${esc(c.risk)}</span>
       <div><div class="txt">Convective outlook: ${esc(c.label)} · ${dist}</div></div></div>`;
   }).join('');
-  return `<div class="notams">${wxRows}${convRows}</div>`;
+  // G-AIRMET (graphical AIRMET) — forecast guidance; informational, distinct tag.
+  const gaRows = gairmets.map((g) => {
+    const dist = g.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(g.distanceNm) + ' NM';
+    const alt = g.lowFt != null ? ` · ${esc(g.lowFt.toLocaleString())}–${esc((g.hiFt ?? 0).toLocaleString())} ft` : '';
+    const fc = g.forecastHr != null ? ` · +${esc(g.forecastHr)}h` : '';
+    return `<div class="as-row${g.distanceNm === 0 ? ' as-over' : ''}" title="${esc(g.raw || g.label)}"><span class="cat cat-LIGHTING">G-AMET</span>
+      <div><div class="txt">${esc(g.label)} · ${dist}</div><div class="when">${alt}${fc}</div></div></div>`;
+  }).join('');
+  return `<div class="notams">${wxRows}${convRows}${gaRows}</div>`;
 }
 
 // TAF times are bare "DDHH"/"DDHHMM" Zulu tokens (no month/year). Anchor them to

@@ -1,0 +1,33 @@
+[
+  {
+    "gairmetId": "GA-TURB-LO-1",
+    "hazard": "TURB-LO",
+    "forecast": 3,
+    "base": "SFC",
+    "top": "FL180",
+    "validTime": "2026-06-13T18:00:00Z",
+    "dueTo": "WIND",
+    "coords": [
+      { "lat": 35.5, "lon": -100.5 },
+      { "lat": 35.3, "lon": -98.0 },
+      { "lat": 33.8, "lon": -98.4 },
+      { "lat": 34.1, "lon": -100.8 },
+      { "lat": 35.5, "lon": -100.5 }
+    ]
+  },
+  {
+    "gairmetId": "GA-ICE-1",
+    "hazard": "ICE",
+    "forecast": 6,
+    "base": "8000",
+    "top": "FL220",
+    "validTime": "2026-06-13T21:00:00Z",
+    "coords": [
+      { "lat": 36.0, "lon": -101.0 },
+      { "lat": 36.0, "lon": -99.0 },
+      { "lat": 34.5, "lon": -99.0 },
+      { "lat": 34.5, "lon": -101.0 },
+      { "lat": 36.0, "lon": -101.0 }
+    ]
+  }
+]

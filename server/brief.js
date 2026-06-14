@@ -9,6 +9,7 @@ import { loadWeather } from './data/weather.js';
 import { fetchNotams } from './data/notams.js';
 import { fetchTfrs, fetchSua, nearby, distanceToGeometry } from './data/airspace.js';
 import { fetchAirSigmets } from './data/airsigmet.js';
+import { fetchGairmets } from './data/gairmet.js';
 import { fetchConvective, RISK_RANK as CONV_RANK } from './data/convective.js';
 import { fetchMtrs, normalizeId } from './data/mtr.js';
 import { fetchRouteRisk } from './data/ahas.js';
@@ -287,6 +288,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const tfrP = timed('tfr', fetchTfrs(offline));
   const suaP = timed('sua', fetchSua(offline, undefined, airspaceBbox));
   const sigmetP = timed('sigmet', fetchAirSigmets(offline));
+  const gairmetP = timed('gairmet', fetchGairmets(offline));
   const pirepP = timed('pirep', fetchPireps(offline, pirepBbox));
   const convP = timed('convective', fetchConvective(offline));
   const mtrP = timed('mtr', fetchMtrs(offline));
@@ -365,8 +367,8 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     return map;
   })());
 
-  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey, usnoByKey] =
-    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP, usnoP]);
+  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey, usnoByKey, gairmetResult] =
+    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP, usnoP, gairmetP]);
   timings.total = Math.round(performance.now() - startPerf);
   // Name the slow live feed in the host log (skip offline/test runs to avoid noise).
   if (!offline) {
@@ -409,6 +411,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     const tfrs = nearby(lat, lon, tfrResult.tfrs, AIRSPACE_THRESHOLD_NM);
     const sua = nearby(lat, lon, suaResult.sua, AIRSPACE_THRESHOLD_NM);
     const hazardWx = nearby(lat, lon, sigmetResult.airsigmets, WX_THRESHOLD_NM);
+    const gairmets = nearby(lat, lon, gairmetResult.gairmets, WX_THRESHOLD_NM);
     const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
     const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
     const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm, birdRisk: mtrLevel(m.id) }));
@@ -493,6 +496,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       recommendedRunway,
       airspace: { tfrs, sua, raim },
       hazardWx,
+      gairmets,
       pireps,
       convective,
       mtrs,
@@ -593,6 +597,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       windsAloft: windsLive,
       birds: birdLive,
       hazardWx: sigmetResult.live,
+      gairmets: gairmetResult.live,
       pireps: pirepResult.live,
       convective: convResult.live,
       mtrs: mtrResult.live,
@@ -606,6 +611,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     // Map geometry, trimmed to the briefed area (see nearAnyField above).
     airspace: { tfrs: nearAnyField(tfrResult.tfrs), sua: nearAnyField(suaResult.sua) },
     airsigmets: nearAnyField(sigmetResult.airsigmets),
+    gairmets: nearAnyField(gairmetResult.gairmets),
     pireps: nearAnyField(pirepResult.pireps),
     convective: nearAnyField(convResult.convective),
     mtrs: nearAnyField(mtrResult.mtrs).map((m) => ({ ...m, birdRisk: mtrLevel(m.id) })),
