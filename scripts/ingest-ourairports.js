@@ -17,11 +17,47 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 // Shared parsers live in the runtime module; re-export so tests can import them here.
-import { parseCsv, toObjects, buildRunwayEnds, num } from '../server/data/ourairports.js';
+import { parseCsv, toObjects, buildRunwayEnds, indexRunways, num } from '../server/data/ourairports.js';
 export { parseCsv, toObjects, buildRunwayEnds };
 
 const BASE = 'https://davidmegginson.github.io/ourairports-data';
 const DEFAULT_FIELDS = ['KCHS', 'KSUU', 'KWRI', 'PHIK', 'KEDW'];
+
+/** One airfield record in the bundled shape the app consumes (TRUE runway
+ *  headings; magVar 0). Pure — shared by the per-ICAO and global builders. */
+function airportRecord(a, runways) {
+  return {
+    icao: (a.ident || '').toUpperCase(),
+    name: a.name + (a.municipality ? `, ${a.municipality}` : ''),
+    elevationFt: num(a.elevation_ft) ?? 0,
+    lat: num(a.latitude_deg) ?? null,
+    lon: num(a.longitude_deg) ?? null,
+    magVar: 0, // headings are TRUE from source; no variation needed
+    source: 'ourairports',
+    runways,
+  };
+}
+
+/**
+ * Build the GLOBAL airfield bundle from OurAirports rows: every airport of the
+ * requested `types` (default large + medium — covers AMC hubs, international and
+ * most usable fields worldwide) that has at least one open runway ≥ `minRunwayFt`.
+ * Pure (no network) so it's unit-testable; the long tail of small fields still
+ * resolves live at runtime. Returns an array sorted by ICAO.
+ */
+export function buildGlobalAirports(airportObjs, runwayObjs, { types = ['large_airport', 'medium_airport'], minRunwayFt = 0 } = {}) {
+  const runwaysByApt = indexRunways(runwayObjs);
+  const typeSet = new Set(types);
+  const out = [];
+  for (const a of airportObjs) {
+    const ident = (a.ident || '').toUpperCase();
+    if (!ident || !typeSet.has(a.type)) continue;
+    const runways = runwaysByApt.get(ident) || [];
+    if (minRunwayFt && !runways.some((r) => (r.lengthFt || 0) >= minRunwayFt)) continue;
+    out.push(airportRecord(a, runways));
+  }
+  return out.sort((x, y) => x.icao.localeCompare(y.icao));
+}
 
 async function fetchCsv(name) {
   const res = await fetch(`${BASE}/${name}`);
