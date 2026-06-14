@@ -57,6 +57,11 @@ test('raimOutlook: outage when a GPS_RAIM NOTAM exists', () => {
 test('raimOutlook: clear when no RAIM NOTAMs', () => {
   assert.equal(raimOutlook([{ category: 'TAXIWAY', text: 'TWY A CLSD' }]).status, 'NO PREDICTED OUTAGE');
 });
+test('raimOutlook: UNKNOWN when the NOTAM source was unavailable (no false "clear")', () => {
+  assert.equal(raimOutlook([], false).status, 'UNKNOWN');
+  // Even with no RAIM NOTAM, an available feed is genuinely clear.
+  assert.equal(raimOutlook([], true).status, 'NO PREDICTED OUTAGE');
+});
 
 test('geometryFromGeoJson: polygon flips [lon,lat] -> [lat,lon]', () => {
   const g = geometryFromGeoJson({ type: 'Polygon', coordinates: [[[-80, 33], [-79, 33], [-79, 34], [-80, 33]]] });

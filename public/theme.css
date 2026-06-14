@@ -168,6 +168,10 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .card .head .spacer { flex: 1; }
 .card .head { cursor: pointer; user-select: none; }
 .ahas-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.raim-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; margin-right: 6px; cursor: help; }
+.raim-chip.raim-ok { color: var(--go); border-color: rgba(63,185,80,0.4); }
+.raim-chip.raim-out { color: var(--nogo); border-color: rgba(248,81,73,0.5); }
+.raim-chip.raim-unk { color: var(--text-faint); border-color: var(--border); }
 .card-chev { color: var(--text-faint); font-size: 11px; transition: transform 0.15s ease; }
 .card.collapsed .card-chev { transform: rotate(-90deg); }
 .card.collapsed .body { display: none; }

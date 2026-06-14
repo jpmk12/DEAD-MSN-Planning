@@ -415,7 +415,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     const pireps = nearby(lat, lon, pirepResult.pireps, PIREP_THRESHOLD_NM);
     const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
     const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm, birdRisk: mtrLevel(m.id) }));
-    const raim = raimOutlook(notams);
+    const raim = raimOutlook(notams, notamResult.live);
 
     // Winds aloft: profile + pattern winds at 1500 & 2500 AGL (with MSL),
     // interpolated to those altitudes. Head/cross is recomputed client-side for

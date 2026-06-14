@@ -20,11 +20,22 @@ export function extractTimeRanges(text) {
 
 /**
  * Build a RAIM outlook for one field from its (already categorized) NOTAMs.
- * @returns {{status:'PREDICTED OUTAGE'|'NO PREDICTED OUTAGE', windows:any[], note:string}}
+ * @param {any[]} notams  the field's NOTAMs
+ * @param {boolean} notamsAvailable  whether the NOTAM source actually returned data
+ * @returns {{status:'PREDICTED OUTAGE'|'NO PREDICTED OUTAGE'|'UNKNOWN', windows:any[], note:string}}
  */
-export function raimOutlook(notams) {
+export function raimOutlook(notams, notamsAvailable = true) {
   const raim = notams.filter((n) => n.category === 'GPS_RAIM');
   if (raim.length === 0) {
+    // No RAIM NOTAM AND the feed was reachable -> genuinely clear. If the feed
+    // was UNAVAILABLE we cannot claim "no outage" — say so honestly.
+    if (!notamsAvailable) {
+      return {
+        status: 'UNKNOWN',
+        windows: [],
+        note: 'NOTAM source unavailable — RAIM status unknown. Check FAA SAPT (sapt.faa.gov).',
+      };
+    }
     return {
       status: 'NO PREDICTED OUTAGE',
       windows: [],

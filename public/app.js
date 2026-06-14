@@ -393,6 +393,21 @@ function mtrSection(brief) {
   return `<div class="notams">${rows}</div>`;
 }
 
+// Compact, always-visible RAIM indicator for the card header. Green ✓ nominal,
+// red ✗ predicted outage, grey ? when the NOTAM source is unavailable.
+const RAIM_CHIP = {
+  'PREDICTED OUTAGE': { txt: 'RAIM ✗', cls: 'raim-out' },
+  'NO PREDICTED OUTAGE': { txt: 'RAIM ✓', cls: 'raim-ok' },
+  UNKNOWN: { txt: 'RAIM ?', cls: 'raim-unk' },
+};
+function raimChipHtml(raim) {
+  if (!raim) return '';
+  const c = RAIM_CHIP[raim.status] || RAIM_CHIP.UNKNOWN;
+  const win = (raim.windows || []).map((w) => (w.inlineRanges || []).map((r) => `${r.start}-${r.end}`).join(', ')).filter(Boolean).join(' · ');
+  const tip = `GPS/RAIM: ${raim.status}.${win ? ` Window(s): ${win}.` : ''} ${raim.note || ''}`;
+  return `<span class="raim-chip ${c.cls}" ${tipOf(tip)}>${c.txt}</span>`;
+}
+
 function airspaceSection(brief) {
   const as = brief.airspace;
   if (!as) return '';
@@ -460,7 +475,7 @@ function tabbedDetails(brief) {
   }
 
   push('taf', 'TAF', null, tafSection(brief));
-  push('airspace', 'Airspace', (brief.airspace ? brief.airspace.tfrs.length + brief.airspace.sua.length : 0) || null, airspaceSection(brief));
+  push('airspace', 'Airspace / RAIM', (brief.airspace ? brief.airspace.tfrs.length + brief.airspace.sua.length : 0) || null, airspaceSection(brief));
   push('lowlevel', 'Low-Level', (brief.mtrs || []).length || null, mtrSection(brief));
   push('winds', 'Winds Aloft', null, windsAloftSection(brief));
 
@@ -656,13 +671,14 @@ function card(brief, limits, altRank) {
   const ahasChip = brief.birdRisk
     ? `<span class="ahas-chip" style="color:${BIRD_COLOR[brief.birdRisk.level]};border-color:${BIRD_COLOR[brief.birdRisk.level]}" ${tipOf(birdRiskTip(brief.birdRisk))}>AHAS ${esc(brief.birdRisk.level)}</span>`
     : '';
+  const raimChip = raimChipHtml(brief.airspace?.raim);
   const roleTag = PHASE_TAG[brief.phase?.role]
     ? `<span class="role-tag role-${esc(brief.phase.role.toLowerCase())}">${esc(PHASE_TAG[brief.phase.role])}</span>` : '';
   const rankBadge = altRank
     ? `<span class="alt-rank-badge ${altRank === 1 ? 'best' : ''}" title="Alternate ranking by forecast at ETA (status, then crosswind, then category)">${altRank === 1 ? '★ ' : ''}ALT #${altRank}</span>` : '';
   return `<div class="card" data-icao="${esc(ap.icao)}" data-uid="${esc(brief.uid || ap.icao)}">
     <div class="head">${roleTag}${rankBadge}<div><div class="icao">${esc(ap.icao)}</div><div class="name">${esc(ap.name)}</div></div>
-      <div class="spacer"></div>${ahasChip}<div class="status-led ${statusClass}" ${tipOf(statusTip(brief))}>${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
+      <div class="spacer"></div>${raimChip}${ahasChip}<div class="status-led ${statusClass}" ${tipOf(statusTip(brief))}>${esc(brief.status)}</div><span class="chev card-chev">▾</span></div>
     <div class="body">${body}${tabbedDetails(brief)}</div></div>`;
 }
 
@@ -1605,12 +1621,15 @@ function hubTile(h) {
   if (h.visibilitySm != null) cv.push(`${h.visibilitySm} SM`);
   const closed = (h.closedRunways || []).length ? `<span class="hub-flag">🚫 RWY ${h.closedRunways.map(esc).join('/')}</span>` : '';
   const fc = (h.runwayConditions || 0) > 0 ? '<span class="hub-flag">🧊 FICON</span>' : '';
+  const rc = { 'PREDICTED OUTAGE': 'raim-out', 'NO PREDICTED OUTAGE': 'raim-ok', UNKNOWN: 'raim-unk' }[h.raim];
+  const rt = { 'PREDICTED OUTAGE': 'RAIM ✗', 'NO PREDICTED OUTAGE': 'RAIM ✓', UNKNOWN: 'RAIM ?' }[h.raim];
+  const raim = rc ? `<span class="raim-chip ${rc}" title="GPS/RAIM: ${esc(h.raim)}">${rt}</span>` : '';
   const title = [h.metar, h.topReason].filter(Boolean).join('\n');
   return `<div class="hub-tile ${cls}" title="${esc(title)}">
     <div class="hub-top"><span class="hub-icao">${esc(h.icao)}</span>${cat}</div>
     <div class="hub-name">${esc(h.name)}</div>
     <div class="hub-meta">${cv.join(' · ') || (h.found ? 'no METAR' : 'not found')}</div>
-    ${closed || fc ? `<div class="hub-flags">${closed}${fc}</div>` : ''}</div>`;
+    <div class="hub-flags">${raim}${closed}${fc}</div></div>`;
 }
 
 function renderHubBoard(data, resId) {

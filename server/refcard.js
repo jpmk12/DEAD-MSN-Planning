@@ -10,6 +10,7 @@ import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
 import { metarConditions } from './brief.js';
 import { fetchNotams } from './data/notams.js';
+import { raimOutlook } from './data/raim.js';
 import { advisoryFor } from './data/birds.js';
 import { ahasRaw, parseAhasLevel, parseAhasSeries, parseAhasHourly, parseAhasRouteMatrix, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
 
@@ -132,13 +133,22 @@ function routeAhasSection(routeAhas) {
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
-function notamSection(label, notams, source) {
-  if (!notams.length) return `<section><h2>NOTAMs — ${esc(label)}</h2><div class="none">No NOTAMs retrieved${source ? ` (${esc(source)})` : ''}.</div></section>`;
+function raimLine(raim) {
+  if (!raim) return '';
+  const color = raim.status === 'PREDICTED OUTAGE' ? '#b3231b' : raim.status === 'UNKNOWN' ? '#777' : '#1a7f37';
+  const win = (raim.windows || []).map((w) => (w.inlineRanges || []).map((r) => `${r.start}–${r.end}`).join(', ')).filter(Boolean).join(' · ');
+  return `<div class="notam"><span class="cat" style="color:${color};background:#fff;border:1px solid ${color}">GPS/RAIM</span>
+    <div><div class="txt"><b style="color:${color}">${esc(raim.status)}</b>${win ? ` · ${esc(win)}` : ''}</div><div class="when">${esc(raim.note || '')}</div></div></div>`;
+}
+
+function notamSection(label, notams, source, raim) {
+  const raimHtml = raimLine(raim);
+  if (!notams.length) return `<section><h2>NOTAMs — ${esc(label)}</h2>${raimHtml}<div class="none">No NOTAMs retrieved${source ? ` (${esc(source)})` : ''}.</div></section>`;
   const rows = notams.map((n) => {
     const end = n.effectiveEnd ? `<div class="when">until ${esc(zulu(n.effectiveEnd))}</div>` : '';
     return `<div class="notam"><span class="cat">${esc(n.category || 'OTHER')}</span><div><div class="txt">${esc(n.text)}</div>${end}</div></div>`;
   }).join('');
-  return `<section><h2>NOTAMs — ${esc(label)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${rows}
+  return `<section><h2>NOTAMs — ${esc(label)} <span class="count">${notams.length}${source ? ` · ${esc(source)}` : ''}</span></h2>${raimHtml}${rows}
     ${cite(source === 'DAIP' ? 'DoD Aeronautical Information (DAIP)' : `NOTAMs (${source || 'source'})`, 'daip.jcs.mil')}</section>`;
 }
 
@@ -196,15 +206,18 @@ const fmtVisSm = (v) => (v == null ? '—' : (v < 1 ? `${v} SM` : `${v} SM`));
 /** A scan-first divert table: ICAO · flight category · ceiling · vis · RWY closed,
  *  derived from each field's METAR + NOTAMs (no GO/NO-GO — that depends on
  *  aircraft limits; the category/ceiling/vis/closure are the divert basics). */
+const RAIM_TAG = { 'PREDICTED OUTAGE': ['clsd', 'OUTAGE'], 'NO PREDICTED OUTAGE': ['', '✓'], UNKNOWN: ['', '?'] };
 function summaryTable(rows) {
   const body = rows.map((r) => {
     const cat = r.flightCategory ? `<span class="cat cat-${esc(r.flightCategory)}">${esc(r.flightCategory)}</span>` : '—';
     const ceil = r.ceilingFt != null ? `${r.ceilingFt.toLocaleString()} ft` : '—';
     const closed = r.closed ? `<span class="clsd">RWY CLSD${r.closedList ? ` ${esc(r.closedList)}` : ''}</span>` : '';
+    const [rcls, rtxt] = RAIM_TAG[r.raim] || ['', '—'];
     return `<tr><td class="ic">${esc(r.icao)}${r.label ? ` <span style="color:#777;font-weight:400">${esc(r.label)}</span>` : ''}</td>
-      <td>${cat}</td><td>${ceil}</td><td>${esc(fmtVisSm(r.visibilitySm))}</td><td>${closed || '<span style="color:#999">—</span>'}</td></tr>`;
+      <td>${cat}</td><td>${ceil}</td><td>${esc(fmtVisSm(r.visibilitySm))}</td><td>${closed || '<span style="color:#999">—</span>'}</td>
+      <td class="${rcls}">${esc(rtxt)}</td></tr>`;
   }).join('');
-  return `<table class="sumtab"><thead><tr><th>Field</th><th>Cat</th><th>Ceiling</th><th>Vis</th><th>Rwy</th></tr></thead><tbody>${body}</tbody></table>`;
+  return `<table class="sumtab"><thead><tr><th>Field</th><th>Cat</th><th>Ceiling</th><th>Vis</th><th>Rwy</th><th>RAIM</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 /**
@@ -244,7 +257,9 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
       want('notams') ? fetchNotams([f.icao], false).catch(() => ({ notams: [], source: null })) : Promise.resolve({ notams: [], source: null }),
       (want('ahas') && area) ? ahas12('MILAIR', area, f.when).catch(() => null) : Promise.resolve(null),
     ]);
-    return { f, airport, wx, notamRes, ahas };
+    const fieldNotams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao);
+    const raim = raimOutlook(fieldNotams, !!notamRes.source);
+    return { f, airport, wx, notamRes, ahas, raim };
   }));
 
   // Route AHAS, each route at ITS OWN entry time (AR tracks vs low-level routes
@@ -263,28 +278,28 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
   // METAR (category/ceiling/vis) + NOTAM runway closures.
   let summaryHtml = '';
   if (summary) {
-    const rows = data.map(({ f, wx, notamRes }) => {
+    const rows = data.map(({ f, wx, notamRes, raim }) => {
       const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
       const cc = metarConditions(obs?.rawText);
       const closedNotams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao && n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
-      return { icao: f.icao, label: f.label || '', ...cc, closed: closedNotams.length > 0 };
+      return { icao: f.icao, label: f.label || '', ...cc, closed: closedNotams.length > 0, raim: raim?.status };
     });
     summaryHtml = `<section><h2>Divert summary</h2>${summaryTable(rows)}
-      <div class="src">Flight category / ceiling / visibility from each field's METAR; runway-closure flag from NOTAMs. Per-field detail follows. Not a GO/NO-GO call.</div></section>`;
+      <div class="src">Flight category / ceiling / visibility from each field's METAR; runway closure &amp; GPS/RAIM from NOTAMs (RAIM ✓ clear · OUTAGE predicted · ? = NOTAMs unavailable). Per-field detail follows. Not a GO/NO-GO call.</div></section>`;
   }
 
   let body = '';
-  for (const { f, wx, notamRes, ahas } of data) {
+  for (const { f, wx, notamRes, ahas, raim } of data) {
     const label = f.label ? `${f.icao} (${f.label})` : f.icao;
     // For the combined view, group a base's sections under a heading.
     if (grouped) body += `<div class="field-group-h">${esc(label)}</div>`;
-    // Section order: weather → NOTAMs → AHAS.
+    // Section order: weather → NOTAMs (with RAIM) → AHAS.
     if (want('wx')) {
       const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
       const tafRaw = wx.tafs?.get(f.icao);
       body += wxSection(label, obs, tafRaw, decodeTaf(tafRaw));
     }
-    if (want('notams')) body += notamSection(label, (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao), notamRes.source);
+    if (want('notams')) body += notamSection(label, (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao), notamRes.source, raim);
     if (want('ahas')) body += ahasFieldSection(label, ahas);
   }
   if (want('ahas') && routeAhas.length) {

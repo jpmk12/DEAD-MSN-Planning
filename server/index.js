@@ -330,6 +330,7 @@ const server = createServer(async (req, res) => {
           found: a.found, status: a.status,
           flightCategory: cc.flightCategory ?? null, ceilingFt: cc.ceilingFt ?? null, visibilitySm: cc.visibilitySm ?? null,
           closedRunways: a.closedRunways || [], runwayConditions: (a.runwayConditions || []).length,
+          raim: a.airspace?.raim?.status ?? null,
           topReason: (a.statusReasons || [])[0] || null, metar: a.metar || null,
         };
       });
