@@ -53,3 +53,43 @@ test('scheduleLegs: per-leg groundspeed override', () => {
   assert.equal(out.legs[0].eteMin, 30);
   assert.equal(out.legs[0].etaIso, '2026-06-14T00:30:00.000Z');
 });
+
+import { legEtp, suitableDiversion, nearestAirports } from './legs.js';
+
+test('legEtp: no wind -> midpoint; headwind -> ETP biased toward the destination', () => {
+  const legs = legGeometry([{ id: 'A', lat: 0, lon: 0 }, { id: 'B', lat: 0, lon: 10 }]); // ~600 NM east
+  // No wind: continue GS == TAS, ETP at the midpoint.
+  const calm = scheduleLegs(legs, '2026-06-14T00:00:00Z', 450).legs[0];
+  const e1 = legEtp(calm, 450);
+  assert.ok(Math.abs(e1.fromNm - e1.toNm) <= 1, `near-midpoint ${e1.fromNm}/${e1.toNm}`);
+  assert.equal(e1.gsContinueKt, 450);
+  assert.equal(e1.gsReturnKt, 450);
+  // Headwind on course (GS 360 continuing): return GS = 2*450-360 = 540; ETP toward B.
+  const hw = scheduleLegs(legs, '2026-06-14T00:00:00Z', 450, [360]).legs[0];
+  const e2 = legEtp(hw, 450);
+  assert.equal(e2.gsContinueKt, 360);
+  assert.equal(e2.gsReturnKt, 540);
+  assert.ok(e2.fromNm > e2.toNm, `ETP past midpoint toward B (${e2.fromNm}/${e2.toNm})`);
+  assert.ok(Number.isFinite(e2.lat) && Number.isFinite(e2.lon));
+  assert.ok(e2.etpIso > calm.startIso);
+});
+
+test('suitableDiversion: needs an open runway >= threshold', () => {
+  assert.equal(suitableDiversion({ runways: [{ lengthFt: 9000 }] }), true);
+  assert.equal(suitableDiversion({ runways: [{ lengthFt: 4000 }] }), false);     // < 7000 default
+  assert.equal(suitableDiversion({ runways: [{ lengthFt: 5000 }] }, 4000), true); // custom threshold
+  assert.equal(suitableDiversion({ runways: [] }), false);
+  assert.equal(suitableDiversion(null), false);
+});
+
+test('nearestAirports: distance filter, suitability filter, nearest-first, capped', () => {
+  const pool = [
+    { icao: 'NEAR', lat: 0, lon: 0.1, runways: [{ lengthFt: 8000 }] },   // ~6 NM, suitable
+    { icao: 'SHORT', lat: 0, lon: 0.2, runways: [{ lengthFt: 3000 }] },  // ~12 NM, too short
+    { icao: 'FAR', lat: 0, lon: 20, runways: [{ lengthFt: 12000 }] },    // ~1200 NM, out of range
+    { icao: 'MID', lat: 0, lon: 1, runways: [{ lengthFt: 9000 }] },      // ~60 NM, suitable
+  ];
+  const r = nearestAirports(0, 0, pool, { maxNm: 400, minRunwayFt: 7000, limit: 3 });
+  assert.deepEqual(r.map((a) => a.icao), ['NEAR', 'MID']); // SHORT filtered, FAR out of range
+  assert.equal(r[0].distanceNm < r[1].distanceNm, true);
+});

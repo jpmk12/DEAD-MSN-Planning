@@ -52,3 +52,17 @@ export async function getAirport(icao, offline = false) {
 export async function knownAirports() {
   return [...(await load()).keys()].sort();
 }
+
+/**
+ * The searchable airfield pool for diversion/ETP planning: curated + the global
+ * bundle (deduped by ICAO, curated wins). The live OurAirports long tail isn't
+ * enumerable cheaply, so the bundle IS the diversion candidate set — generate it
+ * with scripts/ingest-ourairports-global.js for full worldwide coverage.
+ */
+export async function allAirports() {
+  const byIcao = new Map();
+  const g = await loadGlobal();
+  if (g) for (const [k, v] of g) byIcao.set(k, v);
+  for (const [k, v] of await load()) byIcao.set(k, v); // curated overrides
+  return [...byIcao.values()];
+}

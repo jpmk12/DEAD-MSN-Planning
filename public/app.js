@@ -1541,11 +1541,21 @@ function renderGlobal(data) {
       const comp = hw >= 0 ? `HW ${hw}` : `TW ${-hw}`;
       w = `${String(l.wind.dirTrue).padStart(3, '0')}/${l.wind.speedKt} · ${comp}`;
     }
-    return `<tr><td>${esc(l.fromId)}→${esc(l.toId)}</td><td>${l.distanceNm.toLocaleString()} NM</td><td>${String(l.bearingTrue).padStart(3, '0')}°T</td><td>${l.gsKt} kt</td><td>${fmtHm(l.eteMin)}</td><td>${esc(zuluLocal(l.etaIso))}</td><td>${esc(w)}</td></tr>`;
+    // ETP + diversion cell: ETP distance-from-each-end @ time, then candidate fields.
+    let etpCell = '—';
+    if (l.etp) {
+      const e = l.etp;
+      const divs = (l.diversions || []).map((d) => `${esc(d.icao)} ${d.distanceNm}`).join(', ');
+      const divHtml = l.diversionGap
+        ? '<span class="g-gap">⚠ no diversion in range</span>'
+        : `<span class="g-div" title="Nearest suitable (≥${data.route?.minRwy || 7000} ft) airfields to the ETP, with NM">${esc(divs)}</span>`;
+      etpCell = `<div title="Equal-time point: ${e.fromNm} NM from ${esc(l.fromId)} / ${e.toNm} NM from ${esc(l.toId)}; continue ${e.gsContinueKt} kt vs return ${e.gsReturnKt} kt">ETP ${e.fromNm}/${e.toNm} NM${e.etpIso ? ` @ ${esc(zuluLocal(e.etpIso))}` : ''}</div><div class="g-divrow">${divHtml}</div>`;
+    }
+    return `<tr><td>${esc(l.fromId)}→${esc(l.toId)}</td><td>${l.distanceNm.toLocaleString()} NM</td><td>${String(l.bearingTrue).padStart(3, '0')}°T</td><td>${l.gsKt} kt</td><td>${fmtHm(l.eteMin)}</td><td>${esc(zuluLocal(l.etaIso))}</td><td>${esc(w)}</td><td>${etpCell}</td></tr>`;
   }).join('');
   const legTable = legRows
-    ? `<div class="g-legs"><table class="g-table"><thead><tr><th>Leg</th><th>Dist</th><th>Course</th><th>GS</th><th>ETE</th><th>ETA (Z / local)</th><th>Wind @alt</th></tr></thead><tbody>${legRows}</tbody></table>
-       <div class="g-note">Great-circle legs; groundspeed = TAS minus the along-track wind at cruise (winds clamp at ~FL340). Verify fuel/ETP/ETOPS with official planning.</div></div>` : '';
+    ? `<div class="g-legs"><table class="g-table"><thead><tr><th>Leg</th><th>Dist</th><th>Course</th><th>GS</th><th>ETE</th><th>ETA (Z / local)</th><th>Wind @alt</th><th>ETP · diversions</th></tr></thead><tbody>${legRows}</tbody></table>
+       <div class="g-note">Great-circle legs; GS = TAS minus along-track wind (clamps ~FL340). ETP = equal-time point between the leg's endpoints (continue vs turn-back GS); diversions are the nearest fields with a ≥${data.route?.minRwy || 7000} ft runway to the ETP. Verify fuel/ETOPS/ETP with official planning.</div></div>` : '';
   const cards = (data.airfields || []).map((af) => card(af, limits)).join('');
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
 }

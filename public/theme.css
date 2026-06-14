@@ -283,6 +283,9 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .g-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; }
 .g-table tbody tr:hover { background: var(--panel-2); }
 .g-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+.g-divrow { font-size: 11px; margin-top: 2px; }
+.g-div { color: var(--text-dim); }
+.g-gap { color: #f7b1ad; font-weight: 600; }
 
 /* Runway surface condition (FICON/RCR) block. */
 .rwycond-block { margin-top: 10px; padding: 8px 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; }

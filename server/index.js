@@ -18,9 +18,9 @@ import { buildRoute } from './route.js';
 import { buildTimeline } from './timeline.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
-import { legGeometry, scheduleLegs, groundspeed } from './core/legs.js';
+import { legGeometry, scheduleLegs, groundspeed, legEtp, nearestAirports } from './core/legs.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
-import { knownAirports, getAirport } from './data/airports.js';
+import { knownAirports, getAirport, allAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
 import { lastWeatherError } from './data/weather.js';
@@ -353,6 +353,23 @@ const server = createServer(async (req, res) => {
         if (wind) leg.wind = { altFt, dirTrue: wind.dirTrue, speedKt: wind.speedKt, headwindKt: tasKt - leg.gsKt, live: wind.live };
       });
 
+      // Equal-Time Point + nearest suitable diversion airfields per leg (ETOPS/
+      // oceanic). Diversion pool = curated + global bundle (US-only without the
+      // bundle); minimum 7000 ft runway. A leg with no diversion within range is
+      // flagged as a coverage gap.
+      const minRwy = Math.max(0, Number(url.searchParams.get('minrwy')) || 7000);
+      const divRangeNm = Math.max(50, Number(url.searchParams.get('divrange')) || 400);
+      const pool = await allAirports();
+      sched.legs.forEach((leg) => {
+        const etp = legEtp(leg, tasKt);
+        if (!etp) return;
+        leg.etp = etp;
+        leg.diversions = (etp.lat != null)
+          ? nearestAirports(etp.lat, etp.lon, pool, { maxNm: divRangeNm, minRunwayFt: minRwy, limit: 3 })
+          : [];
+        leg.diversionGap = leg.diversions.length === 0;
+      });
+
       // Per-stop brief at each ETA (reuses the full weather/NOTAM/NVG engine).
       const stops = sched.stops.map((s, i) => ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === sched.stops.length - 1 ? 'Destination' : `Stop ${i}`) }));
       const uniqueIds = [...new Set(waypoints.map((w) => w.id))];
@@ -360,7 +377,7 @@ const server = createServer(async (req, res) => {
 
       sendJson(res, 200, {
         generatedAt: new Date().toISOString(),
-        route: { ids, departIso, tasKt, altFt, missing },
+        route: { ids, departIso, tasKt, altFt, missing, minRwy, divRangeNm },
         legs: sched.legs,
         totals: { distanceNm: sched.totalNm, timeMin: sched.totalMin },
         stops: sched.stops,
