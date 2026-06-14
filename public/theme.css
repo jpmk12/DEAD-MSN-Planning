@@ -381,6 +381,9 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 
 /* Airspace rows (reuse NOTAM look) */
 .as-row { display: grid; grid-template-columns: 50px 1fr; gap: 9px; align-items: start; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+/* Overhead (0 NM) hazards stand out from distant/routine ones. */
+.as-row.as-over { border-color: rgba(248,81,73,0.6); box-shadow: inset 0 0 0 1px rgba(248,81,73,0.18); }
+.as-row.as-over .txt { color: #f7b1ad; font-weight: 600; }
 .as-row .cat { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.4px; text-align: center; padding: 3px 4px; border-radius: 5px; align-self: start; border: 1px solid var(--border-bright); color: var(--text-dim); }
 .as-row .txt { font-family: var(--mono); line-height: 1.45; color: var(--text); }
 .as-row .when { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
@@ -691,6 +694,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
   .print-head .ph-title { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
   .print-head .ph-meta { font-family: var(--mono); font-size: 11px; color: #222; margin-top: 2px; }
   .print-head .ph-warn { color: #b3231b; font-weight: 700; margin-top: 4px; }
+  .print-head .ph-status { font-weight: 800; font-size: 13px; margin: 4px 0; padding: 3px 7px; border-radius: 5px; border: 1.5px solid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-head .ph-status.ms-go { color: #1a7f2e; border-color: #1a7f2e; }
+  .print-head .ph-status.ms-caution { color: #8a5d00; border-color: #8a5d00; }
+  .print-head .ph-status.ms-nogo { color: #b3231b; border-color: #b3231b; }
+  /* Keep the ribbon whole and in color on the kneeboard. */
+  .rb-section, .tl-section { break-inside: avoid; }
+  .rb-chip, .rb-phase, .tl-c { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .card { break-inside: avoid; box-shadow: none; border: 1px solid #999; }

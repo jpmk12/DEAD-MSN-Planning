@@ -275,12 +275,13 @@ function hazardWxSection(brief) {
     const dist = h.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(h.distanceNm) + ' NM';
     const alt = h.lowFt != null ? ` · ${esc(h.lowFt.toLocaleString())}–${esc((h.hiFt ?? 0).toLocaleString())} ft` : '';
     const end = h.validTo ? ` · until ${esc(zuluLocal(h.validTo, { date: true }))}` : '';
-    return `<div class="as-row"><span class="cat ${cls}">${esc(h.type)}</span>
+    const over = h.distanceNm === 0 ? ' as-over' : '';
+    return `<div class="as-row${over}"><span class="cat ${cls}">${esc(h.type)}</span>
       <div><div class="txt">${esc(h.label)} · ${dist}</div><div class="when">${alt}${end}</div></div></div>`;
   }).join('');
   const convRows = conv.map((c) => {
     const dist = c.distanceNm === 0 ? '<b>OVERHEAD</b>' : esc(c.distanceNm) + ' NM';
-    return `<div class="as-row"><span class="cat ${CONV_CLASS[c.risk] || 'cat-LIGHTING'}">${esc(c.risk)}</span>
+    return `<div class="as-row${c.distanceNm === 0 ? ' as-over' : ''}"><span class="cat ${CONV_CLASS[c.risk] || 'cat-LIGHTING'}">${esc(c.risk)}</span>
       <div><div class="txt">Convective outlook: ${esc(c.label)} · ${dist}</div></div></div>`;
   }).join('');
   return `<div class="notams">${wxRows}${convRows}</div>`;
@@ -1534,6 +1535,26 @@ function paintMap() {
   });
 }
 
+// One-line mission status for the kneeboard header — the worst phase call and
+// what's driving it, from the same ribbon model the on-screen ribbon uses.
+function printMissionStatus(data, limits) {
+  try {
+    const whens = { arWhen: zuluToIso('sp-ar') || null, llWhen: zuluToIso('sp-ll') || null };
+    const phases = buildRibbonModel(data, activeRoutes, limits, whens);
+    if (!phases.length) return '';
+    const bad = phases.filter((p) => p.status === 'NO-GO');
+    const caut = phases.filter((p) => p.status === 'CAUTION');
+    const worst = bad.length ? 'NO-GO' : caut.length ? 'CAUTION' : 'GO';
+    const driver = (p) => {
+      const c = p.chips.find((x) => x.sev === 'nogo') || p.chips.find((x) => x.sev === 'caution');
+      return `${rbRoleTag(p.role)} ${p.id}${c ? ` (${c.k})` : ''}`;
+    };
+    const detail = worst === 'GO' ? 'all phases GO' : [...bad, ...caut].map(driver).join(' · ');
+    const cls = worst === 'NO-GO' ? 'ms-nogo' : worst === 'CAUTION' ? 'ms-caution' : 'ms-go';
+    return `<div class="ph-status ${cls}">MISSION STATUS: ${esc(worst)} — ${esc(detail)}</div>`;
+  } catch { return ''; }
+}
+
 function updatePrintHead(data, ids, limits) {
   const src = `WX ${data.live.weather ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.live.notams ? 'LIVE' : 'UNAVAIL'}`;
   let takeoff = '';
@@ -1554,6 +1575,7 @@ function updatePrintHead(data, ids, limits) {
   }
   $('print-head').innerHTML =
     `<div class="ph-title">DEAD PLANNING — MISSION BRIEF</div>
+     ${printMissionStatus(data, limits)}
      <div class="ph-meta">${esc(ids.join(' · '))}</div>
      <div class="ph-meta">Generated ${esc(zuluLocal(data.generatedAt, { date: true }))} · ${esc(src)} · Limits: XW ${limits.xwind} / TW ${limits.tailwind} kt, DA ${limits.highda} ft · Pattern AGL: ${esc(val('agls').trim())} ft</div>
      ${takeoff}
