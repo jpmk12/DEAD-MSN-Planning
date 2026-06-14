@@ -1567,6 +1567,7 @@ function renderGlobal(data) {
 // A field set rendered as region-grouped, worst-first status tiles. Both tabs
 // share the same renderer; only the ?set= and target containers differ.
 const boardsLoaded = {};
+const boardData = {};   // last /api/hubs response per set (for the Build Brief PDF)
 const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'CANADA', 'GREENLAND', 'ICELAND', 'ATLANTIC', 'AZORES', 'IRELAND', 'UK', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
 const HUB_SEV = { 'NO-GO': 0, CAUTION: 1, GO: 2, 'NO-DATA': 3 };
 
@@ -1576,6 +1577,7 @@ async function loadBoard(set, resId, statusId, noun) {
   if (st) st.textContent = '';
   try {
     const data = await (await fetch(`/api/hubs?set=${encodeURIComponent(set)}`)).json();
+    boardData[set] = data;
     renderHubBoard(data, resId);
     if (st) st.textContent = `${data.hubs.length} fields · WX ${data.live ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.notamsLive ? 'LIVE' : 'UNAVAIL'} · ${zuluLocal(data.generatedAt)}`;
   } catch (err) {
@@ -1584,6 +1586,16 @@ async function loadBoard(set, resId, statusId, noun) {
 }
 const loadHubs = () => loadBoard('amc', 'hubs-results', 'hubs-status', 'AMC hubs');
 const loadOceanic = () => loadBoard('oceanic', 'oceanic-results', 'oceanic-status', 'divert fields');
+
+// Compile one print-ready PDF (Weather + NOTAMs for every base on the board, with
+// a scan-first divert summary table) via the shared refcard engine.
+function buildBoardBrief(set) {
+  const hubs = boardData[set]?.hubs || [];
+  if (!hubs.length) { alert('Load the board first (tap Refresh), then Build Brief.'); return; }
+  const fields = hubs.map((h) => h.icao).join('|');
+  const u = `/api/refcard?fields=${encodeURIComponent(fields)}&only=wxnotams&summary=1&print=1`;
+  window.open(u, '_blank', 'noopener');
+}
 
 function hubTile(h) {
   const cls = h.status === 'NO-GO' ? 'nogo' : h.status === 'CAUTION' ? 'caution' : h.status === 'GO' ? 'go' : 'nodata';
@@ -1967,6 +1979,8 @@ function init() {
   on('nat-go', 'click', loadNatTracks);
   on('hubs-go', 'click', loadHubs);
   on('oceanic-go', 'click', loadOceanic);
+  on('hubs-pdf', 'click', () => buildBoardBrief('amc'));
+  on('oceanic-pdf', 'click', () => buildBoardBrief('oceanic'));
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)

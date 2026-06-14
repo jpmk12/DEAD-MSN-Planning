@@ -8,6 +8,7 @@
 import { getAirport } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
+import { metarConditions } from './brief.js';
 import { fetchNotams } from './data/notams.js';
 import { advisoryFor } from './data/birds.js';
 import { ahasRaw, parseAhasLevel, parseAhasSeries, parseAhasHourly, parseAhasRouteMatrix, ahasAreaForIcao, ahasRouteType, ahasHasRoute, ahasRunAtIso } from './data/ahasapi.js';
@@ -152,6 +153,13 @@ const STYLE = `
   .foot-src { color: #777; font-size: 10.5px; margin-top: 4px; }
   .toolbar { margin: 8px 0 18px; }
   .toolbar button { font: 13px sans-serif; padding: 8px 16px; border: 1px solid #0a66c2; background: #0a66c2; color: #fff; border-radius: 6px; cursor: pointer; }
+  .sumtab { width: 100%; border-collapse: collapse; margin: 6px 0 18px; font-size: 12.5px; }
+  .sumtab th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: #555; border-bottom: 2px solid #888; padding: 4px 8px; }
+  .sumtab td { padding: 4px 8px; border-bottom: 1px solid #eee; font-family: ui-monospace, monospace; }
+  .sumtab .ic { font-weight: 700; }
+  .sumtab .cat { font-weight: 700; border-radius: 4px; padding: 1px 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cat-VFR { color: #1a7f37; } .cat-MVFR { color: #0a66c2; } .cat-IFR { color: #b3231b; } .cat-LIFR { color: #b5179e; }
+  .sumtab .clsd { color: #b3231b; font-weight: 700; }
   .field-group-h { font-family: Georgia, serif; font-size: 16px; font-weight: 700; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #888; }
   section { border: 1px solid #ddd; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; break-inside: avoid; }
   h2 { font-size: 15px; margin: 0 0 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
@@ -183,16 +191,34 @@ const STYLE = `
   @media print { .toolbar { display: none; } body { padding: 0; } section { border-color: #ccc; } }
 `;
 
+const fmtVisSm = (v) => (v == null ? '—' : (v < 1 ? `${v} SM` : `${v} SM`));
+
+/** A scan-first divert table: ICAO · flight category · ceiling · vis · RWY closed,
+ *  derived from each field's METAR + NOTAMs (no GO/NO-GO — that depends on
+ *  aircraft limits; the category/ceiling/vis/closure are the divert basics). */
+function summaryTable(rows) {
+  const body = rows.map((r) => {
+    const cat = r.flightCategory ? `<span class="cat cat-${esc(r.flightCategory)}">${esc(r.flightCategory)}</span>` : '—';
+    const ceil = r.ceilingFt != null ? `${r.ceilingFt.toLocaleString()} ft` : '—';
+    const closed = r.closed ? `<span class="clsd">RWY CLSD${r.closedList ? ` ${esc(r.closedList)}` : ''}</span>` : '';
+    return `<tr><td class="ic">${esc(r.icao)}${r.label ? ` <span style="color:#777;font-weight:400">${esc(r.label)}</span>` : ''}</td>
+      <td>${cat}</td><td>${ceil}</td><td>${esc(fmtVisSm(r.visibilitySm))}</td><td>${closed || '<span style="color:#999">—</span>'}</td></tr>`;
+  }).join('');
+  return `<table class="sumtab"><thead><tr><th>Field</th><th>Cat</th><th>Ceiling</th><th>Vis</th><th>Rwy</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
 /**
  * Build the combined reference page for one or more sortie bases.
  * @param {Array<{icao:string, when:?string, label:string}>} fields  bases (dep/rec/alt) + times
- * @param {('all'|'notams'|'wx'|'ahas')} only  which sections to include
+ * @param {('all'|'notams'|'wx'|'ahas'|'wxnotams')} only  which sections to include
  * @param {boolean} autoPrint  open the print dialog on load (Build PDF)
  * @param {string[]} routes  low-level/AR route ids (for the AHAS section)
  * @param {?string} routeWhen  route entry time
+ * @param {boolean} summary  prepend a scan-first divert summary table
  */
-export async function buildRefCard(fields, only = 'all', autoPrint = false, routes = [], routeWhen = null) {
-  const want = (k) => only === 'all' || only === k;
+export async function buildRefCard(fields, only = 'all', autoPrint = false, routes = [], routeWhen = null, summary = false) {
+  const want = (k) => only === 'all' || only === k || (only === 'wxnotams' && (k === 'wx' || k === 'notams'));
+  const grouped = only === 'all' || only === 'wxnotams';
 
   // Dedupe bases that are the SAME location AND time (e.g. an out-and-back where
   // departure and recovery are the same field at the same time) — fetch + show
@@ -233,11 +259,25 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
       }))
     : [];
 
+  // Optional scan-first summary table (divert selection), from each field's
+  // METAR (category/ceiling/vis) + NOTAM runway closures.
+  let summaryHtml = '';
+  if (summary) {
+    const rows = data.map(({ f, wx, notamRes }) => {
+      const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
+      const cc = metarConditions(obs?.rawText);
+      const closedNotams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao && n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
+      return { icao: f.icao, label: f.label || '', ...cc, closed: closedNotams.length > 0 };
+    });
+    summaryHtml = `<section><h2>Divert summary</h2>${summaryTable(rows)}
+      <div class="src">Flight category / ceiling / visibility from each field's METAR; runway-closure flag from NOTAMs. Per-field detail follows. Not a GO/NO-GO call.</div></section>`;
+  }
+
   let body = '';
   for (const { f, wx, notamRes, ahas } of data) {
     const label = f.label ? `${f.icao} (${f.label})` : f.icao;
     // For the combined view, group a base's sections under a heading.
-    if (only === 'all') body += `<div class="field-group-h">${esc(label)}</div>`;
+    if (grouped) body += `<div class="field-group-h">${esc(label)}</div>`;
     // Section order: weather → NOTAMs → AHAS.
     if (want('wx')) {
       const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
@@ -252,7 +292,7 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     body += routeAhasSection(routeAhas);
   }
 
-  const titleMap = { all: 'Field Reference', notams: 'NOTAMs', wx: 'Aviation Weather', ahas: 'AHAS Bird Risk (12-hr)' };
+  const titleMap = { all: 'Field Reference', notams: 'NOTAMs', wx: 'Aviation Weather', ahas: 'AHAS Bird Risk (12-hr)', wxnotams: 'Weather & NOTAMs' };
   const fieldList = fields.map((f) => `${esc(f.label || '')} ${esc(f.icao)}`.trim()).join(' · ');
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -263,7 +303,7 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     <div class="doc-meta">${esc(fieldList)}${routeAhas.length ? ` · routes ${esc(routeList.map((r) => r.id).join(', '))}` : ''} · Generated ${esc(nowZ())}</div>
   </header>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
-  ${body}
+  ${summaryHtml}${body}
   <footer class="foot">
     <div>PLANNING AID ONLY — verify with official sources.</div>
     <div class="foot-src">Official sources: DoD DAIP (daip.jcs.mil) · FAA / NWS Aviation Weather Center (aviationweather.gov) · USAF AHAS (usahas.com)</div>

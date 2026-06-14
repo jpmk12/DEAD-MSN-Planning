@@ -291,7 +291,7 @@ const server = createServer(async (req, res) => {
     // (falls back to single ?icao=). `only` filters sections; `print=1` auto-prints.
     if (url.pathname === '/api/refcard') {
       const onlyRaw = (url.searchParams.get('only') || 'all').toLowerCase();
-      const only = ['all', 'notams', 'wx', 'ahas'].includes(onlyRaw) ? onlyRaw : 'all';
+      const only = ['all', 'notams', 'wx', 'ahas', 'wxnotams'].includes(onlyRaw) ? onlyRaw : 'all';
       const whenRaw = url.searchParams.get('when');
       const whenIso = whenRaw && !Number.isNaN(Date.parse(whenRaw)) ? new Date(whenRaw).toISOString() : null;
       const fields = parseRefFields(url.searchParams.get('fields'), (url.searchParams.get('icao') || '').trim().toUpperCase(), whenIso);
@@ -300,8 +300,9 @@ const server = createServer(async (req, res) => {
       const routeWhen = rwhenRaw && !Number.isNaN(Date.parse(rwhenRaw)) ? new Date(rwhenRaw).toISOString() : null;
       const routes = parseRouteTokens(url.searchParams.get('routes'), url.searchParams.get('rwhen'));
       const autoPrint = url.searchParams.get('print') === '1';
+      const summary = url.searchParams.get('summary') === '1';
       try {
-        const html = await buildRefCard(fields, only, autoPrint, routes, routeWhen);
+        const html = await buildRefCard(fields, only, autoPrint, routes, routeWhen, summary);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(html);
       } catch (e) {
