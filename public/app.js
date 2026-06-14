@@ -1584,6 +1584,9 @@ function renderGlobal(data) {
 // share the same renderer; only the ?set= and target containers differ.
 const boardsLoaded = {};
 const boardData = {};   // last /api/hubs response per set (for the Build Brief PDF)
+const SET_RES = { amc: 'hubs-results', oceanic: 'oceanic-results' };
+const selected = { amc: new Set(), oceanic: new Set() }; // tile selection per board
+const lastSelIdx = {}; // last-clicked tile index per board (for shift range-select)
 const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'CANADA', 'GREENLAND', 'ICELAND', 'ATLANTIC', 'AZORES', 'IRELAND', 'UK', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
 const HUB_SEV = { 'NO-GO': 0, CAUTION: 1, GO: 2, 'NO-DATA': 3 };
 
@@ -1594,7 +1597,10 @@ async function loadBoard(set, resId, statusId, noun) {
   try {
     const data = await (await fetch(`/api/hubs?set=${encodeURIComponent(set)}`)).json();
     boardData[set] = data;
-    renderHubBoard(data, resId);
+    // Drop selections for fields no longer present.
+    const present = new Set((data.hubs || []).map((h) => h.icao));
+    selected[set] = new Set([...selected[set]].filter((ic) => present.has(ic)));
+    renderHubBoard(data, resId, set);
     if (st) st.textContent = `${data.hubs.length} fields · WX ${data.live ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.notamsLive ? 'LIVE' : 'UNAVAIL'} · ${zuluLocal(data.generatedAt)}`;
   } catch (err) {
     el.innerHTML = `<div class="errbox">Failed to load ${esc(noun)}: ${esc(err.message)}</div>`;
@@ -1603,17 +1609,16 @@ async function loadBoard(set, resId, statusId, noun) {
 const loadHubs = () => loadBoard('amc', 'hubs-results', 'hubs-status', 'AMC hubs');
 const loadOceanic = () => loadBoard('oceanic', 'oceanic-results', 'oceanic-status', 'divert fields');
 
-// Compile one print-ready PDF (Weather + NOTAMs for every base on the board, with
-// a scan-first divert summary table) via the shared refcard engine.
-function buildBoardBrief(set) {
-  const hubs = boardData[set]?.hubs || [];
-  if (!hubs.length) { alert('Load the board first (tap Refresh), then Build Brief.'); return; }
-  const fields = hubs.map((h) => h.icao).join('|');
-  const u = `/api/refcard?fields=${encodeURIComponent(fields)}&only=wxnotams&summary=1&print=1`;
-  window.open(u, '_blank', 'noopener');
+// Compile one print-ready PDF (Weather + NOTAMs + RAIM, with a scan-first divert
+// summary table) via the shared refcard engine. `icaos` limits it to a selection.
+function buildBoardBrief(set, icaos) {
+  const list = (icaos && icaos.length) ? icaos : (boardData[set]?.hubs || []).map((h) => h.icao);
+  if (!list.length) { alert('Load the board first (tap Refresh), then Build Brief.'); return; }
+  const fields = list.join('|');
+  window.open(`/api/refcard?fields=${encodeURIComponent(fields)}&only=wxnotams&summary=1&print=1`, '_blank', 'noopener');
 }
 
-function hubTile(h) {
+function hubTile(h, set) {
   const cls = h.status === 'NO-GO' ? 'nogo' : h.status === 'CAUTION' ? 'caution' : h.status === 'GO' ? 'go' : 'nodata';
   const cat = h.flightCategory ? `<span class="hub-cat cat-${esc(h.flightCategory)}">${esc(h.flightCategory)}</span>` : '';
   const cv = [];
@@ -1624,15 +1629,25 @@ function hubTile(h) {
   const rc = { 'PREDICTED OUTAGE': 'raim-out', 'NO PREDICTED OUTAGE': 'raim-ok', UNKNOWN: 'raim-unk' }[h.raim];
   const rt = { 'PREDICTED OUTAGE': 'RAIM ✗', 'NO PREDICTED OUTAGE': 'RAIM ✓', UNKNOWN: 'RAIM ?' }[h.raim];
   const raim = rc ? `<span class="raim-chip ${rc}" title="GPS/RAIM: ${esc(h.raim)}">${rt}</span>` : '';
-  const title = [h.metar, h.topReason].filter(Boolean).join('\n');
-  return `<div class="hub-tile ${cls}" title="${esc(title)}">
+  const title = [h.metar, h.topReason, 'Tap to select for Build Selected'].filter(Boolean).join('\n');
+  const sel = selected[set]?.has(h.icao) ? ' selected' : '';
+  return `<div class="hub-tile ${cls}${sel}" data-set="${esc(set)}" data-icao="${esc(h.icao)}" title="${esc(title)}">
+    <span class="hub-check" aria-hidden="true">✓</span>
     <div class="hub-top"><span class="hub-icao">${esc(h.icao)}</span>${cat}</div>
     <div class="hub-name">${esc(h.name)}</div>
     <div class="hub-meta">${cv.join(' · ') || (h.found ? 'no METAR' : 'not found')}</div>
     <div class="hub-flags">${raim}${closed}${fc}</div></div>`;
 }
 
-function renderHubBoard(data, resId) {
+function boardBar(set) {
+  return `<div class="board-bar" data-set="${esc(set)}">
+    <div class="bb-left"><button class="bb-btn" data-bb="selall" data-set="${esc(set)}">Select all</button>
+      <button class="bb-btn" data-bb="clear" data-set="${esc(set)}">Clear</button></div>
+    <div class="bb-right"><span class="bb-count">None selected</span>
+      <button class="go bb-build" data-bb="build" data-set="${esc(set)}" disabled>Build Selected (PDF)</button></div></div>`;
+}
+
+function renderHubBoard(data, resId, set) {
   const byRegion = new Map();
   for (const h of data.hubs || []) {
     if (!byRegion.has(h.region)) byRegion.set(h.region, []);
@@ -1642,9 +1657,53 @@ function renderHubBoard(data, resId) {
   const regions = [...byRegion.keys()].sort((a, b) => rrank(a) - rrank(b));
   const out = regions.map((r) => {
     const tiles = byRegion.get(r).sort((a, b) => (HUB_SEV[a.status] ?? 9) - (HUB_SEV[b.status] ?? 9) || a.icao.localeCompare(b.icao));
-    return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map(hubTile).join('')}</div></div>`;
+    return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map((h) => hubTile(h, set)).join('')}</div></div>`;
   }).join('');
-  $(resId).innerHTML = out || '<div class="g-note">No fields configured.</div>';
+  $(resId).innerHTML = out ? `${boardBar(set)}${out}` : '<div class="g-note">No fields configured.</div>';
+  updateSelectionUI(set);
+}
+
+// Reflect the selection set into the board's tiles + action bar (no re-render).
+function updateSelectionUI(set) {
+  const el = $(SET_RES[set]); if (!el) return;
+  const sel = selected[set];
+  el.querySelectorAll('.hub-tile').forEach((t) => t.classList.toggle('selected', sel.has(t.dataset.icao)));
+  const bar = el.querySelector('.board-bar');
+  if (bar) {
+    bar.querySelector('.bb-count').textContent = sel.size ? `${sel.size} selected` : 'None selected';
+    bar.querySelector('.bb-build').disabled = sel.size === 0;
+    bar.classList.toggle('has-sel', sel.size > 0);
+  }
+}
+
+// Toggle a tile; shift-click selects the contiguous range from the last click.
+function toggleTile(tileEl, shiftKey) {
+  const set = tileEl.dataset.set, icao = tileEl.dataset.icao;
+  if (!set || !icao) return;
+  const tiles = [...$(SET_RES[set]).querySelectorAll('.hub-tile')];
+  const idx = tiles.indexOf(tileEl);
+  if (shiftKey && lastSelIdx[set] != null) {
+    const [a, b] = [lastSelIdx[set], idx].sort((x, y) => x - y);
+    for (let i = a; i <= b; i++) selected[set].add(tiles[i].dataset.icao);
+  } else {
+    if (selected[set].has(icao)) selected[set].delete(icao); else selected[set].add(icao);
+    lastSelIdx[set] = idx;
+  }
+  updateSelectionUI(set);
+}
+
+// Board interactions: tap a tile to (de)select; action-bar buttons.
+function onBoardClick(e) {
+  const bb = e.target.closest('[data-bb]');
+  if (bb) {
+    const set = bb.dataset.set;
+    if (bb.dataset.bb === 'selall') { for (const h of boardData[set]?.hubs || []) selected[set].add(h.icao); updateSelectionUI(set); }
+    else if (bb.dataset.bb === 'clear') { selected[set].clear(); updateSelectionUI(set); }
+    else if (bb.dataset.bb === 'build') { buildBoardBrief(set, [...selected[set]]); }
+    return;
+  }
+  const tile = e.target.closest('.hub-tile');
+  if (tile && tile.dataset.set) toggleTile(tile, e.shiftKey);
 }
 
 // The Global tab's map: the planned route (gold), oceanic tracks (NAT violet /
@@ -2000,6 +2059,8 @@ function init() {
   on('oceanic-go', 'click', loadOceanic);
   on('hubs-pdf', 'click', () => buildBoardBrief('amc'));
   on('oceanic-pdf', 'click', () => buildBoardBrief('oceanic'));
+  on('hubs-results', 'click', onBoardClick);
+  on('oceanic-results', 'click', onBoardClick);
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)

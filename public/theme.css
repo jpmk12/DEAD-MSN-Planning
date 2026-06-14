@@ -292,7 +292,19 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .hub-region { margin-bottom: 16px; }
 .hub-region-h { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin: 6px 0; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
 .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-.hub-tile { background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: default; }
+.hub-tile { position: relative; background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; user-select: none; transition: box-shadow .08s, border-color .08s; }
+.hub-tile:hover { border-color: var(--border-bright, #3a4757); }
+.hub-tile.selected { box-shadow: inset 0 0 0 2px var(--accent, #4aa3df); border-left-color: var(--accent, #4aa3df); }
+.hub-check { position: absolute; top: 5px; right: 6px; width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 11px; font-weight: 800; color: #fff; background: var(--accent, #4aa3df); border-radius: 50%; opacity: 0; transform: scale(.6); transition: opacity .08s, transform .08s; }
+.hub-tile.selected .hub-check { opacity: 1; transform: scale(1); }
+/* Selection action bar */
+.board-bar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 4px; margin-bottom: 8px; background: var(--bg, #0c121a); border-bottom: 1px solid var(--border); }
+.board-bar .bb-btn { font: 12px var(--font, sans-serif); color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+.board-bar .bb-btn:hover { color: var(--text); border-color: var(--border-bright, #3a4757); }
+.board-bar .bb-right { display: flex; align-items: center; gap: 10px; }
+.board-bar .bb-count { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.board-bar.has-sel .bb-count { color: var(--text); font-weight: 600; }
+.board-bar .bb-build:disabled { opacity: .45; cursor: not-allowed; }
 .hub-tile.go { border-left-color: var(--go); }
 .hub-tile.caution { border-left-color: var(--caution); }
 .hub-tile.nogo { border-left-color: var(--nogo); }
