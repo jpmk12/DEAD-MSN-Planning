@@ -1568,11 +1568,14 @@ function trackTable(title, sys) {
   const src = sys.live ? `live (${esc(sys.source)})` : `sample (${esc(sys.source)})`;
   const rows = sys.tracks.map((t) => {
     const lvls = (t.westLevels || []).concat(t.eastLevels || []);
-    const band = lvls.length ? `FL${Math.min(...lvls)}–FL${Math.max(...lvls)}` : '—';
-    return `<tr><td><b>${esc(t.id)}</b></td><td>${band}</td><td>${esc((t.pointsRaw || []).join(' '))}</td></tr>`;
+    const info = t.flBand
+      || (lvls.length ? `FL${Math.min(...lvls)}–FL${Math.max(...lvls)}` : '')
+      || [t.direction, t.fir].filter(Boolean).join(' ') || '—';
+    const valid = t.validRaw || (t.validFrom ? `${esc(zuluLocal(t.validFrom))} – ${esc(zuluLocal(t.validTo))}` : '');
+    return `<tr title="${esc(valid)}"><td><b>${esc(t.id)}</b></td><td>${esc(info)}</td><td>${esc((t.pointsRaw || []).join(' '))}</td></tr>`;
   }).join('');
-  return `<div class="g-note">${esc(title)} · ${src} · ${sys.tracks.length} tracks. Verify against the official source.</div>
-    <div class="g-legs"><table class="g-table"><thead><tr><th>Trk</th><th>Levels</th><th>Route</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="g-note">${esc(title)} · ${src} · ${sys.tracks.length} tracks. Hover a row for its valid window. Verify against the official source.</div>
+    <div class="g-legs"><table class="g-table"><thead><tr><th>Trk</th><th>Levels / Dir</th><th>Route</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 async function loadNatTracks() {

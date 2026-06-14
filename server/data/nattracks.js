@@ -73,17 +73,25 @@ export function parseNatJson(json) {
 
 /**
  * Decode one NAT waypoint token to { label, lat, lon } (lat/lon null for a named
- * fix). NAT is North latitude / West longitude. Handles "55/20" (55N 020W),
- * "55N020W"/"55N20W", and named fixes (RESNO, DOGAL). Returns null if unrecognized.
+ * fix). NAT is North latitude / West longitude. Handles whole degrees ("55/20"),
+ * HALF/MINUTE degrees in DDMM form ("5730/30" = 57°30′N 030°W), "55N020W", and
+ * named fixes (RESNO, DOGAL). Returns null if unrecognized.
  */
 export function decodeNatPoint(tok) {
   const t = String(tok || '').toUpperCase().trim();
-  let m = t.match(/^(\d{1,2})\/(\d{1,3})$/);              // 55/20
-  if (m) return { label: t, lat: Number(m[1]), lon: -Number(m[2]) };
-  m = t.match(/^(\d{1,2})N0?(\d{1,3})W$/);                // 55N020W / 55N20W
-  if (m) return { label: t, lat: Number(m[1]), lon: -Number(m[2]) };
+  let m = t.match(/^(\d{2,4})\/(\d{2,5})$/);             // 57/30, 5730/30, 30/140
+  if (m) return { label: t, lat: dm(m[1]), lon: -dm(m[2]) };
+  m = t.match(/^(\d{2,4})N0?(\d{2,5})W$/);               // 55N020W / 5730N030W
+  if (m) return { label: t, lat: dm(m[1]), lon: -dm(m[2]) };
   if (/^[A-Z]{2,5}\d?$/.test(t)) return { label: t, lat: null, lon: null }; // named fix
   return null;
+}
+// Degrees from a coordinate string: 4–5 digits = DDMM (last 2 are minutes),
+// otherwise whole degrees. "5730"->57.5, "57"->57, "140"->140, "14030"->140.5.
+function dm(s) {
+  const n = s.length;
+  if (n >= 4) return Number(s.slice(0, n - 2)) + Number(s.slice(n - 2)) / 60;
+  return Number(s);
 }
 
 /** Parse flight levels from a "...LVLS 350 360 370..." fragment. */
@@ -92,22 +100,32 @@ function parseLevels(s) {
 }
 
 /**
- * Parse a NAT track message into [{ id, pointsRaw, points:[ [lat,lon] ],
- * eastLevels, westLevels, geometry }]. `points` holds only the decodable lat/lon
- * fixes (named fixes stay in pointsRaw as labels). Heuristic + defensive.
+ * Parse a NAT track message (the Gander/Shanwick TMI text) into [{ id, pointsRaw,
+ * points:[ [lat,lon] ], eastLevels, westLevels, direction, flBand, validRaw,
+ * geometry }]. A track is a line: single letter + waypoint chain (named fixes +
+ * lat/lon, incl. half-degree DDMM). FL band / validity / direction come from the
+ * surrounding message lines. HTML (if the feed is a page) is stripped first.
  */
 export function parseNatTracks(text) {
-  const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const clean = String(text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ');
+  const lines = clean.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const tracks = [];
   let cur = null;
-  const isTrackHeader = (toks) => toks.length >= 2 && decodeNatPoint(toks[1]) != null && /^[A-Z]$/.test(toks[0]);
+  let ctx = { flBand: null, validRaw: null };
+  const isTrackHeader = (toks) => toks.length >= 2 && /^[A-Z]$/.test(toks[0]) && decodeNatPoint(toks[1]) != null;
   for (const line of lines) {
+    // Message context that applies to the tracks that follow.
+    let m = line.match(/TRACKS?\s+FLS?\s+(\d{2,3})\/(\d{2,3})/i);
+    if (m) { ctx = { ...ctx, flBand: `FL${Number(m[1])}-${Number(m[2])}` }; continue; }
+    m = line.match(/\b([A-Z]{3}\s+\d{1,2}\/\d{3,4}Z\s+TO\s+[A-Z]{3}\s+\d{1,2}\/\d{3,4}Z)/i);
+    if (m) { ctx = { ...ctx, validRaw: m[1] }; continue; }
+
     const toks = line.split(/\s+/);
     if (isTrackHeader(toks)) {
-      cur = { id: toks[0], pointsRaw: [], points: [], eastLevels: [], westLevels: [] };
+      cur = { id: toks[0], pointsRaw: [], points: [], eastLevels: [], westLevels: [], direction: null, flBand: ctx.flBand, validRaw: ctx.validRaw };
       for (let i = 1; i < toks.length; i++) {
         const p = decodeNatPoint(toks[i]);
-        if (!p) break; // stop at the first non-waypoint token (e.g. trailing level info)
+        if (!p) break; // stop at the first non-waypoint token
         cur.pointsRaw.push(p.label);
         if (p.lat != null) cur.points.push([p.lat, p.lon]);
       }
@@ -115,12 +133,13 @@ export function parseNatTracks(text) {
       tracks.push(cur);
       continue;
     }
-    // Level/direction lines attach to the most recent track.
+    // EAST/WEST level lines attach to the most recent track (and set direction).
     if (cur && /LVLS?/.test(line)) {
       const east = line.match(/EAST\s+LVLS?\s+([\d\s]+|NIL)/i);
       const west = line.match(/WEST\s+LVLS?\s+([\d\s]+|NIL)/i);
       if (east && !/NIL/i.test(east[1])) cur.eastLevels = parseLevels(east[1]);
       if (west && !/NIL/i.test(west[1])) cur.westLevels = parseLevels(west[1]);
+      cur.direction = cur.eastLevels.length ? 'EAST' : cur.westLevels.length ? 'WEST' : cur.direction;
     }
   }
   return tracks;
