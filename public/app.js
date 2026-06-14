@@ -1560,6 +1560,28 @@ function renderGlobal(data) {
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
 }
 
+async function loadNatTracks() {
+  const el = $('nat-results');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading NAT tracks…</div>';
+  try {
+    const data = await (await fetch('/api/nat')).json();
+    if (!data.tracks || !data.tracks.length) {
+      el.innerHTML = `<div class="g-note">No NAT tracks available${data.source === 'unconfigured' ? ' — set NAT_TRACKS_URL for live data' : ''}.</div>`;
+      return;
+    }
+    const src = data.live ? 'live' : `sample (${esc(data.source)})`;
+    const rows = data.tracks.map((t) => {
+      const lvls = (t.westLevels || []).concat(t.eastLevels || []);
+      const band = lvls.length ? `FL${Math.min(...lvls)}–FL${Math.max(...lvls)}` : '—';
+      return `<tr><td><b>${esc(t.id)}</b></td><td>${band}</td><td>${esc((t.pointsRaw || []).join(' '))}</td></tr>`;
+    }).join('');
+    el.innerHTML = `<div class="g-note">North Atlantic Organized Tracks · ${src} · ${data.tracks.length} tracks. Verify against the official TMI.</div>
+      <div class="g-legs"><table class="g-table"><thead><tr><th>Trk</th><th>Levels</th><th>Route</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } catch (err) {
+    el.innerHTML = `<div class="errbox">Failed to load NAT tracks: ${esc(err.message)}</div>`;
+  }
+}
+
 // Build the map's "valid times" caption from the brief data. Radar is a live
 // NEXRAD mosaic (no exact scan time exposed), so it's stamped with the brief
 // time rounded to the ~5-min update cadence as a fallback; the map refines this
@@ -1832,6 +1854,7 @@ function init() {
   const tabbar = $('tabbar');
   if (tabbar) tabbar.addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setMode(b.dataset.tab); });
   on('g-go', 'click', runGlobal);
+  on('nat-go', 'click', loadNatTracks);
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)

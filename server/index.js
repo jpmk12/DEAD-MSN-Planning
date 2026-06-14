@@ -20,6 +20,7 @@ import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { legGeometry, scheduleLegs, groundspeed, legEtp, nearestAirports } from './core/legs.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
+import { fetchNatTracks } from './data/nattracks.js';
 import { knownAirports, getAirport, allAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
@@ -305,6 +306,15 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(502, { 'Content-Type': 'text/plain' }).end(`reference unavailable: ${String(e).slice(0, 200)}`);
       }
+      return;
+    }
+
+    if (url.pathname === '/api/nat') {
+      // North Atlantic organized tracks (daily). Live only when NAT_TRACKS_URL is
+      // configured; offline returns the bundled sample. PACOTS is not provided.
+      const offline = url.searchParams.get('offline') === '1';
+      const { tracks, live, source } = await fetchNatTracks(offline);
+      sendJson(res, 200, { generatedAt: new Date().toISOString(), live, source, tracks });
       return;
     }
 
