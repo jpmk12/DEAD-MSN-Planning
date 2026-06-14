@@ -1560,25 +1560,29 @@ function renderGlobal(data) {
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
 }
 
+function trackTable(title, sys) {
+  if (!sys) return '';
+  if (!sys.tracks || !sys.tracks.length) {
+    return `<div class="g-note">${esc(title)}: no tracks — ${esc(sys.source || 'unavailable')}.</div>`;
+  }
+  const src = sys.live ? `live (${esc(sys.source)})` : `sample (${esc(sys.source)})`;
+  const rows = sys.tracks.map((t) => {
+    const lvls = (t.westLevels || []).concat(t.eastLevels || []);
+    const band = lvls.length ? `FL${Math.min(...lvls)}–FL${Math.max(...lvls)}` : '—';
+    return `<tr><td><b>${esc(t.id)}</b></td><td>${band}</td><td>${esc((t.pointsRaw || []).join(' '))}</td></tr>`;
+  }).join('');
+  return `<div class="g-note">${esc(title)} · ${src} · ${sys.tracks.length} tracks. Verify against the official source.</div>
+    <div class="g-legs"><table class="g-table"><thead><tr><th>Trk</th><th>Levels</th><th>Route</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 async function loadNatTracks() {
   const el = $('nat-results');
-  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading NAT tracks…</div>';
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading oceanic tracks…</div>';
   try {
-    const data = await (await fetch('/api/nat')).json();
-    if (!data.tracks || !data.tracks.length) {
-      el.innerHTML = `<div class="g-note">No NAT tracks available${data.source === 'unconfigured' ? ' — set NAT_TRACKS_URL for live data' : ''}.</div>`;
-      return;
-    }
-    const src = data.live ? 'live' : `sample (${esc(data.source)})`;
-    const rows = data.tracks.map((t) => {
-      const lvls = (t.westLevels || []).concat(t.eastLevels || []);
-      const band = lvls.length ? `FL${Math.min(...lvls)}–FL${Math.max(...lvls)}` : '—';
-      return `<tr><td><b>${esc(t.id)}</b></td><td>${band}</td><td>${esc((t.pointsRaw || []).join(' '))}</td></tr>`;
-    }).join('');
-    el.innerHTML = `<div class="g-note">North Atlantic Organized Tracks · ${src} · ${data.tracks.length} tracks. Verify against the official TMI.</div>
-      <div class="g-legs"><table class="g-table"><thead><tr><th>Trk</th><th>Levels</th><th>Route</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const data = await (await fetch('/api/tracks?system=both')).json();
+    el.innerHTML = trackTable('North Atlantic (NAT-OTS)', data.nat) + trackTable('Pacific (PACOTS)', data.pacots);
   } catch (err) {
-    el.innerHTML = `<div class="errbox">Failed to load NAT tracks: ${esc(err.message)}</div>`;
+    el.innerHTML = `<div class="errbox">Failed to load oceanic tracks: ${esc(err.message)}</div>`;
   }
 }
 

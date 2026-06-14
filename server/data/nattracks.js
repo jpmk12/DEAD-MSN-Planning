@@ -10,9 +10,66 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { USER_AGENT } from './awc.js';
 
 const FIXTURE_URL = new URL('../../data/fixtures/nat-tracks-sample.txt', import.meta.url);
+// FAA NAS NOTAM/AIM NAT feed (public host). Overridable via NAT_TRACKS_URL.
+const DEFAULT_NAT_URL = 'https://nms.aim.faa.gov/nat';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+/** Best-effort parse of a NAT JSON payload into our track shape. Handles a few
+ *  plausible shapes (array of tracks, or a GeoJSON FeatureCollection); falls back
+ *  to the text TMI parser on the raw string if nothing matches. Defensive — an
+ *  unrecognized shape yields [] (UNAVAILABLE), never invented tracks. */
+export function parseNatJson(json) {
+  const decodeRoute = (str) => {
+    const pts = [], raw = [];
+    for (const tok of String(str).toUpperCase().split(/\s+/)) {
+      const p = decodeNatPoint(tok);
+      if (!p) continue;
+      raw.push(p.label);
+      if (p.lat != null) pts.push([p.lat, p.lon]);
+    }
+    return { raw, pts };
+  };
+  const toTrack = (id, raw, pts, eastLevels = [], westLevels = []) => ({
+    id: String(id || '?'), pointsRaw: raw, points: pts,
+    eastLevels, westLevels, geometry: pts.length >= 2 ? { kind: 'line', points: pts } : null,
+  });
+  // 1) Array of track objects with an id and a route string / waypoint list.
+  const arr = Array.isArray(json) ? json : (Array.isArray(json?.tracks) ? json.tracks : null);
+  if (arr) {
+    const out = [];
+    for (const t of arr) {
+      const id = t.id ?? t.trackId ?? t.identifier ?? t.name;
+      if (typeof (t.route ?? t.routeText ?? t.track) === 'string') {
+        const { raw, pts } = decodeRoute(t.route ?? t.routeText ?? t.track);
+        out.push(toTrack(id, raw, pts));
+      } else if (Array.isArray(t.points ?? t.waypoints ?? t.fixes)) {
+        const list = t.points ?? t.waypoints ?? t.fixes, raw = [], pts = [];
+        for (const w of list) {
+          if (Array.isArray(w) && w.length >= 2) { pts.push([Number(w[0]), Number(w[1])]); raw.push(`${w[0]}/${w[1]}`); }
+          else if (typeof w === 'object' && w) { const la = Number(w.lat ?? w.latitude), lo = Number(w.lon ?? w.lng ?? w.longitude); if (Number.isFinite(la) && Number.isFinite(lo)) { pts.push([la, lo]); } raw.push(String(w.name ?? w.fix ?? `${la}/${lo}`)); }
+          else if (typeof w === 'string') { const p = decodeNatPoint(w); if (p) { raw.push(p.label); if (p.lat != null) pts.push([p.lat, p.lon]); } }
+        }
+        out.push(toTrack(id, raw, pts));
+      }
+    }
+    if (out.length) return out;
+  }
+  // 2) GeoJSON FeatureCollection of LineStrings ([lon,lat] order).
+  if (json?.type === 'FeatureCollection' && Array.isArray(json.features)) {
+    const out = [];
+    for (const f of json.features) {
+      const coords = f?.geometry?.coordinates;
+      if (f?.geometry?.type === 'LineString' && Array.isArray(coords)) {
+        const pts = coords.map((c) => [Number(c[1]), Number(c[0])]).filter(([la, lo]) => Number.isFinite(la) && Number.isFinite(lo));
+        out.push(toTrack(f.properties?.id ?? f.properties?.name, pts.map((p) => `${p[0]}/${p[1]}`), pts));
+      }
+    }
+    if (out.length) return out;
+  }
+  return [];
+}
 
 /**
  * Decode one NAT waypoint token to { label, lat, lon } (lat/lon null for a named
@@ -73,18 +130,33 @@ async function loadFixture() {
   return readFile(fileURLToPath(FIXTURE_URL), 'utf8');
 }
 
+/** Parse a NAT response body by content type: JSON → parseNatJson (with a text
+ *  fallback), anything else → the text TMI parser. */
+export function parseNatBody(contentType, body) {
+  if (/json/i.test(contentType || '') || /^\s*[[{]/.test(body || '')) {
+    try {
+      const tracks = parseNatJson(JSON.parse(body));
+      if (tracks.length) return tracks;
+    } catch { /* not JSON after all */ }
+  }
+  return parseNatTracks(body || '');
+}
+
 /** @returns {Promise<{tracks:any[], live:boolean, source:string}>} */
 export async function fetchNatTracks(offline, signal) {
-  const url = process.env.NAT_TRACKS_URL;
-  if (!offline && url) {
+  const url = process.env.NAT_TRACKS_URL || DEFAULT_NAT_URL;
+  if (!offline) {
     try {
-      const res = await fetch(url, { signal, headers: { Accept: 'text/plain', 'User-Agent': USER_AGENT } });
-      if (res.ok) return { tracks: parseNatTracks(await res.text()), live: true, source: 'NAT_TRACKS_URL' };
+      const res = await fetch(url, { signal, headers: { Accept: 'application/json, text/plain, */*', 'User-Agent': UA } });
+      if (res.ok) {
+        const tracks = parseNatBody(res.headers.get('content-type'), await res.text());
+        if (tracks.length) return { tracks, live: true, source: url };
+      }
     } catch {
       /* fall through to fixture */
     }
   }
-  // Offline, no NAT_TRACKS_URL configured, or the live fetch failed: show the
-  // bundled sample, clearly labeled (never presented as today's live tracks).
+  // Offline, fetch failed, or nothing parsed: show the bundled sample, clearly
+  // labeled (never presented as today's live tracks).
   return { tracks: parseNatTracks(await loadFixture()), live: false, source: 'fixture' };
 }

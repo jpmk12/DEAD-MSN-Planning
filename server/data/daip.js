@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { DOD_CA_PEM } from './dodca.js';
 
 const ENDPOINT = 'https://www.daip.jcs.mil/daip/mobile/query';
+export const DAIP_RESULT_ENDPOINT = 'https://www.daip.jcs.mil/daip/mobile/result';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 let caCache; // undefined=unloaded, null=absent, string=pem bundle
@@ -47,8 +48,21 @@ export function daipPayload(loc, radius = '10') {
   };
 }
 
-/** POST the DAIP mobile query, trusting the DoD CA bundle if present. */
-export function daipQueryRaw(payload, timeoutMs = 12000) {
+/** The DAIP /result payload for the Pacific organized track system (PACOTS).
+ *  Same envelope as the NOTAM query but type=PACIFIC_TRACKS (per the DAIP mobile UI). */
+export function pacotsPayload() {
+  return {
+    locs: '', poa: '', pod: '', alternates: '', route: '', radius: '10',
+    runwayLength: '', runwayWidth: '', airportType: '', type: 'PACIFIC_TRACKS', notamId: '', acode: '', artcc: '',
+    tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
+    includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
+    sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
+  };
+}
+
+/** POST a DAIP mobile query, trusting the DoD CA bundle if present. `endpoint`
+ *  selects the DAIP action (default the NOTAM query; PACOTS uses /result). */
+export function daipQueryRaw(payload, timeoutMs = 12000, endpoint = ENDPOINT) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const ca = dodCa();
@@ -62,7 +76,7 @@ export function daipQueryRaw(payload, timeoutMs = 12000) {
     if (ca) opts.ca = [ca, ...rootCertificates]; // DoD CAs + public roots
     let settled = false;
     const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
-    const req = httpsRequest(ENDPOINT, opts, (res) => {
+    const req = httpsRequest(endpoint, opts, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });
       res.on('end', () => done(resolve, { status: res.statusCode, contentType: res.headers['content-type'] || '', body: data }));

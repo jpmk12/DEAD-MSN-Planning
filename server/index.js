@@ -21,6 +21,7 @@ import { buildMtrDetail } from './data/mtr.js';
 import { legGeometry, scheduleLegs, groundspeed, legEtp, nearestAirports } from './core/legs.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchNatTracks } from './data/nattracks.js';
+import { fetchPacots } from './data/pacots.js';
 import { knownAirports, getAirport, allAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
 import { fetchMetars, fetchTafs } from './data/awc.js';
@@ -309,12 +310,23 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (url.pathname === '/api/nat') {
-      // North Atlantic organized tracks (daily). Live only when NAT_TRACKS_URL is
-      // configured; offline returns the bundled sample. PACOTS is not provided.
+    if (url.pathname === '/api/tracks' || url.pathname === '/api/nat') {
+      // Oceanic organized tracks: NAT (FAA) and PACOTS (DAIP). ?system=nat|pacots|both.
       const offline = url.searchParams.get('offline') === '1';
-      const { tracks, live, source } = await fetchNatTracks(offline);
-      sendJson(res, 200, { generatedAt: new Date().toISOString(), live, source, tracks });
+      const sys = (url.searchParams.get('system') || (url.pathname === '/api/nat' ? 'nat' : 'both')).toLowerCase();
+      const wantNat = sys === 'nat' || sys === 'both';
+      const wantPac = sys === 'pacots' || sys === 'both';
+      const [nat, pac] = await Promise.all([
+        wantNat ? fetchNatTracks(offline) : Promise.resolve(null),
+        wantPac ? fetchPacots(offline) : Promise.resolve(null),
+      ]);
+      sendJson(res, 200, {
+        generatedAt: new Date().toISOString(),
+        nat: nat && { live: nat.live, source: nat.source, tracks: nat.tracks },
+        pacots: pac && { live: pac.live, source: pac.source, tracks: pac.tracks },
+        // Back-compat fields for the original /api/nat shape.
+        ...(url.pathname === '/api/nat' && nat ? { live: nat.live, source: nat.source, tracks: nat.tracks } : {}),
+      });
       return;
     }
 

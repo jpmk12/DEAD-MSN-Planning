@@ -40,3 +40,24 @@ test('fetchNatTracks: offline -> fixture tracks', async () => {
   assert.ok(tracks.length >= 3);
   assert.ok(tracks.every((t) => t.id && Array.isArray(t.points)));
 });
+
+import { parseNatJson, parseNatBody } from './nattracks.js';
+
+test('parseNatJson: array with route string, array with points, GeoJSON, unknown', () => {
+  const a = parseNatJson([{ id: 'A', route: 'DINIM 56/20 57/30 58/40 HOIST' }]);
+  assert.equal(a[0].id, 'A');
+  assert.deepEqual(a[0].points, [[56, -20], [57, -30], [58, -40]]);
+  const b = parseNatJson({ tracks: [{ trackId: 'B', points: [[55, -20], [56, -30]] }] });
+  assert.deepEqual(b[0].points, [[55, -20], [56, -30]]);
+  const g = parseNatJson({ type: 'FeatureCollection', features: [
+    { properties: { id: 'C' }, geometry: { type: 'LineString', coordinates: [[-20, 55], [-30, 56]] } },
+  ] });
+  assert.equal(g[0].id, 'C');
+  assert.deepEqual(g[0].points, [[55, -20], [56, -30]]); // [lon,lat] -> [lat,lon]
+  assert.deepEqual(parseNatJson({ nope: 1 }), []);
+});
+
+test('parseNatBody routes JSON vs text', () => {
+  assert.equal(parseNatBody('application/json', '[{"id":"A","route":"56/20 57/30"}]')[0].id, 'A');
+  assert.equal(parseNatBody('text/plain', 'A 56/20 57/30 HOIST\n')[0].id, 'A');
+});
