@@ -283,6 +283,27 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .g-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; }
 .g-table tbody tr:hover { background: var(--panel-2); }
 .g-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+
+/* AMC hub status board */
+.hub-region { margin-bottom: 16px; }
+.hub-region-h { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin: 6px 0; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.hub-tile { background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: default; }
+.hub-tile.go { border-left-color: var(--go); }
+.hub-tile.caution { border-left-color: var(--caution); }
+.hub-tile.nogo { border-left-color: var(--nogo); }
+.hub-tile.nodata { border-left-color: var(--text-faint); opacity: 0.8; }
+.hub-top { display: flex; justify-content: space-between; align-items: center; }
+.hub-icao { font-family: var(--mono); font-weight: 800; font-size: 15px; }
+.hub-name { font-size: 11px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-meta { font-family: var(--mono); font-size: 12px; margin-top: 4px; }
+.hub-flags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.hub-flag { font-size: 10px; color: #f7b1ad; }
+.hub-cat { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 1px solid; }
+.hub-cat.cat-VFR { color: var(--go); }
+.hub-cat.cat-MVFR { color: #4aa3df; }
+.hub-cat.cat-IFR { color: var(--nogo); }
+.hub-cat.cat-LIFR { color: #d6409f; }
 .g-divrow { font-size: 11px; margin-top: 2px; }
 .g-div { color: var(--text-dim); }
 .g-gap { color: #f7b1ad; font-weight: 600; }

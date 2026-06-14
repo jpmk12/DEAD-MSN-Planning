@@ -55,6 +55,7 @@
       <nav class="tabbar" id="tabbar" aria-label="Planning mode">
         <button type="button" class="tab active" data-tab="local">Local Training</button>
         <button type="button" class="tab" data-tab="global">Global / Strategic</button>
+        <button type="button" class="tab" data-tab="hubs">AMC Hubs</button>
       </nav>
 
       <div id="local-view">
@@ -215,6 +216,15 @@
             <div id="nat-results"></div>
           </div>
         </section>
+      </section>
+
+      <section id="hubs-view" hidden>
+        <section class="controls">
+          <p class="sortie-hint">AMC mobility-hub status board — current weather (flight category, ceiling/vis) and field closures at the key hubs &amp; en-route bases, at a glance. Status uses your planning limits. <b>Tap a tile for its METAR / driving reason.</b></p>
+          <div class="row"><button id="hubs-go" class="go secondary">Refresh hubs</button>
+            <span id="hubs-status" class="sp-note"></span></div>
+        </section>
+        <div id="hubs-results"></div>
       </section>
 
       <footer class="footer">

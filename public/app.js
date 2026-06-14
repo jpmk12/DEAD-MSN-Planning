@@ -1493,11 +1493,11 @@ async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
 // leg-and-track model (great-circle legs, wind-corrected ETAs) instead of the
 // local phase model. Reuses card() for each stop's brief.
 function setMode(mode) {
-  const local = $('local-view'), global = $('global-view');
-  if (local) local.hidden = mode !== 'local';
-  if (global) global.hidden = mode !== 'global';
+  const views = { local: 'local-view', global: 'global-view', hubs: 'hubs-view' };
+  for (const [m, id] of Object.entries(views)) { const el = $(id); if (el) el.hidden = mode !== m; }
   document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
   try { localStorage.setItem('dead-mode', mode); } catch { /* storage blocked */ }
+  if (mode === 'hubs' && !hubsLoaded) { hubsLoaded = true; loadHubs(); }
 }
 
 async function runGlobal() {
@@ -1560,6 +1560,55 @@ function renderGlobal(data) {
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
   lastGlobalData = data;
   paintGlobalMap();
+}
+
+// ---- AMC hub status board --------------------------------------------------
+let hubsLoaded = false;
+const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'ATLANTIC', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
+const HUB_SEV = { 'NO-GO': 0, CAUTION: 1, GO: 2, 'NO-DATA': 3 };
+
+async function loadHubs() {
+  const el = $('hubs-results'); const st = $('hubs-status');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Briefing AMC hubs…</div>';
+  if (st) st.textContent = '';
+  try {
+    const data = await (await fetch('/api/hubs')).json();
+    renderHubBoard(data);
+    if (st) st.textContent = `${data.hubs.length} hubs · WX ${data.live ? 'LIVE' : 'UNAVAIL'} · NOTAM ${data.notamsLive ? 'LIVE' : 'UNAVAIL'} · ${zuluLocal(data.generatedAt)}`;
+  } catch (err) {
+    el.innerHTML = `<div class="errbox">Failed to load hubs: ${esc(err.message)}</div>`;
+  }
+}
+
+function hubTile(h) {
+  const cls = h.status === 'NO-GO' ? 'nogo' : h.status === 'CAUTION' ? 'caution' : h.status === 'GO' ? 'go' : 'nodata';
+  const cat = h.flightCategory ? `<span class="hub-cat cat-${esc(h.flightCategory)}">${esc(h.flightCategory)}</span>` : '';
+  const cv = [];
+  if (h.ceilingFt != null) cv.push(`${h.ceilingFt.toLocaleString()}′`);
+  if (h.visibilitySm != null) cv.push(`${h.visibilitySm} SM`);
+  const closed = (h.closedRunways || []).length ? `<span class="hub-flag">🚫 RWY ${h.closedRunways.map(esc).join('/')}</span>` : '';
+  const fc = (h.runwayConditions || 0) > 0 ? '<span class="hub-flag">🧊 FICON</span>' : '';
+  const title = [h.metar, h.topReason].filter(Boolean).join('\n');
+  return `<div class="hub-tile ${cls}" title="${esc(title)}">
+    <div class="hub-top"><span class="hub-icao">${esc(h.icao)}</span>${cat}</div>
+    <div class="hub-name">${esc(h.name)}</div>
+    <div class="hub-meta">${cv.join(' · ') || (h.found ? 'no METAR' : 'not found')}</div>
+    ${closed || fc ? `<div class="hub-flags">${closed}${fc}</div>` : ''}</div>`;
+}
+
+function renderHubBoard(data) {
+  const byRegion = new Map();
+  for (const h of data.hubs || []) {
+    if (!byRegion.has(h.region)) byRegion.set(h.region, []);
+    byRegion.get(h.region).push(h);
+  }
+  const rrank = (r) => { const i = HUB_REGION_ORDER.indexOf(r); return i < 0 ? 999 : i; };
+  const regions = [...byRegion.keys()].sort((a, b) => rrank(a) - rrank(b));
+  const out = regions.map((r) => {
+    const tiles = byRegion.get(r).sort((a, b) => (HUB_SEV[a.status] ?? 9) - (HUB_SEV[b.status] ?? 9) || a.icao.localeCompare(b.icao));
+    return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map(hubTile).join('')}</div></div>`;
+  }).join('');
+  $('hubs-results').innerHTML = out || '<div class="g-note">No hubs configured.</div>';
 }
 
 // The Global tab's map: the planned route (gold), oceanic tracks (NAT violet /
@@ -1911,6 +1960,7 @@ function init() {
   if (tabbar) tabbar.addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setMode(b.dataset.tab); });
   on('g-go', 'click', runGlobal);
   on('nat-go', 'click', loadNatTracks);
+  on('hubs-go', 'click', loadHubs);
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)

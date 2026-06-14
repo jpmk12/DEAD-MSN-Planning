@@ -490,6 +490,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
       analysis,
       taf: tafs.get(icao),
       tafDecoded: decodeTaf(tafs.get(icao)),
+      metar: o?.rawText ?? null,
       notams,
       closedRunways,
       runwayConditions: parseRunwayConditions(notams),

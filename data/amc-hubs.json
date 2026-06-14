@@ -1,0 +1,30 @@
+{
+  "_comment": "Curated AMC mobility hubs / en-route bases for the status board. ICAOs resolve via the airfield bundle. Grouped by command region. Edit freely.",
+  "hubs": [
+    { "icao": "KCHS", "name": "Charleston / JB Charleston", "region": "CONUS" },
+    { "icao": "KDOV", "name": "Dover AFB", "region": "CONUS" },
+    { "icao": "KWRI", "name": "McGuire / JB MDL", "region": "CONUS" },
+    { "icao": "KSUU", "name": "Travis AFB", "region": "CONUS" },
+    { "icao": "KTCM", "name": "McChord / JB Lewis-McChord", "region": "CONUS" },
+    { "icao": "KBLV", "name": "Scott AFB", "region": "CONUS" },
+    { "icao": "PAED", "name": "Elmendorf / JB Elmendorf-Richardson", "region": "ALASKA" },
+    { "icao": "PAEI", "name": "Eielson AFB", "region": "ALASKA" },
+    { "icao": "BIKF", "name": "Keflavik", "region": "ATLANTIC" },
+    { "icao": "LPLA", "name": "Lajes Field", "region": "ATLANTIC" },
+    { "icao": "ETAR", "name": "Ramstein AB", "region": "EUROPE" },
+    { "icao": "ETAD", "name": "Spangdahlem AB", "region": "EUROPE" },
+    { "icao": "EGUN", "name": "RAF Mildenhall", "region": "EUROPE" },
+    { "icao": "LERT", "name": "NS Rota", "region": "EUROPE" },
+    { "icao": "LICZ", "name": "NAS Sigonella", "region": "EUROPE" },
+    { "icao": "LTAG", "name": "Incirlik AB", "region": "EUROPE" },
+    { "icao": "OTBH", "name": "Al Udeid AB", "region": "CENTCOM" },
+    { "icao": "OBBI", "name": "Bahrain Intl", "region": "CENTCOM" },
+    { "icao": "OKAS", "name": "Ali Al Salem AB", "region": "CENTCOM" },
+    { "icao": "OMAM", "name": "Al Dhafra AB", "region": "CENTCOM" },
+    { "icao": "PHIK", "name": "Hickam / JB Pearl Harbor-Hickam", "region": "PACOM" },
+    { "icao": "PGUA", "name": "Andersen AFB", "region": "PACOM" },
+    { "icao": "RODN", "name": "Kadena AB", "region": "PACOM" },
+    { "icao": "RJTY", "name": "Yokota AB", "region": "PACOM" },
+    { "icao": "RKSO", "name": "Osan AB", "region": "PACOM" }
+  ]
+}

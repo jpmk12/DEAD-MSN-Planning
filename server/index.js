@@ -310,6 +310,30 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === '/api/hubs') {
+      // AMC mobility-hub status board: one brief over the curated hub list,
+      // condensed to a per-field status line. Grouped/sorted client-side.
+      const offline = url.searchParams.get('offline') === '1';
+      let hubList = [];
+      try { hubList = JSON.parse(await readFile(fileURLToPath(new URL('../data/amc-hubs.json', import.meta.url)), 'utf8')).hubs || []; } catch { hubList = []; }
+      const meta = new Map(hubList.map((h) => [h.icao.toUpperCase(), h]));
+      const icaos = hubList.map((h) => h.icao.toUpperCase());
+      const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url)) : { airfields: [], live: {} };
+      const hubs = brief.airfields.map((a) => {
+        const m = meta.get(a.icao.toUpperCase()) || {};
+        const cc = a.currentConditions || {};
+        return {
+          icao: a.icao, name: m.name || a.airport?.name || a.icao, region: m.region || 'OTHER',
+          found: a.found, status: a.status,
+          flightCategory: cc.flightCategory ?? null, ceilingFt: cc.ceilingFt ?? null, visibilitySm: cc.visibilitySm ?? null,
+          closedRunways: a.closedRunways || [], runwayConditions: (a.runwayConditions || []).length,
+          topReason: (a.statusReasons || [])[0] || null, metar: a.metar || null,
+        };
+      });
+      sendJson(res, 200, { generatedAt: new Date().toISOString(), live: brief.live?.weather ?? false, notamsLive: brief.live?.notams ?? false, hubs });
+      return;
+    }
+
     if (url.pathname === '/api/tracks' || url.pathname === '/api/nat') {
       // Oceanic organized tracks: NAT (FAA) and PACOTS (DAIP). ?system=nat|pacots|both.
       const offline = url.searchParams.get('offline') === '1';
