@@ -1574,6 +1574,9 @@ function renderGlobal(data) {
     ? `<div class="g-legs"><table class="g-table"><thead><tr><th>Leg</th><th>Dist</th><th>Course</th><th>GS</th><th>ETE</th><th>ETA (Z / local)</th><th>Wind @alt</th><th>ETP · diversions</th></tr></thead><tbody>${legRows}</tbody></table>
        <div class="g-note">Great-circle legs; GS = TAS minus along-track wind (clamps ~FL340). ETP = equal-time point between the leg's endpoints (continue vs turn-back GS); diversions are the nearest fields with a ≥${data.route?.minRwy || 7000} ft runway to the ETP. Verify fuel/ETOPS/ETP with official planning.</div></div>` : '';
   const cards = (data.airfields || []).map((af) => card(af, limits)).join('');
+  // Register each stop so the shared card interactions (tabs, NOTAM filter,
+  // runway compare, TAF toggle) work on the Global tab too.
+  (data.airfields || []).forEach((b) => { cardData[(b.uid || b.icao).toUpperCase()] = { brief: b, limits }; });
   $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
   lastGlobalData = data;
   paintGlobalMap();
@@ -2226,6 +2229,7 @@ function onResultsClick(e) {
 // same card interactions (collapse, tabs, NOTAM filter, runway compare, TAF).
 $('results')?.addEventListener('click', onResultsClick);
 $('results-rest')?.addEventListener('click', onResultsClick);
+$('global-results')?.addEventListener('click', onResultsClick); // Global stop cards use the same card() markup
 
 // Expand all collapsible sections (incl. NOTAM category groups) for printing,
 // and un-hide any groups a category filter is currently hiding so the printed
