@@ -202,6 +202,19 @@ crosswind= wspd × sin(θ)        (sign gives left/right; magnitude is what matt
 - Military FLIP / DINS integration (CAC).
 - Save & share briefs; offline cache for in-flight reference.
 
+**Done since (Global / oceanic / boards):** worldwide airfield bundle; Global
+multi-leg tab (wind-corrected ETAs, ETP + diversions); NAT & PACOTS oceanic
+tracks (+ map overlay); AMC Hubs & Oceanic Divert status boards with RAIM;
+divert Build Brief / Build Selected PDF; runway condition (FICON/RCR).
+
+**Backlog — status-board ideas (parked 2026-06-15, to brainstorm next):**
+- **Board filter** — a "show problems only" toggle (hide GO) to spot the bad
+  diverts fast; possibly a sort control (by category / worst-first / region).
+- **Board mini-map** — plot the hub/divert fields on a map colored by status, for
+  a geographic divert picture (esp. useful for oceanic bracketing of a position).
+- **Selection niceties** — persist tile selection across sessions (localStorage)
+  and show a selected-count badge on the tab.
+
 ---
 
 ## 6. Architecture & Tech (proposed, open to change)

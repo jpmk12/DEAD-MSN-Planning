@@ -21,7 +21,7 @@ The C-17 Mission Planner is a **near-zero-dependency, no-build** Node.js app
 | Build step defined | ✅ no-op `"build": "echo build"` |
 | Single app per upload | ✅ single app rooted at `package.json` |
 | No hardcoded ports / secrets / paths | ✅ module-relative paths; secrets via env |
-| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC, FAA NOTAM, Open-Meteo, SPC, FAA ArcGIS (SUA), FAA TFR (tfr.faa.gov), map tiles, RainViewer (radar time) |
+| **Outbound HTTP/HTTPS only (80/443)** | ✅ all outbound calls are HTTPS: AWC (METAR/TAF/SIGMET/G-AIRMET/PIREP), FAA NOTAM, Open-Meteo (winds), SPC (convective), FAA ArcGIS (SUA), FAA TFR (tfr.faa.gov), OurAirports (airfields), AHAS (birds), USNO, NAT tracks (nms.aim.faa.gov), DAIP PACOTS+NOTAMs (daip.jcs.mil), map tiles, RainViewer (radar time) |
 | **Database** | ✅ none — saved sorties persist in the browser (localStorage) |
 | Health check | ✅ `GET /healthz` → `{ "ok": true }` |
 | Upload < 100 MB | ✅ ~0.3 MB; `node_modules`/caches gitignored |
@@ -105,9 +105,20 @@ on arbitrary outbound ports or external services reachable only on non-standard
 ports — those connections will be blocked at runtime. Design the app to
 communicate over HTTP/HTTPS only.
 
-**This app:** every outbound call is HTTPS — AWC weather
+**This app:** every outbound call is HTTPS — AWC weather/SIGMET/G-AIRMET/PIREP
 (`aviationweather.gov`), FAA NOTAMs (`external-api.faa.gov`), winds aloft
-(`api.open-meteo.com`), optional airspace GeoJSON URLs, and browser map tiles.
+(`api.open-meteo.com`), convective (`spc.noaa.gov`), SUA/TFR (`faa.gov`),
+airfields (`davidmegginson.github.io/ourairports-data`), AHAS birds, USNO,
+**NAT tracks (`nms.aim.faa.gov`)**, **DAIP PACOTS + NOTAMs (`www.daip.jcs.mil`)**,
+optional airspace GeoJSON URLs, and browser map tiles.
+
+> **Deploy note for the Global / AMC Hubs / Oceanic Divert tabs:** the host
+> network policy must allow the outbound hosts above. The two added with the
+> oceanic/divert features are `nms.aim.faa.gov` (NAT tracks) and
+> `www.daip.jcs.mil` (PACOTS + DoD NOTAMs). **PACOTS and DAIP NOTAMs also require
+> the DoD PKI CA bundle** at `data/dod-ca.pem` (or `DOD_CA_PEM`) — without it
+> those sources report UNAVAILABLE rather than fabricate. Optional env overrides:
+> `NAT_TRACKS_URL`, `PACOTS_URL`.
 
 ## Database (none — browser-local storage)
 
