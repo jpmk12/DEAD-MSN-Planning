@@ -190,11 +190,11 @@
 
       <section id="global-view" hidden>
         <section class="controls">
-          <p class="sortie-hint">Strategic / oceanic route — enter <b>ICAO waypoints in order</b> (origin → en-route → destination). <b>All times are Zulu (UTC).</b> Legs are great-circle with wind-corrected ETAs; each stop is briefed at its ETA (weather, NOTAMs, day/night &amp; NVG). AHAS birds and AP/1B routes are US-only and show n/a abroad.</p>
+          <p class="sortie-hint">Strategic / oceanic route — enter waypoints in order: <b>ICAOs</b>, <b>lat/lon</b> (NAT <code>49/50</code>, half-deg <code>5730/30</code>, Pacific <code>29N180E</code>), and named <b>fixes</b>. <b>Paste a NAT track</b> directly (e.g. <code>JOOPY 49/50 50/40 54/20 DOGAL BEXET</code>) — unknown tokens are skipped. <b>All times Zulu.</b> Great-circle legs with wind-corrected ETAs; each <i>airport</i> stop is briefed at its ETA.</p>
           <div class="row">
             <div class="field grow">
-              <label for="g-route">Route — ICAO waypoints (space or comma separated)</label>
-              <input id="g-route" type="text" placeholder="KCHS TNCM LPLA ETAR" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+              <label for="g-route">Route — ICAOs / lat-lon / fixes, or paste a NAT track</label>
+              <input id="g-route" type="text" placeholder="KCHS JOOPY 49/50 50/40 54/20 DOGAL EGLL" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">

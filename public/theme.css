@@ -279,6 +279,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .tabbar .tab.active { color: var(--text); background: var(--panel-2); border-color: var(--border); }
 
 /* Global / strategic route view */
+/* Parsed-route chips (Global tab) */
+.g-route-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 10px; }
+.g-route-chips .wp { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border); }
+.g-route-chips .wp-apt { color: var(--text); border-color: var(--border-bright, #3a4757); font-weight: 700; }
+.g-route-chips .wp-fix { color: var(--text-dim); }
+.g-route-chips .wp-miss { color: var(--text-faint); text-decoration: line-through; opacity: 0.7; }
+.g-route-chips .wp-arrow { color: var(--text-faint); font-size: 10px; }
 .g-summary { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin: 4px 0 10px; font-size: 14px; color: var(--text); }
 .g-summary span { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 .g-legs { overflow-x: auto; margin-bottom: 14px; }

@@ -1545,8 +1545,14 @@ const fmtHm = (min) => `${Math.floor((min || 0) / 60)}h${String((min || 0) % 60)
 function renderGlobal(data) {
   const limits = readLimits();
   const r = data.route || {};
+  // Parsed-route chip line: airports, lat/lon-or-fix waypoints, and (struck-through) unresolved tokens.
+  const wpChips = (r.waypoints || []).map((w) => {
+    const cls = w.kind === 'airport' ? 'wp-apt' : w.kind === 'missing' ? 'wp-miss' : 'wp-fix';
+    return `<span class="wp ${cls}">${esc(w.id)}</span>`;
+  }).join('<span class="wp-arrow">→</span>');
+  const parsed = wpChips ? `<div class="g-route-chips">${wpChips}</div>` : '';
   const miss = (r.missing || []).length
-    ? `<div class="missing-card">Unresolved ICAO(s): ${r.missing.map(esc).join(', ')} — check spelling, or the field isn't in the dataset yet.</div>` : '';
+    ? `<div class="missing-card">Skipped (couldn't resolve): ${r.missing.map(esc).join(', ')} — unknown fix/ICAO. Lat/lon and known fixes resolve; the route still draws through everything that did.</div>` : '';
   const t = data.totals || {};
   const flLabel = r.altFt ? `FL${Math.round(r.altFt / 100)}` : '';
   const head = `<div class="g-summary"><b>${esc((r.ids || []).join(' → '))}</b>
@@ -1577,7 +1583,7 @@ function renderGlobal(data) {
   // Register each stop so the shared card interactions (tabs, NOTAM filter,
   // runway compare, TAF toggle) work on the Global tab too.
   (data.airfields || []).forEach((b) => { cardData[(b.uid || b.icao).toUpperCase()] = { brief: b, limits }; });
-  $('global-results').innerHTML = `${miss}${head}${legTable}<div class="grid">${cards}</div>`;
+  $('global-results').innerHTML = `${miss}${parsed}${head}${legTable}<div class="grid">${cards}</div>`;
   lastGlobalData = data;
   paintGlobalMap();
 }

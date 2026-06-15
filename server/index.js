@@ -21,6 +21,9 @@ import { buildMtrDetail } from './data/mtr.js';
 import { legGeometry, scheduleLegs, groundspeed, legEtp, nearestAirports } from './core/legs.js';
 import { fetchWindsAloft, interpolateWind } from './data/windsaloft.js';
 import { fetchNatTracks } from './data/nattracks.js';
+import { decodeNatPoint } from './data/nattracks.js';
+import { decodePacPoint } from './data/pacots.js';
+import { resolveFix } from './data/fixes.js';
 import { fetchPacots } from './data/pacots.js';
 import { knownAirports, getAirport, allAirports } from './data/airports.js';
 import { dbConfigured, listSorties, saveSortie, deleteSortie } from './data/db.js';
@@ -364,8 +367,8 @@ const server = createServer(async (req, res) => {
       // wind-corrected ETAs, plus a per-stop brief (weather/NOTAM/NVG at each ETA).
       const ids = (url.searchParams.get('route') ?? '')
         .split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
-        .slice(0, 16); // cap waypoints — each leg fans out winds + a per-stop brief
-      if (ids.length < 2) { sendJson(res, 400, { error: 'provide ?route=KCHS TNCM LPLA ETAR (2-16 ICAOs)' }); return; }
+        .slice(0, 30); // cap waypoints — each leg fans out winds (pasted NAT tracks can be long)
+      if (ids.length < 2) { sendJson(res, 400, { error: 'provide ?route=KCHS 49/50 50/40 DOGAL EGLL (2+ waypoints: ICAOs, lat/lon, or fixes)' }); return; }
       const offline = url.searchParams.get('offline') === '1';
       const nvg = url.searchParams.get('nvg') === '1';
       const tasKt = Math.max(60, Math.min(600, Number(url.searchParams.get('tas')) || 450));
@@ -375,15 +378,34 @@ const server = createServer(async (req, res) => {
       const departRaw = url.searchParams.get('depart');
       const departIso = departRaw && !Number.isNaN(Date.parse(departRaw)) ? new Date(departRaw).toISOString() : new Date().toISOString();
 
-      // Resolve each waypoint to coordinates (curated -> global bundle -> live).
-      const resolved = await Promise.all(ids.map(async (id) => {
-        const ap = await getAirport(id, offline);
-        return ap && ap.lat != null && ap.lon != null ? { id, lat: ap.lat, lon: ap.lon, name: ap.name } : { id, missing: true };
-      }));
+      // Resolve each token to coordinates, sequentially so a named fix/navaid can
+      // be disambiguated by the previous point. Tokens may be: a lat/lon shorthand
+      // (NAT "49/50"/"5730/30", Pacific "29N180E"), an ICAO airport, or a named
+      // enroute fix (e.g. a NAT entry/exit point). Unresolved tokens are noted and
+      // skipped — the route still draws through everything that resolves, so a
+      // pasted NAT track like "JOOPY 49/50 50/40 54/20 DOGAL" just works.
+      const resolved = [];
+      let near = null;
+      for (const id of ids) {
+        const coord = decodeNatPoint(id) || decodePacPoint(id);
+        let w;
+        if (coord && coord.lat != null) {
+          w = { id, lat: coord.lat, lon: coord.lon, kind: 'fix' };
+        } else {
+          const ap = await getAirport(id, offline);
+          if (ap && ap.lat != null && ap.lon != null) w = { id, lat: ap.lat, lon: ap.lon, name: ap.name, kind: 'airport' };
+          else {
+            const fx = resolveFix(id, near);
+            w = fx ? { id, lat: fx.lat, lon: fx.lon, kind: 'fix' } : { id, missing: true };
+          }
+        }
+        if (!w.missing) near = { lat: w.lat, lon: w.lon };
+        resolved.push(w);
+      }
       const waypoints = resolved.filter((w) => !w.missing);
       const missing = resolved.filter((w) => w.missing).map((w) => w.id);
       if (waypoints.length < 2) {
-        sendJson(res, 200, { route: { departIso, tasKt, altFt }, missing, legs: [], stops: [], airfields: [], note: 'Need at least two resolvable ICAOs.' });
+        sendJson(res, 200, { route: { departIso, tasKt, altFt, missing }, missing, legs: [], stops: [], airfields: [], note: 'Need at least two resolvable waypoints (ICAOs, lat/lon, or known fixes).' });
         return;
       }
 
@@ -422,14 +444,17 @@ const server = createServer(async (req, res) => {
         leg.diversionGap = leg.diversions.length === 0;
       });
 
-      // Per-stop brief at each ETA (reuses the full weather/NOTAM/NVG engine).
-      const stops = sched.stops.map((s, i) => ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === sched.stops.length - 1 ? 'Destination' : `Stop ${i}`) }));
-      const uniqueIds = [...new Set(waypoints.map((w) => w.id))];
-      const brief = await buildBrief(uniqueIds, offline, parseLimits(url), undefined, null, stops, { nvg });
+      // Per-stop brief only for the AIRPORT waypoints (coordinate fixes have no
+      // weather/NOTAMs), each at its scheduled ETA. Reuses the full brief engine.
+      const airportIds = new Set(waypoints.filter((w) => w.kind === 'airport').map((w) => w.id));
+      const briefStops = sched.stops.filter((s) => airportIds.has(s.id)).map((s, i, arr) =>
+        ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === arr.length - 1 ? 'Destination' : `Stop ${i}`) }));
+      const uniqueIds = [...airportIds];
+      const brief = uniqueIds.length ? await buildBrief(uniqueIds, offline, parseLimits(url), undefined, null, briefStops, { nvg }) : { airfields: [], live: {} };
 
       sendJson(res, 200, {
         generatedAt: new Date().toISOString(),
-        route: { ids, departIso, tasKt, altFt, missing, minRwy, divRangeNm },
+        route: { ids, departIso, tasKt, altFt, missing, minRwy, divRangeNm, waypoints: resolved.map((w) => ({ id: w.id, kind: w.missing ? 'missing' : w.kind })) },
         legs: sched.legs,
         totals: { distanceNm: sched.totalNm, timeMin: sched.totalMin },
         stops: sched.stops,
