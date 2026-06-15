@@ -1586,7 +1586,6 @@ const boardsLoaded = {};
 const boardData = {};   // last /api/hubs response per set (for the Build Brief PDF)
 const SET_RES = { amc: 'hubs-results', oceanic: 'oceanic-results' };
 const SET_MAP = { amc: 'hubs-map', oceanic: 'oceanic-map' };
-const SET_TAB = { amc: 'AMC Hubs', oceanic: 'Oceanic Divert' };
 const boardFilter = { amc: 'all', oceanic: 'all' }; // all | usable | problems
 const BOARD_FILTERS = {
   all: () => true,
@@ -1691,10 +1690,9 @@ function paintBoardMap(set) {
   if (!fields.length) { el.hidden = true; boardMaps[set] = null; return; }
   el.hidden = false;
   boardMaps[set] = initMap(el, {
-    airfields: fields, home: fields, focus: fields, radar: false,
+    airfields: fields, home: fields, focus: fields, radar: false, minimal: true,
     selectedIcaos: selected[set],
     onAirfieldClick: (icao) => onBoardMarkerTap(set, icao),
-    validity: [{ k: SET_TAB[set], v: `${fields.length} fields` }],
   });
 }
 

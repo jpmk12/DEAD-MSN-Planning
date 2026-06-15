@@ -158,7 +158,13 @@ export function initMap(container, data) {
     <span class="rb-time" data-rtime>—</span>
     <span class="rb-hint" title="Public radar has no multi-hour forecast. For sortie times past +30 min, use the SPC convective outlook overlay.">loop −2h→+30m · beyond: SPC outlook</span>`;
 
-  container.append(viewport, controls, navc, times, legend, attribution, radarbar);
+  // Minimal mode (board status maps): keep only the viewport, zoom/recenter, and
+  // attribution — the layer toggles / radar bar / legend don't apply. The other
+  // elements are still created (their listeners stay attached, harmless) but not
+  // mounted, so they're inert.
+  const minimal = data.minimal === true;
+  if (minimal) container.append(viewport, navc, attribution);
+  else container.append(viewport, controls, navc, times, legend, attribution, radarbar);
 
   const w = () => viewport.clientWidth || 600;
   const h = () => viewport.clientHeight || 360;
