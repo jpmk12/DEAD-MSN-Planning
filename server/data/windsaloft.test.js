@@ -152,6 +152,10 @@ test('maxWindLevel finds the strongest wind level (jet core)', () => {
   assert.equal(m.altFt, 34000);
   assert.equal(m.speedKt, 120);
   assert.equal(maxWindLevel([]), null);
+  // Levels missing altFt/dirTrue are ignored (so callers can format without guards).
+  const partial = maxWindLevel([{ speedKt: 200 }, { altFt: 20000, dirTrue: 250, speedKt: 80 }]);
+  assert.equal(partial.altFt, 20000);
+  assert.equal(partial.speedKt, 80);
 });
 
 test('tropopauseFt finds where the lapse rate drops below 2C/km, else null', () => {

@@ -9,6 +9,29 @@ test('decodeNatPoint: lat/lon shorthand (N/W) and named fixes', () => {
   assert.equal(decodeNatPoint('RESNO').lat, null);   // named fix -> label only
   assert.equal(decodeNatPoint('RESNO').label, 'RESNO');
   assert.equal(decodeNatPoint('!!'), null);          // unrecognized
+  // Half-degree (DDMM) coordinates: 5730/30 = 57°30'N 030°W, 5630N040W = 56°30'N 040°W.
+  assert.deepEqual(decodeNatPoint('5730/30'), { label: '5730/30', lat: 57.5, lon: -30 });
+  assert.deepEqual(decodeNatPoint('5630N040W'), { label: '5630N040W', lat: 56.5, lon: -40 });
+  // Airways with trailing digits are NOT treated as named fixes.
+  assert.equal(decodeNatPoint('OTR5'), null);
+  assert.equal(decodeNatPoint('N515A'), null);
+});
+
+test('parseNatTracks: half-degree geometry + EAST/WEST direction tag', () => {
+  const tracks = parseNatTracks([
+    'NAT-1/1 TRACKS FLS 340/400 INCLUSIVE',
+    'JUN 15/0100Z TO JUN 15/0800Z',
+    'U JOOPY 49/50 50/40 51/30 DOGAL',
+    'EAST LVLS 340 350 360 WEST LVLS NIL',
+    'C PIKIL 57/20 5730/30 5630/40 NEEKO',
+    'EAST LVLS NIL WEST LVLS 340 350',
+  ].join('\n'));
+  assert.equal(tracks.length, 2);
+  assert.equal(tracks[0].direction, 'EAST');
+  assert.equal(tracks[0].flBand, 'FL340-400');
+  assert.equal(tracks[0].validRaw, 'JUN 15/0100Z TO JUN 15/0800Z');
+  assert.equal(tracks[1].direction, 'WEST');
+  assert.deepEqual(tracks[1].points, [[57, -20], [57.5, -30], [56.5, -40]]); // half-degree decoded
 });
 
 test('parseNatTracks: tracks, decoded geometry, and level bands', () => {

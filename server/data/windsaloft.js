@@ -184,9 +184,10 @@ export function icingLayers(profile, { rhMin = 70 } = {}) {
   });
 }
 
-/** Profile level with the strongest wind (the jet core if within range), or null. */
+/** Profile level with the strongest wind (the jet core if within range), or null.
+ *  Requires finite altFt/dirTrue too, so callers can format it without guards. */
 export function maxWindLevel(profile) {
-  const s = (profile || []).filter((p) => typeof p.speedKt === 'number');
+  const s = (profile || []).filter((p) => typeof p.speedKt === 'number' && Number.isFinite(p.altFt) && Number.isFinite(p.dirTrue));
   if (!s.length) return null;
   const m = s.reduce((best, p) => (p.speedKt > best.speedKt ? p : best));
   return { altFt: m.altFt, speedKt: m.speedKt, dirTrue: m.dirTrue };

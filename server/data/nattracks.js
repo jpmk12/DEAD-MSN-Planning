@@ -83,7 +83,7 @@ export function decodeNatPoint(tok) {
   if (m) return { label: t, lat: dm(m[1]), lon: -dm(m[2]) };
   m = t.match(/^(\d{2,4})N0?(\d{2,5})W$/);               // 55N020W / 5730N030W
   if (m) return { label: t, lat: dm(m[1]), lon: -dm(m[2]) };
-  if (/^[A-Z]{2,5}\d?$/.test(t)) return { label: t, lat: null, lon: null }; // named fix
+  if (/^[A-Z]{2,5}$/.test(t)) return { label: t, lat: null, lon: null }; // named fix (airways with trailing digits excluded)
   return null;
 }
 // Degrees from a coordinate string: 4–5 digits = DDMM (last 2 are minutes),

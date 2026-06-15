@@ -8,7 +8,11 @@ test('decodePacPoint: E/W longitudes and date-line crossing', () => {
   assert.deepEqual(decodePacPoint('43N170W'), { label: '43N170W', lat: 43, lon: -170 });
   assert.equal(decodePacPoint('ALCOA').lat, null);    // named fix
   assert.equal(decodePacPoint('OTR11'), null);        // airway -> not a point
+  assert.equal(decodePacPoint('OTR5'), null);         // single-trailing-digit airway also excluded
   assert.equal(decodePacPoint('Y891'), null);
+  assert.equal(decodePacPoint('R591'), null);
+  // Half-degree Pacific coordinate.
+  assert.deepEqual(decodePacPoint('3630N14030W'), { label: '3630N14030W', lat: 36.5, lon: -140.5 });
 });
 
 test('parsePacots: Oakland TDM TRK and Fukuoka FLEX ROUTE, both with date-line', () => {

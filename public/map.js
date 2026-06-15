@@ -239,6 +239,19 @@ export function initMap(container, data) {
     overlay.setAttribute('viewBox', `0 0 ${w()} ${h()}`);
     overlay.innerHTML = '';
     const scr = (lat, lon) => { const p = project(lat, lon, z); return { x: p.x - topLeft.x, y: p.y - topLeft.y }; };
+    // Project a polyline, "unwrapping" longitudes so consecutive points stay
+    // within 180° of each other — keeps date-line-crossing tracks (PACOTS:
+    // …170W→180→170E…) drawn as one continuous line instead of streaking back
+    // across the whole map.
+    const scrLine = (pts) => {
+      let prev = null;
+      return pts.map(([la, lo]) => {
+        let lon = lo;
+        if (prev != null) { while (lon - prev > 180) lon -= 360; while (lon - prev < -180) lon += 360; }
+        prev = lon;
+        return scr(la, lon);
+      });
+    };
 
     if (state.conv) {
       for (const c of convective) {
@@ -252,7 +265,8 @@ export function initMap(container, data) {
         const pts = m.geometry?.points;
         if (!pts || pts.length < 2) continue;
         const color = m.color || MTR_COLOR[m.type] || '#4aa3df';
-        const d = pts.map(([la, lo], i) => { const p = scr(la, lo); return `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
+        const proj = scrLine(pts);
+        const d = proj.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', d);
         path.setAttribute('fill', 'none');
@@ -260,7 +274,7 @@ export function initMap(container, data) {
         path.setAttribute('stroke-width', '2.5');
         path.setAttribute('stroke-linejoin', 'round');
         overlay.appendChild(path);
-        const sp = scr(pts[0][0], pts[0][1]);
+        const sp = proj[0];
         overlay.appendChild(label(sp.x + 6, sp.y - 4, m.id, color));
       }
     }
@@ -284,7 +298,7 @@ export function initMap(container, data) {
         const col = segColor(rofKinds[i], rofKinds[i + 1]);
         let j = i + 1;
         while (j < rofPts.length - 1 && segColor(rofKinds[j], rofKinds[j + 1]) === col) j++;
-        const d = rofPts.slice(i, j + 1).map(([la, lo], k) => { const p = scr(la, lo); return `${k ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`; }).join(' ');
+        const d = scrLine(rofPts.slice(i, j + 1)).map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', d);
         path.setAttribute('fill', 'none');

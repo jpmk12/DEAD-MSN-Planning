@@ -8,7 +8,7 @@
 import { getAirport } from './data/airports.js';
 import { loadWeather } from './data/weather.js';
 import { decodeTaf } from './data/taf.js';
-import { metarConditions } from './brief.js';
+import { metarConditions, parseClosedRunways } from './brief.js';
 import { fetchNotams } from './data/notams.js';
 import { raimOutlook } from './data/raim.js';
 import { advisoryFor } from './data/birds.js';
@@ -133,7 +133,7 @@ function routeAhasSection(routeAhas) {
     ${cite('USAF Avian Hazard Advisory System', 'usahas.com')}</section>`;
 }
 
-function raimLine(raim) {
+export function raimLine(raim) {
   if (!raim) return '';
   const color = raim.status === 'PREDICTED OUTAGE' ? '#b3231b' : raim.status === 'UNKNOWN' ? '#777' : '#1a7f37';
   const win = (raim.windows || []).map((w) => (w.inlineRanges || []).map((r) => `${r.start}–${r.end}`).join(', ')).filter(Boolean).join(' · ');
@@ -201,13 +201,13 @@ const STYLE = `
   @media print { .toolbar { display: none; } body { padding: 0; } section { border-color: #ccc; } }
 `;
 
-const fmtVisSm = (v) => (v == null ? '—' : (v < 1 ? `${v} SM` : `${v} SM`));
+const fmtVisSm = (v) => (v == null ? '—' : `${v} SM`);
 
 /** A scan-first divert table: ICAO · flight category · ceiling · vis · RWY closed,
  *  derived from each field's METAR + NOTAMs (no GO/NO-GO — that depends on
  *  aircraft limits; the category/ceiling/vis/closure are the divert basics). */
 const RAIM_TAG = { 'PREDICTED OUTAGE': ['clsd', 'OUTAGE'], 'NO PREDICTED OUTAGE': ['', '✓'], UNKNOWN: ['', '?'] };
-function summaryTable(rows) {
+export function summaryTable(rows) {
   const body = rows.map((r) => {
     const cat = r.flightCategory ? `<span class="cat cat-${esc(r.flightCategory)}">${esc(r.flightCategory)}</span>` : '—';
     const ceil = r.ceilingFt != null ? `${r.ceilingFt.toLocaleString()} ft` : '—';
@@ -258,7 +258,10 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
       (want('ahas') && area) ? ahas12('MILAIR', area, f.when).catch(() => null) : Promise.resolve(null),
     ]);
     const fieldNotams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao);
-    const raim = raimOutlook(fieldNotams, !!notamRes.source);
+    // notamRes.live is the honest "feed actually returned data" signal (source is
+    // truthy even on the unavailable path) — matches brief.js so RAIM reads
+    // UNKNOWN, not a false "clear", when NOTAMs couldn't be retrieved.
+    const raim = raimOutlook(fieldNotams, notamRes.live === true);
     return { f, airport, wx, notamRes, ahas, raim };
   }));
 
@@ -281,8 +284,9 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
     const rows = data.map(({ f, wx, notamRes, raim }) => {
       const obs = (wx.obs || []).find((o) => o.icao?.toUpperCase() === f.icao);
       const cc = metarConditions(obs?.rawText);
-      const closedNotams = (notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao && n.category === 'RUNWAY' && /CLSD|CLOSED/i.test(n.text));
-      return { icao: f.icao, label: f.label || '', ...cc, closed: closedNotams.length > 0, raim: raim?.status };
+      // Same closed-runway parse the on-screen board uses, so PDF and tile agree.
+      const cl = parseClosedRunways((notamRes.notams || []).filter((n) => n.icao?.toUpperCase() === f.icao));
+      return { icao: f.icao, label: f.label || '', ...cc, closed: cl.length > 0, closedList: cl.join('/'), raim: raim?.status };
     });
     summaryHtml = `<section><h2>Divert summary</h2>${summaryTable(rows)}
       <div class="src">Flight category / ceiling / visibility from each field's METAR; runway closure &amp; GPS/RAIM from NOTAMs (RAIM ✓ clear · OUTAGE predicted · ? = NOTAMs unavailable). Per-field detail follows. Not a GO/NO-GO call.</div></section>`;

@@ -19,7 +19,7 @@ export function decodePacPoint(tok) {
   const t = String(tok || '').toUpperCase().trim();
   const m = t.match(/^(\d{2,4})([NS])(\d{2,5})([EW])$/);
   if (m) return { label: t, lat: pdeg(m[1]) * (m[2] === 'S' ? -1 : 1), lon: pdeg(m[3]) * (m[4] === 'W' ? -1 : 1) };
-  if (/^[A-Z]{2,5}\d?$/.test(t)) return { label: t, lat: null, lon: null }; // named fix (ALCOA, PRETY) — airways like OTR11/Y891 excluded
+  if (/^[A-Z]{2,5}$/.test(t)) return { label: t, lat: null, lon: null }; // named fix (ALCOA, PRETY) — airways (OTR11/OTR5/Y891/R591) excluded
   return null;
 }
 // Degrees from a coordinate string: 4–5 digits = DDMM, else whole degrees.
@@ -58,7 +58,7 @@ export function parsePacots(body) {
     const fir = g.name || (g.notams?.[0]?.code) || '';
     for (const n of g.notams ?? []) {
       for (const item of n.list ?? []) {
-        const flat = String(item.rawtext || item.text || '').replace(/\s+/g, ' ').trim();
+        const flat = String(item.rawtext || item.text || '').replace(/\s+/g, ' ').trim().slice(0, 20000); // cap external text before regex (ReDoS guard)
         if (!flat) continue;
         const direction = /EASTBOUND/i.test(flat) ? 'EAST' : /WESTBOUND/i.test(flat) ? 'WEST' : null;
         const bcFrom = pacIso((flat.match(/B\)\s*(\d{10})/) || [])[1]);

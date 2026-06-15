@@ -1660,6 +1660,7 @@ function renderHubBoard(data, resId, set) {
     return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map((h) => hubTile(h, set)).join('')}</div></div>`;
   }).join('');
   $(resId).innerHTML = out ? `${boardBar(set)}${out}` : '<div class="g-note">No fields configured.</div>';
+  lastSelIdx[set] = null; // tile order changed; reset the shift-range anchor
   updateSelectionUI(set);
 }
 

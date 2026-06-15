@@ -362,8 +362,9 @@ const server = createServer(async (req, res) => {
       // Strategic/global route: ordered ICAO waypoints -> great-circle legs with
       // wind-corrected ETAs, plus a per-stop brief (weather/NOTAM/NVG at each ETA).
       const ids = (url.searchParams.get('route') ?? '')
-        .split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
-      if (ids.length < 2) { sendJson(res, 400, { error: 'provide ?route=KCHS TNCM LPLA ETAR (2+ ICAOs)' }); return; }
+        .split(/[\s,]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+        .slice(0, 16); // cap waypoints — each leg fans out winds + a per-stop brief
+      if (ids.length < 2) { sendJson(res, 400, { error: 'provide ?route=KCHS TNCM LPLA ETAR (2-16 ICAOs)' }); return; }
       const offline = url.searchParams.get('offline') === '1';
       const nvg = url.searchParams.get('nvg') === '1';
       const tasKt = Math.max(60, Math.min(600, Number(url.searchParams.get('tas')) || 450));
@@ -376,7 +377,7 @@ const server = createServer(async (req, res) => {
       // Resolve each waypoint to coordinates (curated -> global bundle -> live).
       const resolved = await Promise.all(ids.map(async (id) => {
         const ap = await getAirport(id, offline);
-        return ap && ap.lat != null ? { id, lat: ap.lat, lon: ap.lon, name: ap.name } : { id, missing: true };
+        return ap && ap.lat != null && ap.lon != null ? { id, lat: ap.lat, lon: ap.lon, name: ap.name } : { id, missing: true };
       }));
       const waypoints = resolved.filter((w) => !w.missing);
       const missing = resolved.filter((w) => w.missing).map((w) => w.id);
@@ -407,8 +408,8 @@ const server = createServer(async (req, res) => {
       // oceanic). Diversion pool = curated + global bundle (US-only without the
       // bundle); minimum 7000 ft runway. A leg with no diversion within range is
       // flagged as a coverage gap.
-      const minRwy = Math.max(0, Number(url.searchParams.get('minrwy')) || 7000);
-      const divRangeNm = Math.max(50, Number(url.searchParams.get('divrange')) || 400);
+      const minRwy = Math.max(0, Math.min(20000, Number(url.searchParams.get('minrwy')) || 7000));
+      const divRangeNm = Math.max(50, Math.min(2000, Number(url.searchParams.get('divrange')) || 400));
       const pool = await allAirports();
       sched.legs.forEach((leg) => {
         const etp = legEtp(leg, tasKt);
