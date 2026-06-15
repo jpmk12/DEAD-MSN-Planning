@@ -10,7 +10,7 @@
 //   • Fukuoka (RJJJ):  TRACK 1. FLEX ROUTE : KALNA 41N160E ... 49N140W PRETY
 // Pacific coordinates are DDN/DDD{E|W} and DO cross the date line (180E/W).
 
-import { dodCaLoaded, daipQueryRaw, pacotsPayload, DAIP_RESULT_ENDPOINT } from './daip.js';
+import { dodCaLoaded, daipQueryRaw, pacotsPayload } from './daip.js';
 
 /** Decode a Pacific coordinate token "36N140W" / "29N180E" (DDMM allowed) to
  *  { label, lat, lon }, or a named fix (lat/lon null), or null. East longitudes
@@ -90,7 +90,9 @@ export function parsePacots(body) {
 export async function fetchPacots(offline) {
   if (offline || !dodCaLoaded()) return { tracks: [], live: false, source: dodCaLoaded() ? 'offline' : 'no-dod-ca' };
   try {
-    const r = await daipQueryRaw(pacotsPayload(), 10000, DAIP_RESULT_ENDPOINT);
+    // DAIP serves PACOTS from the same mobile-query endpoint as NOTAMs (the
+    // /result URL is the HTML page; the data POST goes to /query). Overridable.
+    const r = await daipQueryRaw(pacotsPayload(), 10000, process.env.PACOTS_URL || undefined);
     if (r.status === 200) return { tracks: parsePacots(r.body), live: true, source: 'DAIP' };
     return { tracks: [], live: false, source: `DAIP ${r.status}` };
   } catch {

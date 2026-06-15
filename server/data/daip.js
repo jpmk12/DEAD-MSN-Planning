@@ -15,7 +15,6 @@ import { fileURLToPath } from 'node:url';
 import { DOD_CA_PEM } from './dodca.js';
 
 const ENDPOINT = 'https://www.daip.jcs.mil/daip/mobile/query';
-export const DAIP_RESULT_ENDPOINT = 'https://www.daip.jcs.mil/daip/mobile/result';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 let caCache; // undefined=unloaded, null=absent, string=pem bundle

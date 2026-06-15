@@ -221,7 +221,7 @@ export function parseRunwayConditions(notams) {
 }
 
 export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patternAgls = DEFAULT_PATTERN_AGLS, whenIso = null, stops = null, opts = {}) {
-  const { nvg = false } = opts; // NVG sortie -> attach per-phase illumination
+  const { nvg = false, lite = false } = opts; // nvg -> per-phase illumination; lite -> status-board mode (skip winds/G-AIRMET/PIREP fetches the board never shows)
   const nowMs = Date.now();
   const startPerf = performance.now();
   // Per-source wall-clock timing (ms), so /api/diag and the [timing] log can show
@@ -288,8 +288,8 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   const tfrP = timed('tfr', fetchTfrs(offline));
   const suaP = timed('sua', fetchSua(offline, undefined, airspaceBbox));
   const sigmetP = timed('sigmet', fetchAirSigmets(offline));
-  const gairmetP = timed('gairmet', fetchGairmets(offline));
-  const pirepP = timed('pirep', fetchPireps(offline, pirepBbox));
+  const gairmetP = lite ? Promise.resolve({ gairmets: [], live: false }) : timed('gairmet', fetchGairmets(offline));
+  const pirepP = lite ? Promise.resolve({ pireps: [], live: false }) : timed('pirep', fetchPireps(offline, pirepBbox));
   const convP = timed('convective', fetchConvective(offline));
   const mtrP = timed('mtr', fetchMtrs(offline));
 
@@ -335,7 +335,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   // Winds aloft per stop — needs only coordinates + the stop time, so it's fully
   // independent of the weather/NOTAM/airspace fetches.
   let windsLive = false;
-  const windsP = timed('windsAloft', (async () => {
+  const windsP = lite ? Promise.resolve(new Map()) : timed('windsAloft', (async () => {
     const map = new Map();
     await Promise.all(stopList.map(async (s) => {
       const key = stopKey(s);

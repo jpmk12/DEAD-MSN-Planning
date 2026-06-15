@@ -321,7 +321,7 @@ const server = createServer(async (req, res) => {
       try { hubList = JSON.parse(await readFile(fileURLToPath(new URL(`../data/${file}`, import.meta.url)), 'utf8')).hubs || []; } catch { hubList = []; }
       const meta = new Map(hubList.map((h) => [h.icao.toUpperCase(), h]));
       const icaos = hubList.map((h) => h.icao.toUpperCase());
-      const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url)) : { airfields: [], live: {} };
+      const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url), undefined, null, null, { lite: true }) : { airfields: [], live: {} };
       const hubs = brief.airfields.map((a) => {
         const m = meta.get(a.icao.toUpperCase()) || {};
         const cc = a.currentConditions || {};
