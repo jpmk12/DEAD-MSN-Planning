@@ -327,6 +327,7 @@ const server = createServer(async (req, res) => {
         const cc = a.currentConditions || {};
         return {
           icao: a.icao, name: m.name || a.airport?.name || a.icao, region: m.region || 'OTHER',
+          lat: a.lat ?? null, lon: a.lon ?? null,
           found: a.found, status: a.status,
           flightCategory: cc.flightCategory ?? null, ceilingFt: cc.ceilingFt ?? null, visibilitySm: cc.visibilitySm ?? null,
           closedRunways: a.closedRunways || [], runwayConditions: (a.runwayConditions || []).length,

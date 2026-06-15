@@ -305,6 +305,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .board-bar .bb-count { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .board-bar.has-sel .bb-count { color: var(--text); font-weight: 600; }
 .board-bar .bb-build:disabled { opacity: .45; cursor: not-allowed; }
+.board-bar .bb-filter { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; margin-right: 4px; }
+.board-bar .bb-fbtn { font: 12px var(--font, sans-serif); color: var(--text-dim); background: transparent; border: none; border-right: 1px solid var(--border); padding: 5px 10px; cursor: pointer; }
+.board-bar .bb-fbtn:last-child { border-right: none; }
+.board-bar .bb-fbtn:hover { color: var(--text); }
+.board-bar .bb-fbtn.active { background: var(--accent, #4aa3df); color: #06243a; font-weight: 700; }
+/* Tab selected-count badge */
+.tabbar .tab-badge:not(:empty) { display: inline-block; margin-left: 6px; min-width: 16px; padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; color: #06243a; background: var(--accent, #4aa3df); border-radius: 999px; }
+/* Board status map: a touch shorter than the main map */
+.board-map .map-viewport { height: clamp(220px, 32vh, 360px); }
 .hub-tile.go { border-left-color: var(--go); }
 .hub-tile.caution { border-left-color: var(--caution); }
 .hub-tile.nogo { border-left-color: var(--nogo); }

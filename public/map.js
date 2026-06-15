@@ -66,6 +66,8 @@ export function initMap(container, data) {
   const mtrs = data.mtrs || [];
   const routeOfFlight = data.routeOfFlight || null;
   const validity = data.validity || [];
+  const onAirfieldClick = typeof data.onAirfieldClick === 'function' ? data.onAirfieldClick : null;
+  const selectedIcaos = data.selectedIcaos || null; // Set of selected ICAOs -> highlight ring
   const CONV_COLOR = { TSTM: '#3fb950', MRGL: '#6fae46', SLGT: '#d29922', ENH: '#e8833a', MDT: '#f85149', HIGH: '#d6409f' };
   const MTR_COLOR = { IR: '#3fb950', VR: '#3fb950', AR: '#4aa3df', NAT: '#b39ddb', PAC: '#e8833a' }; // low-level green, A/R blue, NAT violet, PACOTS orange
 
@@ -169,7 +171,8 @@ export function initMap(container, data) {
   // Recenter target: the briefed airfields ("home"), so ⌂ returns to the fields
   // and zooms in on them rather than being dragged out by winds navaids/routes.
   const homePts = (data.home && data.home.length) ? data.home : focusPts;
-  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: true, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65,
+  const radarEnabled = data.radar !== false; // board maps pass radar:false (status map, no radar churn)
+  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: radarEnabled, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65,
     radarFrames: [], radarHost: '', radarIdx: 0, radarNowIdx: 0, radarPlaying: false };
 
   function unproject(px, py, z) {
@@ -366,12 +369,21 @@ export function initMap(container, data) {
 
     for (const a of airfields) {
       const p = scr(a.lat, a.lon);
-      const col = a.status === 'NO-GO' ? '#f85149' : a.status === 'CAUTION' ? '#d29922' : '#3fb950';
+      const col = a.status === 'NO-GO' ? '#f85149' : a.status === 'CAUTION' ? '#d29922' : a.status === 'NO-DATA' ? '#8b98a5' : '#3fb950';
       overlay.appendChild(ring(p.x, p.y, nmToPx(10, a.lat, z), '#37b6c3', { dash: '3 5', opacity: 0.5 }));
+      if (selectedIcaos && selectedIcaos.has(a.icao)) overlay.appendChild(ring(p.x, p.y, 9, '#4aa3df', { width: 2.5, opacity: 1 }));
       const dot = ring(p.x, p.y, 4, '#0a0e14', { fill: col, width: 2 });
       dot.setAttribute('stroke', '#0a0e14');
       overlay.appendChild(dot);
       overlay.appendChild(label(p.x + 8, p.y + 4, a.icao, '#e6edf3'));
+      if (onAirfieldClick) { // transparent hit target so a marker tap selects the field
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hit.setAttribute('cx', p.x.toFixed(1)); hit.setAttribute('cy', p.y.toFixed(1)); hit.setAttribute('r', '11');
+        hit.setAttribute('fill', 'transparent');
+        hit.style.pointerEvents = 'auto'; hit.style.cursor = 'pointer';
+        hit.addEventListener('click', (e) => { e.stopPropagation(); onAirfieldClick(a.icao); });
+        overlay.appendChild(hit);
+      }
     }
 
     // Winds points (VOR/TACAN navaids cyan, IFR fixes/waypoints violet) —
@@ -444,8 +456,9 @@ export function initMap(container, data) {
   }
 
   // Load RainViewer frames, then enable the animation bar. Failure leaves the
-  // static IEM radar in place (bar hidden) — honest, never blank.
-  (async () => {
+  // static IEM radar in place (bar hidden) — honest, never blank. Skipped when
+  // radar is disabled (board status maps), so repaints don't re-fetch frames.
+  if (radarEnabled) (async () => {
     const rd = await fetchRadarFrames();
     if (!rd) return;
     state.radarHost = rd.host;

@@ -1585,7 +1585,18 @@ function renderGlobal(data) {
 const boardsLoaded = {};
 const boardData = {};   // last /api/hubs response per set (for the Build Brief PDF)
 const SET_RES = { amc: 'hubs-results', oceanic: 'oceanic-results' };
-const selected = { amc: new Set(), oceanic: new Set() }; // tile selection per board
+const SET_MAP = { amc: 'hubs-map', oceanic: 'oceanic-map' };
+const SET_TAB = { amc: 'AMC Hubs', oceanic: 'Oceanic Divert' };
+const boardFilter = { amc: 'all', oceanic: 'all' }; // all | usable | problems
+const BOARD_FILTERS = {
+  all: () => true,
+  usable: (h) => h.status === 'GO' || h.status === 'CAUTION',
+  problems: (h) => h.status === 'CAUTION' || h.status === 'NO-GO',
+};
+// Tile selection per board, restored from localStorage.
+const loadSel = (set) => { try { return new Set(JSON.parse(localStorage.getItem(`dead-board-sel-${set}`) || '[]')); } catch { return new Set(); } };
+const selected = { amc: loadSel('amc'), oceanic: loadSel('oceanic') };
+const boardMaps = {}; // live map instance per board
 const lastSelIdx = {}; // last-clicked tile index per board (for shift range-select)
 const HUB_REGION_ORDER = ['CONUS', 'ALASKA', 'CANADA', 'GREENLAND', 'ICELAND', 'ATLANTIC', 'AZORES', 'IRELAND', 'UK', 'EUROPE', 'CENTCOM', 'PACOM', 'OTHER'];
 const HUB_SEV = { 'NO-GO': 0, CAUTION: 1, GO: 2, 'NO-DATA': 3 };
@@ -1640,16 +1651,21 @@ function hubTile(h, set) {
 }
 
 function boardBar(set) {
+  const f = boardFilter[set];
+  const fbtn = (v, label) => `<button class="bb-fbtn${f === v ? ' active' : ''}" data-bb="filter" data-set="${esc(set)}" data-filter="${v}">${label}</button>`;
   return `<div class="board-bar" data-set="${esc(set)}">
-    <div class="bb-left"><button class="bb-btn" data-bb="selall" data-set="${esc(set)}">Select all</button>
+    <div class="bb-left"><span class="bb-filter">${fbtn('all', 'All')}${fbtn('usable', 'Usable')}${fbtn('problems', 'Problems')}</span>
+      <button class="bb-btn" data-bb="selall" data-set="${esc(set)}">Select all</button>
       <button class="bb-btn" data-bb="clear" data-set="${esc(set)}">Clear</button></div>
     <div class="bb-right"><span class="bb-count">None selected</span>
       <button class="go bb-build" data-bb="build" data-set="${esc(set)}" disabled>Build Selected (PDF)</button></div></div>`;
 }
 
 function renderHubBoard(data, resId, set) {
+  const filt = BOARD_FILTERS[boardFilter[set]] || BOARD_FILTERS.all;
+  const hubs = (data.hubs || []).filter(filt);
   const byRegion = new Map();
-  for (const h of data.hubs || []) {
+  for (const h of hubs) {
     if (!byRegion.has(h.region)) byRegion.set(h.region, []);
     byRegion.get(h.region).push(h);
   }
@@ -1659,22 +1675,54 @@ function renderHubBoard(data, resId, set) {
     const tiles = byRegion.get(r).sort((a, b) => (HUB_SEV[a.status] ?? 9) - (HUB_SEV[b.status] ?? 9) || a.icao.localeCompare(b.icao));
     return `<div class="hub-region"><h3 class="hub-region-h">${esc(r)}</h3><div class="hub-grid">${tiles.map((h) => hubTile(h, set)).join('')}</div></div>`;
   }).join('');
-  $(resId).innerHTML = out ? `${boardBar(set)}${out}` : '<div class="g-note">No fields configured.</div>';
+  const empty = `<div class="g-note">No fields match "${esc(boardFilter[set])}".</div>`;
+  $(resId).innerHTML = `${boardBar(set)}${out || empty}`;
   lastSelIdx[set] = null; // tile order changed; reset the shift-range anchor
   updateSelectionUI(set);
+  paintBoardMap(set);
 }
 
-// Reflect the selection set into the board's tiles + action bar (no re-render).
+// Status-colored map of the board's fields (all of them, regardless of the tile
+// filter). Markers are tap-to-select, sharing the selection set with the tiles.
+function paintBoardMap(set) {
+  const el = $(SET_MAP[set]); if (!el) return;
+  const fields = (boardData[set]?.hubs || []).filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lon))
+    .map((h) => ({ icao: h.icao, lat: h.lat, lon: h.lon, status: h.status }));
+  if (!fields.length) { el.hidden = true; boardMaps[set] = null; return; }
+  el.hidden = false;
+  boardMaps[set] = initMap(el, {
+    airfields: fields, home: fields, focus: fields, radar: false,
+    selectedIcaos: selected[set],
+    onAirfieldClick: (icao) => onBoardMarkerTap(set, icao),
+    validity: [{ k: SET_TAB[set], v: `${fields.length} fields` }],
+  });
+}
+
+function onBoardMarkerTap(set, icao) {
+  if (selected[set].has(icao)) selected[set].delete(icao); else selected[set].add(icao);
+  updateSelectionUI(set); // persists, updates tiles/count/badge, repaints the map ring
+}
+
+// Reflect the selection set into the board's tiles + action bar + tab badge +
+// map rings, and persist it. Repaints the (radar-free) board map so its selected
+// rings stay in sync with the tiles.
 function updateSelectionUI(set) {
-  const el = $(SET_RES[set]); if (!el) return;
   const sel = selected[set];
-  el.querySelectorAll('.hub-tile').forEach((t) => t.classList.toggle('selected', sel.has(t.dataset.icao)));
-  const bar = el.querySelector('.board-bar');
-  if (bar) {
-    bar.querySelector('.bb-count').textContent = sel.size ? `${sel.size} selected` : 'None selected';
-    bar.querySelector('.bb-build').disabled = sel.size === 0;
-    bar.classList.toggle('has-sel', sel.size > 0);
+  try { localStorage.setItem(`dead-board-sel-${set}`, JSON.stringify([...sel])); } catch { /* storage blocked */ }
+  const el = $(SET_RES[set]);
+  if (el) {
+    el.querySelectorAll('.hub-tile').forEach((t) => t.classList.toggle('selected', sel.has(t.dataset.icao)));
+    const bar = el.querySelector('.board-bar');
+    if (bar) {
+      bar.querySelector('.bb-count').textContent = sel.size ? `${sel.size} selected` : 'None selected';
+      bar.querySelector('.bb-build').disabled = sel.size === 0;
+      bar.classList.toggle('has-sel', sel.size > 0);
+    }
   }
+  // Tab badge (count) on the board's tab button.
+  const tabBtn = document.querySelector(`#tabbar .tab[data-tab="${set === 'amc' ? 'hubs' : 'oceanic'}"] .tab-badge`);
+  if (tabBtn) tabBtn.textContent = sel.size ? String(sel.size) : '';
+  if (boardMaps[set]) paintBoardMap(set); // refresh selected rings on the map
 }
 
 // Toggle a tile; shift-click selects the contiguous range from the last click.
@@ -1698,9 +1746,10 @@ function onBoardClick(e) {
   const bb = e.target.closest('[data-bb]');
   if (bb) {
     const set = bb.dataset.set;
-    if (bb.dataset.bb === 'selall') { for (const h of boardData[set]?.hubs || []) selected[set].add(h.icao); updateSelectionUI(set); }
+    if (bb.dataset.bb === 'selall') { for (const h of (boardData[set]?.hubs || []).filter(BOARD_FILTERS[boardFilter[set]] || BOARD_FILTERS.all)) selected[set].add(h.icao); updateSelectionUI(set); }
     else if (bb.dataset.bb === 'clear') { selected[set].clear(); updateSelectionUI(set); }
     else if (bb.dataset.bb === 'build') { buildBoardBrief(set, [...selected[set]]); }
+    else if (bb.dataset.bb === 'filter') { boardFilter[set] = bb.dataset.filter; renderHubBoard(boardData[set], SET_RES[set], set); }
     return;
   }
   const tile = e.target.closest('.hub-tile');
@@ -2062,6 +2111,11 @@ function init() {
   on('oceanic-pdf', 'click', () => buildBoardBrief('oceanic'));
   on('hubs-results', 'click', onBoardClick);
   on('oceanic-results', 'click', onBoardClick);
+  // Restore tab selected-count badges from persisted selection (before the board loads).
+  for (const set of ['amc', 'oceanic']) {
+    const b = document.querySelector(`#tabbar .tab[data-tab="${set === 'amc' ? 'hubs' : 'oceanic'}"] .tab-badge`);
+    if (b) b.textContent = selected[set].size ? String(selected[set].size) : '';
+  }
   on('g-route', 'keydown', (e) => { if (e.key === 'Enter') runGlobal(); });
   on('g-depart-hhmm', 'blur', () => normalizeHhmm($('g-depart-hhmm')));
   { // prefill the global depart date/time with "now" (Zulu)

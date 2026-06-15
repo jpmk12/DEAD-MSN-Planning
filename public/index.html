@@ -55,8 +55,8 @@
       <nav class="tabbar" id="tabbar" aria-label="Planning mode">
         <button type="button" class="tab active" data-tab="local">Local Training</button>
         <button type="button" class="tab" data-tab="global">Global</button>
-        <button type="button" class="tab" data-tab="hubs">AMC Hubs</button>
-        <button type="button" class="tab" data-tab="oceanic">Oceanic Divert</button>
+        <button type="button" class="tab" data-tab="hubs">AMC Hubs<span class="tab-badge"></span></button>
+        <button type="button" class="tab" data-tab="oceanic">Oceanic Divert<span class="tab-badge"></span></button>
       </nav>
 
       <div id="local-view">
@@ -226,6 +226,7 @@
             <button id="hubs-pdf" class="go" title="Compile one PDF of weather + NOTAMs for every hub">Build Brief (PDF)</button>
             <span id="hubs-status" class="sp-note"></span></div>
         </section>
+        <section id="hubs-map" class="map-section board-map" hidden></section>
         <div id="hubs-results"></div>
       </section>
 
@@ -236,6 +237,7 @@
             <button id="oceanic-pdf" class="go" title="Compile one PDF of weather + NOTAMs for every divert field">Build Brief (PDF)</button>
             <span id="oceanic-status" class="sp-note"></span></div>
         </section>
+        <section id="oceanic-map" class="map-section board-map" hidden></section>
         <div id="oceanic-results"></div>
       </section>
 
