@@ -43,3 +43,16 @@ test('fetchGairmets returns fixture data offline', async () => {
   assert.ok(gairmets.length >= 2);
   assert.ok(gairmets.every((g) => g.geometry && g.type === 'G-AIRMET'));
 });
+
+test('mapGairmet: real AWC shape — forecastHour + flight-level base/top + tag id', () => {
+  const g = mapGairmet({ tag: '4W', forecastHour: 3, hazard: 'TURB-HI', top: '390', base: '180',
+    validTime: '2026-06-17T18:00:00.000Z', issueTime: 1781713200,
+    coords: [{ lat: '49', lon: '-104' }, { lat: '47', lon: '-101' }, { lat: '46', lon: '-96' }] });
+  assert.equal(g.forecastHr, 3);   // forecastHour, not "forecast"
+  assert.equal(g.lowFt, 18000);    // FL180 -> 18000 ft (was read as 180)
+  assert.equal(g.hiFt, 39000);     // FL390
+  assert.equal(g.id, '4W');        // tag fallback
+  // SFC base -> 0; FZLVL uses fzlbase/fzltop.
+  const t = mapGairmet({ forecastHour: 6, hazard: 'TURB-LO', base: 'SFC', top: '180', coords: [{ lat: '42', lon: '-107' }, { lat: '41', lon: '-104' }] });
+  assert.equal(t.lowFt, 0); assert.equal(t.hiFt, 18000);
+});

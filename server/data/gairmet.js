@@ -22,15 +22,18 @@ const toIso = (v) => {
   if (typeof v === 'string' && !Number.isNaN(Date.parse(v))) return new Date(v).toISOString();
   return null;
 };
-// Altitude may arrive as a number (ft) or a string like "FL180" / "18000" / "SFC".
+// G-AIRMET base/top are FLIGHT LEVELS (hundreds of ft): "180"=FL180=18000 ft,
+// "SFC"=surface, "FL090"=9000 ft. (Confirmed from a live AWC capture.) A 4+ digit
+// value is treated as raw feet for safety.
 const toFt = (v) => {
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'number' && Number.isFinite(v)) return v < 1000 ? v * 100 : v;
   if (typeof v === 'string') {
-    if (/^\s*(SFC|SURFACE|0)\s*$/i.test(v)) return 0;
-    const fl = v.match(/FL\s*(\d{2,3})/i);
+    const s = v.trim();
+    if (/^(SFC|SURFACE|0)$/i.test(s)) return 0;
+    const fl = s.match(/^(?:FL)?\s*(\d{2,3})$/i);
     if (fl) return Number(fl[1]) * 100;
-    const n = Number(v.replace(/[^\d.-]/g, ''));
-    if (Number.isFinite(n) && v.trim() !== '') return n;
+    const n = Number(s.replace(/[^\d.-]/g, ''));
+    if (Number.isFinite(n) && s !== '') return n;
   }
   return null;
 };
@@ -63,14 +66,15 @@ export function mapGairmet(it) {
   const geometry = coordsToPolygon(it.coords ?? it.geom ?? it.geometry);
   if (!geometry) return null;
   const { hazard, label } = gairmetHazard(it.hazard ?? it.product);
+  const forecastHr = it.forecastHour ?? it.forecast ?? it.fcstHr ?? null;
   return {
-    id: String(it.gairmetId ?? it.id ?? `${hazard}-${it.forecast ?? ''}`),
+    id: String(it.gairmetId ?? it.id ?? it.tag ?? `${hazard}-${forecastHr ?? ''}`),
     type: 'G-AIRMET',
     hazard,
     label,
-    forecastHr: it.forecast ?? it.fcstHr ?? null,
-    lowFt: toFt(it.base ?? it.altitudeLow1 ?? it.lowAlt),
-    hiFt: toFt(it.top ?? it.altitudeHi1 ?? it.hiAlt),
+    forecastHr,
+    lowFt: toFt(it.base ?? it.fzlbase ?? it.altitudeLow1 ?? it.lowAlt),
+    hiFt: toFt(it.top ?? it.fzltop ?? it.altitudeHi1 ?? it.hiAlt),
     validFrom: toIso(it.issueTime ?? it.validTimeFrom),
     validTo: toIso(it.validTime ?? it.validTimeTo ?? it.expireTime),
     geometry,
