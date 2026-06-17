@@ -178,7 +178,13 @@ export function initMap(container, data) {
   // and zooms in on them rather than being dragged out by winds navaids/routes.
   const homePts = (data.home && data.home.length) ? data.home : focusPts;
   const radarEnabled = data.radar !== false; // board maps pass radar:false (status map, no radar churn)
-  const state = { ...fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 }), radar: radarEnabled, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65,
+  // Initial view: an explicit { lat, lon, zoom } (used to preserve pan/zoom across
+  // repaints, e.g. board selection changes) else fit to the focus points.
+  const v = data.view;
+  const fitted = (v && Number.isFinite(v.lat) && Number.isFinite(v.lon) && Number.isFinite(v.zoom))
+    ? { lat: v.lat, lon: v.lon, zoom: v.zoom }
+    : fitView(focusPts, w(), h(), { singleZoom: 9, maxZoom: 10 });
+  const state = { ...fitted, radar: radarEnabled, airspace: true, wx: true, pireps: true, conv: true, mtr: true, opacity: 0.65,
     radarFrames: [], radarHost: '', radarIdx: 0, radarNowIdx: 0, radarPlaying: false };
 
   function unproject(px, py, z) {

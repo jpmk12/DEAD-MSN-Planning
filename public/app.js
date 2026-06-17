@@ -1617,7 +1617,7 @@ async function onGlobalAreaClick(e) {
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   try {
     const d = await (await fetch(`/api/area-notams?lat=${lat}&lon=${lon}&radius=${radius}`)).json();
-    const src = d.live ? `live · DAIP` : esc(d.source || 'unavailable');
+    const src = d.live ? 'live · DAIP' : (d.source === 'no-dod-ca' ? 'DAIP unavailable (needs DoD CA)' : esc(d.source || 'unavailable'));
     const rows = (d.notams || []).map((n) =>
       `<div class="as-row"><span class="cat cat-LIGHTING">${esc(n.icao || '')}</span><div><div class="txt">${esc(n.text)}</div></div></div>`).join('')
       || `<div class="g-note">${d.source === 'no-dod-ca' ? 'DAIP needs the DoD CA bundle (unavailable here).' : 'No NOTAMs returned for this area.'}</div>`;
@@ -1762,8 +1762,11 @@ function paintBoardMap(set) {
     .map((h) => ({ icao: h.icao, lat: h.lat, lon: h.lon, status: h.status }));
   if (!fields.length) { el.hidden = true; boardMaps[set] = null; return; }
   el.hidden = false;
+  // Preserve the user's pan/zoom across repaints (selection changes re-init the map).
+  const prev = boardMaps[set]?.state;
+  const view = prev && Number.isFinite(prev.lat) ? { lat: prev.lat, lon: prev.lon, zoom: prev.zoom } : undefined;
   boardMaps[set] = initMap(el, {
-    airfields: fields, home: fields, focus: fields, radar: false, minimal: true,
+    airfields: fields, home: fields, focus: fields, radar: false, minimal: true, view,
     selectedIcaos: selected[set],
     onAirfieldClick: (icao) => onBoardMarkerTap(set, icao),
   });

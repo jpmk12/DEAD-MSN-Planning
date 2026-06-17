@@ -357,15 +357,14 @@ const server = createServer(async (req, res) => {
       try { hubList = JSON.parse(await readFile(fileURLToPath(new URL(`../data/${file}`, import.meta.url)), 'utf8')).hubs || []; } catch { hubList = []; }
       const meta = new Map(hubList.map((h) => [h.icao.toUpperCase(), h]));
       const icaos = hubList.map((h) => h.icao.toUpperCase());
+      // BIRDTAM (DoD bird hazard) — OCONUS complement to AHAS (US-only). Kicked off
+      // in PARALLEL with the brief (gated on the DoD CA; instant when absent), then
+      // matched to board fields by EXACT record ICAO — no substring/text match, so
+      // an incidental ICAO appearing in some other NOTAM's text never fabricates a flag.
+      const birdP = fetchBirdtam(offline).catch(() => ({ notams: [] }));
       const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url), undefined, null, null, { lite: true }) : { airfields: [], live: {} };
-      // BIRDTAM (DoD bird hazard) — OCONUS complement to AHAS (US-only). Match
-      // active BIRDTAMs to board fields by ICAO (record code or mentioned in text);
-      // no match -> no flag (never fabricated). One DAIP call, gated on the DoD CA.
-      let birdSet = new Set(); let birdText = '';
-      try {
-        const bt = await fetchBirdtam(offline);
-        for (const n of bt.notams) { if (n.icao) birdSet.add(n.icao.toUpperCase()); birdText += ' ' + (n.text || '').toUpperCase(); }
-      } catch { /* BIRDTAM optional */ }
+      const birdSet = new Set();
+      for (const n of (await birdP).notams) { if (n.icao) birdSet.add(n.icao.toUpperCase()); }
       const hubs = brief.airfields.map((a) => {
         const m = meta.get(a.icao.toUpperCase()) || {};
         const cc = a.currentConditions || {};
@@ -379,7 +378,7 @@ const server = createServer(async (req, res) => {
           // Fuel availability impact, from the field's own NOTAMs (no extra source):
           // a FUEL NOTAM that states an outage/unavailability.
           fuel: (a.notams || []).some((n) => /\bFUEL\b/i.test(n.text) && /\b(U\/S|UNSERV|UNAVBL|UNAVAIL|UNAVAILABLE|NOT\s+AVBL|NO\s+FUEL|DEFUEL|OTS|OUT OF (SVC|SERVICE))\b/i.test(n.text)),
-          birdtam: birdSet.has(a.icao.toUpperCase()) || (a.icao && birdText.includes(a.icao.toUpperCase())),
+          birdtam: birdSet.has(a.icao.toUpperCase()),
           topReason: (a.statusReasons || [])[0] || null, metar: a.metar || null,
         };
       });
@@ -492,8 +491,13 @@ const server = createServer(async (req, res) => {
       // Per-stop brief only for the AIRPORT waypoints (coordinate fixes have no
       // weather/NOTAMs), each at its scheduled ETA. Reuses the full brief engine.
       const airportIds = new Set(waypoints.filter((w) => w.kind === 'airport').map((w) => w.id));
-      const briefStops = sched.stops.filter((s) => airportIds.has(s.id)).map((s, i, arr) =>
-        ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === arr.length - 1 ? 'Destination' : `Stop ${i}`) }));
+      // Label by position in the FULL route (stops[0] = origin, last = destination),
+      // so an airport mid-route isn't mislabeled when the route starts/ends with a fix.
+      const lastStop = sched.stops.length - 1;
+      const briefStops = sched.stops
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => airportIds.has(s.id))
+        .map(({ s, i }) => ({ icao: s.id, when: s.etaIso, role: 'FIELD', label: i === 0 ? 'Origin' : (i === lastStop ? 'Destination' : `Stop ${i}`) }));
       const uniqueIds = [...airportIds];
       const brief = uniqueIds.length ? await buildBrief(uniqueIds, offline, parseLimits(url), undefined, null, briefStops, { nvg }) : { airfields: [], live: {} };
 
