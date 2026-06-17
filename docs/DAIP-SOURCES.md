@@ -28,14 +28,21 @@ Body filters seen: `acode` (ALL/DAFIF-FLIP/FDC/LASER/MOA/VIP TFR/RVSM/SPECIAL
 NOTICE/TFR/TOWER), `radius`, `sort:"Criticality"`. LOCATION accepts both
 `{locs:"KADW KCHS"}` and `{locations:[...]}`.
 
-## Probe-before-building (404'd in this capture — wrong path/params)
-- `ROUTE_OF_FLIGHT` — `{poa, pod, alternates, airportType, radius}` → NOTAMs along
-  a route + alternates. Maps perfectly to the Global tab; verify the correct
-  endpoint live.
-- `birdtam.do` (BIRDTAM) — DoD bird-hazard advisory; could complement AHAS (US-only)
-  for OCONUS. Verify params.
+## Confirmed live (2nd capture) + implemented
+- **`ROUTE_OF_FLIGHT`** — `POST /query {type:ROUTE_OF_FLIGHT, poa, pod, alternates,
+  airportType:"B", radius}` → one call, ~1.6k NOTAMs grouped **POD / POA / ALTN /
+  ENROUTE / ARTCC/FIR / FDC** (records tagged with `group`). Implemented:
+  `fetchRouteNotams` + `GET /api/route-notams` + a "Route NOTAMs (DAIP)" button on
+  the Global tab (grouped, collapsible, capped 80/group).
+- **`BIRDTAM`** — `POST /query {type:BIRDTAM}` (NOT `birdtam.do`, which 404s).
+  Standard envelope; empty outside bird season. Implemented: `fetchBirdtam`
+  (engine + test; UI surface TBD — good OCONUS complement to US-only AHAS).
+- **G-AIRMET shape confirmed** — real fields are `forecastHour` and FLIGHT-LEVEL
+  `base`/`top` ("180"=FL180); fixed the mapper (was off 100×) + real fixture.
+
+## Probe-before-building (still 404 / unconfirmed)
 - `nfir?type=FIR_ARTCC&locs=…&acode=…` — NOTAMs by FIR/ARTCC (ORBB, OSTT, UKBV,
-  UUWV, OIIX, ZNY, `*` wildcard). GETs 404'd here; useful for regional/FIR briefs.
+  UUWV, OIIX, ZNY, `*` wildcard). GETs 404'd; useful for regional/FIR briefs.
 
 ## Status
 - **Implemented this pass:** `GPS_WAAS` → folded into the RAIM outlook (each

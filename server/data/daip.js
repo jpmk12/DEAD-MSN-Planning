@@ -119,6 +119,7 @@ export function parseDaipNotams(body) {
   try { json = typeof body === 'string' ? JSON.parse(body) : body; } catch { return []; }
   const out = [];
   for (const g of json?.group ?? []) {
+    const group = String(g.name || ''); // ROUTE_OF_FLIGHT groups: POD/POA/ALTN/ENROUTE/ARTCC-FIR/FDC
     for (const n of g?.notams ?? []) {
       const icao = String(n.code || g.name || '').toUpperCase();
       for (const item of n?.list ?? []) {
@@ -126,6 +127,7 @@ export function parseDaipNotams(body) {
         if (!text) continue;
         out.push({
           icao,
+          group,
           id: String(item.idshow || item.id || ''),
           text,
           rawText: String(item.rawtext || ''),
@@ -171,6 +173,17 @@ export const fetchGpsWaasNotams = (offline = false) =>
  *  degree/minute coordinate fields; fetchDaipByType re-asserts the type. */
 export const fetchAreaNotams = (lat, lon, radiusNm = 50, offline = false) =>
   fetchDaipByType('AREA_BRIEFING', areaPayload(lat, lon, radiusNm), { offline, fixture: 'daip-area-sample.json' });
+
+/** All NOTAMs for a point-of-arrival → point-of-departure route + alternates, in
+ *  ONE call. Returns records tagged with `group` (POD/POA/ALTN/ENROUTE/ARTCC-FIR/
+ *  FDC). Confirmed live: POST /query type=ROUTE_OF_FLIGHT. */
+export const fetchRouteNotams = ({ poa, pod, alternates = '', airportType = 'B', radiusNm = 10 }, offline = false) =>
+  fetchDaipByType('ROUTE_OF_FLIGHT', { poa, pod, alternates, airportType, radius: String(radiusNm) }, { offline, fixture: 'daip-route-sample.json' });
+
+/** BIRDTAMs (DoD bird-hazard advisories) — complements AHAS, which is US-only.
+ *  Confirmed live: POST /query type=BIRDTAM (often empty outside bird season). */
+export const fetchBirdtam = (offline = false) =>
+  fetchDaipByType('BIRDTAM', {}, { offline, fixture: 'daip-birdtam-sample.json' });
 
 /**
  * Fetch NOTAMs for the given ICAOs from DAIP (per-field, in parallel). Throws if

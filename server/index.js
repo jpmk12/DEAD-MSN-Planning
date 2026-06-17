@@ -32,7 +32,7 @@ import { lastWeatherError } from './data/weather.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
-import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams, fetchAreaNotams } from './data/daip.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams, fetchAreaNotams, fetchRouteNotams } from './data/daip.js';
 import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './data/ahasapi.js';
 import { nvgIllum } from './core/astro.js';
 import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
@@ -311,6 +311,26 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(502, { 'Content-Type': 'text/plain' }).end(`reference unavailable: ${String(e).slice(0, 200)}`);
       }
+      return;
+    }
+
+    if (url.pathname === '/api/route-notams') {
+      // All NOTAMs for a route (poa->pod + alternates) in one DAIP call, grouped
+      // POD/POA/ALTN/ENROUTE/ARTCC-FIR/FDC. DoD-CA gated; capped per group.
+      const poa = (url.searchParams.get('poa') || '').trim().toUpperCase();
+      const pod = (url.searchParams.get('pod') || '').trim().toUpperCase();
+      if (!poa || !pod) { sendJson(res, 400, { error: 'provide ?poa=&pod=' }); return; }
+      const alternates = (url.searchParams.get('alternates') || '').trim().toUpperCase();
+      const radiusNm = Math.max(5, Math.min(50, Number(url.searchParams.get('radius')) || 10));
+      const offline = url.searchParams.get('offline') === '1';
+      const r = await fetchRouteNotams({ poa, pod, alternates, radiusNm }, offline);
+      const ORDER = ['POD', 'POA', 'ALTN', 'ENROUTE', 'ARTCC/FIR', 'FDC'];
+      const byGroup = new Map();
+      for (const n of r.notams) { const k = n.group || 'OTHER'; (byGroup.get(k) || byGroup.set(k, []).get(k)).push({ icao: n.icao, id: n.id, text: n.text, effectiveEnd: n.effectiveEnd }); }
+      const groups = [...byGroup.entries()]
+        .sort((a, b) => ((ORDER.indexOf(a[0]) + 1 || 99) - (ORDER.indexOf(b[0]) + 1 || 99)))
+        .map(([name, items]) => ({ name, count: items.length, notams: items.slice(0, 80) })); // cap per group
+      sendJson(res, 200, { poa, pod, alternates, total: r.notams.length, live: r.live, source: r.source, groups });
       return;
     }
 

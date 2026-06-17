@@ -1563,8 +1563,11 @@ function renderGlobal(data) {
     ? `<div class="missing-card">Skipped (couldn't resolve): ${r.missing.map(esc).join(', ')} — unknown fix/ICAO. Lat/lon and known fixes resolve; the route still draws through everything that did.</div>` : '';
   const t = data.totals || {};
   const flLabel = r.altFt ? `FL${Math.round(r.altFt / 100)}` : '';
+  const apts = (r.waypoints || []).filter((w) => w.kind === 'airport').map((w) => w.id);
+  const routeBtn = apts.length >= 2
+    ? `<button class="area-btn area-mini" data-poa="${esc(apts[0])}" data-pod="${esc(apts[apts.length - 1])}" data-alt="${esc(apts.slice(1, -1).join(' '))}" title="All NOTAMs for this route + alternates, in one DAIP call (POD/POA/ALTN/ENROUTE/FIR/FDC)">⊕ Route NOTAMs (DAIP)</button>` : '';
   const head = `<div class="g-summary"><b>${esc((r.ids || []).join(' → '))}</b>
-    <span>${(t.distanceNm || 0).toLocaleString()} NM · ${fmtHm(t.timeMin)} · TAS ${esc(r.tasKt)} kt @ ${esc(flLabel)}</span></div>`;
+    <span>${(t.distanceNm || 0).toLocaleString()} NM · ${fmtHm(t.timeMin)} · TAS ${esc(r.tasKt)} kt @ ${esc(flLabel)}</span>${routeBtn}</div>`;
   const legRows = (data.legs || []).map((l) => {
     let w = '—';
     if (l.wind) {
@@ -1604,6 +1607,7 @@ async function onGlobalAreaClick(e) {
   if (e.target.closest('.area-close')) { $('global-area').innerHTML = ''; return; }
   const btn = e.target.closest('.area-btn');
   if (!btn) return;
+  if (btn.dataset.poa) { loadRouteNotams(btn); return; } // route NOTAMs (poa/pod), not a point
   const lat = Number(btn.dataset.lat), lon = Number(btn.dataset.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
   const radius = Number(btn.dataset.radius) || 100;
@@ -1620,6 +1624,29 @@ async function onGlobalAreaClick(e) {
     panel.innerHTML = `<div class="area-panel"><div class="area-head">Area NOTAMs near <b>${esc(label)}</b> · ${esc(d.radius)} NM · ${src}<button class="area-close" title="Close">×</button></div><div class="notams">${rows}</div></div>`;
   } catch (err) {
     panel.innerHTML = `<div class="errbox">Failed to load area NOTAMs: ${esc(err.message)}</div>`;
+  }
+}
+
+// ROUTE_OF_FLIGHT: all NOTAMs for poa->pod + alternates in one DAIP call, grouped.
+async function loadRouteNotams(btn) {
+  const poa = btn.dataset.poa, pod = btn.dataset.pod, alt = btn.dataset.alt || '';
+  const panel = $('global-area');
+  panel.innerHTML = `<div class="area-panel"><div class="loading"><div class="spinner"></div>Loading route NOTAMs ${esc(poa)}→${esc(pod)} (DAIP)…</div></div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    const qs = new URLSearchParams({ poa, pod }); if (alt) qs.set('alternates', alt);
+    const d = await (await fetch(`/api/route-notams?${qs}`)).json();
+    if (d.error) { panel.innerHTML = `<div class="errbox">${esc(d.error)}</div>`; return; }
+    const openByDefault = new Set(['POD', 'POA', 'ALTN', 'FDC']);
+    const groups = (d.groups || []).map((g) => {
+      const rows = g.notams.map((n) => `<div class="as-row"><span class="cat cat-LIGHTING">${esc(n.icao)}</span><div><div class="txt">${esc(n.text)}</div></div></div>`).join('');
+      const more = g.count > g.notams.length ? ` <span class="rn-more">(showing ${g.notams.length} of ${g.count})</span>` : '';
+      return `<details class="rn-group"${openByDefault.has(g.name) ? ' open' : ''}><summary><b>${esc(g.name)}</b> <span class="count">${g.count}</span>${more}</summary><div class="notams">${rows}</div></details>`;
+    }).join('');
+    const src = d.live ? 'live · DAIP' : (d.source === 'no-dod-ca' ? 'DAIP needs the DoD CA bundle (unavailable here)' : esc(d.source || 'unavailable'));
+    panel.innerHTML = `<div class="area-panel"><div class="area-head">Route NOTAMs <b>${esc(d.poa)}→${esc(d.pod)}</b>${d.alternates ? ` · ALTN ${esc(d.alternates)}` : ''} · ${esc(d.total)} total · ${src}<button class="area-close" title="Close">×</button></div>${groups || '<div class="g-note">No NOTAMs returned.</div>'}</div>`;
+  } catch (err) {
+    panel.innerHTML = `<div class="errbox">Failed to load route NOTAMs: ${esc(err.message)}</div>`;
   }
 }
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { daipTypePayload, areaPayload, parseDaipNotams, fetchGpsWaasNotams, fetchAreaNotams } from './daip.js';
+import { daipTypePayload, areaPayload, parseDaipNotams, fetchGpsWaasNotams, fetchAreaNotams, fetchRouteNotams, fetchBirdtam } from './daip.js';
 
 test('daipTypePayload: sets type and overrides base fields', () => {
   const p = daipTypePayload('GPS_WAAS');
@@ -39,4 +39,20 @@ test('fetchAreaNotams: parses the real AREA_BRIEFING capture (offline fixture)',
 test('parseDaipNotams tolerates an empty/odd body', () => {
   assert.deepEqual(parseDaipNotams({}), []);
   assert.deepEqual(parseDaipNotams('not json'), []);
+});
+
+test('fetchRouteNotams: parses the real ROUTE_OF_FLIGHT capture, tagged by group', async () => {
+  const { notams, live } = await fetchRouteNotams({ poa: 'KADW', pod: 'ETAR' }, true);
+  assert.equal(live, false);
+  assert.ok(notams.length > 0);
+  const groups = new Set(notams.map((n) => n.group));
+  // The route groups (POD/POA/ALTN/ENROUTE/ARTCC-FIR/FDC) are preserved on records.
+  assert.ok(groups.has('POA') || groups.has('POD'));
+  assert.ok(notams.every((n) => n.icao && n.text));
+});
+
+test('fetchBirdtam: offline fixture (empty when no active BIRDTAMs)', async () => {
+  const { notams, live } = await fetchBirdtam(true);
+  assert.equal(live, false);
+  assert.ok(Array.isArray(notams));
 });

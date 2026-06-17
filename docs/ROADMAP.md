@@ -19,17 +19,14 @@ Living plan for what's next. Grouped by horizon and tagged with **value**,
   hot upstreams; honest "UNAVAILABLE" everywhere; bundled fixtures for offline.
 - **Docs** — `WEATHER-MAP-SPEC.md`, `AVIATION-DATA-NOTES.md`, `DAIP-SOURCES.md`.
 
-## Near-term — probe-live, then build (blocker: a network-open run)
-These returned 404/empty from the sandbox; the request shapes are known but the
-endpoints/params need confirming on a host that can reach the sources.
-1. **DAIP `ROUTE_OF_FLIGHT`** — `{poa,pod,alternates,airportType,radius}` → all
-   NOTAMs along a route in one call. Could replace the per-stop NOTAM fan-out on
-   the Global tab. *value: high · effort: low once shape confirmed.*
-2. **DAIP `BIRDTAM`** (`birdtam.do`) — DoD bird hazard for **OCONUS**, where AHAS
-   (US-only) is blank today. *value: med-high · effort: low-med.*
-3. **Deploy verification** — confirm NAT (`nms.aim.faa.gov`), PACOTS/DAIP (DoD CA
-   loaded), and G-AIRMET live response shapes on the real host. *value: high
-   (silent under-delivery risk) · effort: low · blocker: deploy access.*
+## Near-term — confirmed via 2nd capture, mostly built
+1. **DAIP `ROUTE_OF_FLIGHT`** — DONE. `POST /query {type:ROUTE_OF_FLIGHT,...}` →
+   grouped route NOTAMs; wired as the Global-tab "Route NOTAMs (DAIP)" button.
+2. **DAIP `BIRDTAM`** — endpoint confirmed (`type:BIRDTAM`); `fetchBirdtam` built.
+   *Remaining: UI surface (boards/Global) — OCONUS bird complement to AHAS.*
+3. **G-AIRMET shape** — confirmed + mapper fixed (forecastHour, FL altitudes).
+   *Remaining deploy check:* NAT (`nms.aim.faa.gov` — confirmed 200) and PACOTS
+   (DoD CA on the host) still want a production smoke test.
 
 ## Near-term — buildable now
 4. **Global route brief PDF** — a "Build route brief" mirroring the boards' PDF:
