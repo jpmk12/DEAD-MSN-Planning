@@ -22,8 +22,8 @@ Living plan for what's next. Grouped by horizon and tagged with **value**,
 ## Near-term — confirmed via 2nd capture, mostly built
 1. **DAIP `ROUTE_OF_FLIGHT`** — DONE. `POST /query {type:ROUTE_OF_FLIGHT,...}` →
    grouped route NOTAMs; wired as the Global-tab "Route NOTAMs (DAIP)" button.
-2. **DAIP `BIRDTAM`** — endpoint confirmed (`type:BIRDTAM`); `fetchBirdtam` built.
-   *Remaining: UI surface (boards/Global) — OCONUS bird complement to AHAS.*
+2. **DAIP `BIRDTAM`** — DONE. `fetchBirdtam` + a "🦅 BIRD" flag on the hub/divert
+   tiles (matched to field ICAO; OCONUS complement to US-only AHAS).
 3. **G-AIRMET shape** — confirmed + mapper fixed (forecastHour, FL altitudes).
    *Remaining deploy check:* NAT (`nms.aim.faa.gov` — confirmed 200) and PACOTS
    (DoD CA on the host) still want a production smoke test.

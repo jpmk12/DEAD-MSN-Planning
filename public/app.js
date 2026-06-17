@@ -1708,6 +1708,7 @@ function hubTile(h, set) {
   const closed = (h.closedRunways || []).length ? `<span class="hub-flag">🚫 RWY ${h.closedRunways.map(esc).join('/')}</span>` : '';
   const fc = (h.runwayConditions || 0) > 0 ? '<span class="hub-flag">🧊 FICON</span>' : '';
   const fuel = h.fuel ? '<span class="hub-flag" title="A NOTAM reports fuel unavailable/unserviceable at this field">⛽ FUEL</span>' : '';
+  const bird = h.birdtam ? '<span class="hub-flag" title="Active DoD BIRDTAM (bird hazard) for this field">🦅 BIRD</span>' : '';
   const rc = { 'PREDICTED OUTAGE': 'raim-out', 'NO PREDICTED OUTAGE': 'raim-ok', UNKNOWN: 'raim-unk' }[h.raim];
   const rt = { 'PREDICTED OUTAGE': 'RAIM ✗', 'NO PREDICTED OUTAGE': 'RAIM ✓', UNKNOWN: 'RAIM ?' }[h.raim];
   const raim = rc ? `<span class="raim-chip ${rc}" title="GPS/RAIM: ${esc(h.raim)}">${rt}</span>` : '';
@@ -1718,7 +1719,7 @@ function hubTile(h, set) {
     <div class="hub-top"><span class="hub-icao">${esc(h.icao)}</span>${cat}</div>
     <div class="hub-name">${esc(h.name)}</div>
     <div class="hub-meta">${cv.join(' · ') || (h.found ? 'no METAR' : 'not found')}</div>
-    <div class="hub-flags">${raim}${closed}${fc}${fuel}</div></div>`;
+    <div class="hub-flags">${raim}${closed}${fc}${fuel}${bird}</div></div>`;
 }
 
 function boardBar(set) {

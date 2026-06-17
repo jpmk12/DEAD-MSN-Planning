@@ -32,7 +32,7 @@ import { lastWeatherError } from './data/weather.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
-import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams, fetchAreaNotams, fetchRouteNotams } from './data/daip.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams, fetchAreaNotams, fetchRouteNotams, fetchBirdtam } from './data/daip.js';
 import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './data/ahasapi.js';
 import { nvgIllum } from './core/astro.js';
 import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
@@ -358,6 +358,14 @@ const server = createServer(async (req, res) => {
       const meta = new Map(hubList.map((h) => [h.icao.toUpperCase(), h]));
       const icaos = hubList.map((h) => h.icao.toUpperCase());
       const brief = icaos.length ? await buildBrief(icaos, offline, parseLimits(url), undefined, null, null, { lite: true }) : { airfields: [], live: {} };
+      // BIRDTAM (DoD bird hazard) — OCONUS complement to AHAS (US-only). Match
+      // active BIRDTAMs to board fields by ICAO (record code or mentioned in text);
+      // no match -> no flag (never fabricated). One DAIP call, gated on the DoD CA.
+      let birdSet = new Set(); let birdText = '';
+      try {
+        const bt = await fetchBirdtam(offline);
+        for (const n of bt.notams) { if (n.icao) birdSet.add(n.icao.toUpperCase()); birdText += ' ' + (n.text || '').toUpperCase(); }
+      } catch { /* BIRDTAM optional */ }
       const hubs = brief.airfields.map((a) => {
         const m = meta.get(a.icao.toUpperCase()) || {};
         const cc = a.currentConditions || {};
@@ -371,6 +379,7 @@ const server = createServer(async (req, res) => {
           // Fuel availability impact, from the field's own NOTAMs (no extra source):
           // a FUEL NOTAM that states an outage/unavailability.
           fuel: (a.notams || []).some((n) => /\bFUEL\b/i.test(n.text) && /\b(U\/S|UNSERV|UNAVBL|UNAVAIL|UNAVAILABLE|NOT\s+AVBL|NO\s+FUEL|DEFUEL|OTS|OUT OF (SVC|SERVICE))\b/i.test(n.text)),
+          birdtam: birdSet.has(a.icao.toUpperCase()) || (a.icao && birdText.includes(a.icao.toUpperCase())),
           topReason: (a.statusReasons || [])[0] || null, metar: a.metar || null,
         };
       });
