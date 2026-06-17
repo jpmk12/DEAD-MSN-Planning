@@ -1552,6 +1552,10 @@ function renderGlobal(data) {
   // Parsed-route chip line: airports, lat/lon-or-fix waypoints, and (struck-through) unresolved tokens.
   const wpChips = (r.waypoints || []).map((w) => {
     const cls = w.kind === 'airport' ? 'wp-apt' : w.kind === 'missing' ? 'wp-miss' : 'wp-fix';
+    // Coordinate fixes are tappable -> NOTAMs around that point (AREA_BRIEFING).
+    if (w.kind === 'fix' && Number.isFinite(w.lat) && Number.isFinite(w.lon)) {
+      return `<button class="wp ${cls} area-btn" data-lat="${w.lat}" data-lon="${w.lon}" data-label="${esc(w.id)}" data-radius="100" title="NOTAMs near ${esc(w.id)}">${esc(w.id)}</button>`;
+    }
     return `<span class="wp ${cls}">${esc(w.id)}</span>`;
   }).join('<span class="wp-arrow">→</span>');
   const parsed = wpChips ? `<div class="g-route-chips">${wpChips}</div>` : '';
@@ -1576,7 +1580,9 @@ function renderGlobal(data) {
       const divHtml = l.diversionGap
         ? '<span class="g-gap">⚠ no diversion in range</span>'
         : `<span class="g-div" title="Nearest suitable (≥${data.route?.minRwy || 7000} ft) airfields to the ETP, with NM">${esc(divs)}</span>`;
-      etpCell = `<div title="Equal-time point: ${e.fromNm} NM from ${esc(l.fromId)} / ${e.toNm} NM from ${esc(l.toId)}; continue ${e.gsContinueKt} kt vs return ${e.gsReturnKt} kt">ETP ${e.fromNm}/${e.toNm} NM${e.etpIso ? ` @ ${esc(zuluLocal(e.etpIso))}` : ''}</div><div class="g-divrow">${divHtml}</div>`;
+      const etpArea = Number.isFinite(e.lat) && Number.isFinite(e.lon)
+        ? ` <button class="area-btn area-mini" data-lat="${e.lat}" data-lon="${e.lon}" data-label="ETP ${esc(l.fromId)}→${esc(l.toId)}" data-radius="${data.route?.divRangeNm || 100}" title="NOTAMs near the ETP">⊕ NOTAMs</button>` : '';
+      etpCell = `<div title="Equal-time point: ${e.fromNm} NM from ${esc(l.fromId)} / ${e.toNm} NM from ${esc(l.toId)}; continue ${e.gsContinueKt} kt vs return ${e.gsReturnKt} kt">ETP ${e.fromNm}/${e.toNm} NM${e.etpIso ? ` @ ${esc(zuluLocal(e.etpIso))}` : ''}${etpArea}</div><div class="g-divrow">${divHtml}</div>`;
     }
     return `<tr><td>${esc(l.fromId)}→${esc(l.toId)}</td><td>${l.distanceNm.toLocaleString()} NM</td><td>${String(l.bearingTrue).padStart(3, '0')}°T</td><td>${l.gsKt} kt</td><td>${fmtHm(l.eteMin)}</td><td>${esc(zuluLocal(l.etaIso))}</td><td>${esc(w)}</td><td>${etpCell}</td></tr>`;
   }).join('');
@@ -1588,8 +1594,33 @@ function renderGlobal(data) {
   // runway compare, TAF toggle) work on the Global tab too.
   (data.airfields || []).forEach((b) => { cardData[(b.uid || b.icao).toUpperCase()] = { brief: b, limits }; });
   $('global-results').innerHTML = `${miss}${parsed}${head}${legTable}<div class="grid">${cards}</div>`;
+  if ($('global-area')) $('global-area').innerHTML = ''; // clear any prior area-NOTAM panel
   lastGlobalData = data;
   paintGlobalMap();
+}
+
+// AREA_BRIEFING: NOTAMs around an ETP / coordinate waypoint (no ICAO to brief).
+async function onGlobalAreaClick(e) {
+  if (e.target.closest('.area-close')) { $('global-area').innerHTML = ''; return; }
+  const btn = e.target.closest('.area-btn');
+  if (!btn) return;
+  const lat = Number(btn.dataset.lat), lon = Number(btn.dataset.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  const radius = Number(btn.dataset.radius) || 100;
+  const label = btn.dataset.label || `${lat.toFixed(1)}, ${lon.toFixed(1)}`;
+  const panel = $('global-area');
+  panel.innerHTML = `<div class="area-panel"><div class="loading"><div class="spinner"></div>Loading NOTAMs near ${esc(label)}…</div></div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    const d = await (await fetch(`/api/area-notams?lat=${lat}&lon=${lon}&radius=${radius}`)).json();
+    const src = d.live ? `live · DAIP` : esc(d.source || 'unavailable');
+    const rows = (d.notams || []).map((n) =>
+      `<div class="as-row"><span class="cat cat-LIGHTING">${esc(n.icao || '')}</span><div><div class="txt">${esc(n.text)}</div></div></div>`).join('')
+      || `<div class="g-note">${d.source === 'no-dod-ca' ? 'DAIP needs the DoD CA bundle (unavailable here).' : 'No NOTAMs returned for this area.'}</div>`;
+    panel.innerHTML = `<div class="area-panel"><div class="area-head">Area NOTAMs near <b>${esc(label)}</b> · ${esc(d.radius)} NM · ${src}<button class="area-close" title="Close">×</button></div><div class="notams">${rows}</div></div>`;
+  } catch (err) {
+    panel.innerHTML = `<div class="errbox">Failed to load area NOTAMs: ${esc(err.message)}</div>`;
+  }
 }
 
 // ---- Status boards (AMC hubs, Oceanic divert) ------------------------------
@@ -1649,6 +1680,7 @@ function hubTile(h, set) {
   if (h.visibilitySm != null) cv.push(`${h.visibilitySm} SM`);
   const closed = (h.closedRunways || []).length ? `<span class="hub-flag">🚫 RWY ${h.closedRunways.map(esc).join('/')}</span>` : '';
   const fc = (h.runwayConditions || 0) > 0 ? '<span class="hub-flag">🧊 FICON</span>' : '';
+  const fuel = h.fuel ? '<span class="hub-flag" title="A NOTAM reports fuel unavailable/unserviceable at this field">⛽ FUEL</span>' : '';
   const rc = { 'PREDICTED OUTAGE': 'raim-out', 'NO PREDICTED OUTAGE': 'raim-ok', UNKNOWN: 'raim-unk' }[h.raim];
   const rt = { 'PREDICTED OUTAGE': 'RAIM ✗', 'NO PREDICTED OUTAGE': 'RAIM ✓', UNKNOWN: 'RAIM ?' }[h.raim];
   const raim = rc ? `<span class="raim-chip ${rc}" title="GPS/RAIM: ${esc(h.raim)}">${rt}</span>` : '';
@@ -1659,7 +1691,7 @@ function hubTile(h, set) {
     <div class="hub-top"><span class="hub-icao">${esc(h.icao)}</span>${cat}</div>
     <div class="hub-name">${esc(h.name)}</div>
     <div class="hub-meta">${cv.join(' · ') || (h.found ? 'no METAR' : 'not found')}</div>
-    <div class="hub-flags">${raim}${closed}${fc}</div></div>`;
+    <div class="hub-flags">${raim}${closed}${fc}${fuel}</div></div>`;
 }
 
 function boardBar(set) {
@@ -2240,6 +2272,7 @@ function onResultsClick(e) {
 $('results')?.addEventListener('click', onResultsClick);
 $('results-rest')?.addEventListener('click', onResultsClick);
 $('global-results')?.addEventListener('click', onResultsClick); // Global stop cards use the same card() markup
+$('global-view')?.addEventListener('click', onGlobalAreaClick); // area-NOTAM buttons (ETP / fix chips) + close
 
 // Expand all collapsible sections (incl. NOTAM category groups) for printing,
 // and un-hide any groups a category filter is currently hiding so the printed

@@ -32,7 +32,7 @@ import { lastWeatherError } from './data/weather.js';
 import { nmsConfigured, nmsProbe } from './data/nms.js';
 import { fetchNotams } from './data/notams.js';
 import { tfrListItems, tfrIdOf, tfrRecordsFromXml, fetchLiveTfrs } from './data/tfr.js';
-import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams } from './data/daip.js';
+import { daipQueryRaw, daipPayload, dodCaLoaded, dodCaInfo, parseDaipNotams, fetchAreaNotams } from './data/daip.js';
 import { ahasRaw, parseAhasLevel, ahasAreaForIcao } from './data/ahasapi.js';
 import { nvgIllum } from './core/astro.js';
 import { usnoOneDay, usnoDate, mergeUsno } from './core/usno.js';
@@ -314,6 +314,19 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === '/api/area-notams') {
+      // NOTAMs within a radius of a lat/lon (DAIP AREA_BRIEFING) — for ETP points
+      // and coordinate waypoints on the Global tab that have no ICAO to brief.
+      const lat = Number(url.searchParams.get('lat'));
+      const lon = Number(url.searchParams.get('lon'));
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) { sendJson(res, 400, { error: 'provide ?lat=&lon=' }); return; }
+      const radius = Math.max(10, Math.min(500, Number(url.searchParams.get('radius')) || 100));
+      const offline = url.searchParams.get('offline') === '1';
+      const r = await fetchAreaNotams(lat, lon, radius, offline);
+      sendJson(res, 200, { lat, lon, radius, live: r.live, source: r.source, notams: r.notams });
+      return;
+    }
+
     if (url.pathname === '/api/hubs') {
       // Status board: one brief over a curated field list, condensed to a per-field
       // status line. ?set=amc (mobility hubs) | oceanic (N. Atlantic divert bases).
@@ -335,6 +348,9 @@ const server = createServer(async (req, res) => {
           flightCategory: cc.flightCategory ?? null, ceilingFt: cc.ceilingFt ?? null, visibilitySm: cc.visibilitySm ?? null,
           closedRunways: a.closedRunways || [], runwayConditions: (a.runwayConditions || []).length,
           raim: a.airspace?.raim?.status ?? null,
+          // Fuel availability impact, from the field's own NOTAMs (no extra source):
+          // a FUEL NOTAM that states an outage/unavailability.
+          fuel: (a.notams || []).some((n) => /\bFUEL\b/i.test(n.text) && /\b(U\/S|UNSERV|UNAVBL|UNAVAIL|UNAVAILABLE|NOT\s+AVBL|NO\s+FUEL|DEFUEL|OTS|OUT OF (SVC|SERVICE))\b/i.test(n.text)),
           topReason: (a.statusReasons || [])[0] || null, metar: a.metar || null,
         };
       });
@@ -454,7 +470,7 @@ const server = createServer(async (req, res) => {
 
       sendJson(res, 200, {
         generatedAt: new Date().toISOString(),
-        route: { ids, departIso, tasKt, altFt, missing, minRwy, divRangeNm, waypoints: resolved.map((w) => ({ id: w.id, kind: w.missing ? 'missing' : w.kind })) },
+        route: { ids, departIso, tasKt, altFt, missing, minRwy, divRangeNm, waypoints: resolved.map((w) => ({ id: w.id, kind: w.missing ? 'missing' : w.kind, lat: w.lat ?? null, lon: w.lon ?? null })) },
         legs: sched.legs,
         totals: { distanceNm: sched.totalNm, timeMin: sched.totalMin },
         stops: sched.stops,

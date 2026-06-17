@@ -286,6 +286,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .g-route-chips .wp-fix { color: var(--text-dim); }
 .g-route-chips .wp-miss { color: var(--text-faint); text-decoration: line-through; opacity: 0.7; }
 .g-route-chips .wp-arrow { color: var(--text-faint); font-size: 10px; }
+.g-route-chips button.wp { cursor: pointer; }
+.g-route-chips button.wp.area-btn:hover { border-color: var(--accent, #4aa3df); color: var(--text); }
+/* Area-NOTAM affordance + panel (Global tab) */
+.area-btn.area-mini { font: 10px var(--mono); color: var(--accent, #4aa3df); background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 6px; cursor: pointer; }
+.area-btn.area-mini:hover { border-color: var(--accent, #4aa3df); }
+.area-panel { margin: 10px 0 16px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); padding: 10px 12px; }
+.area-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 6px; }
+.area-close { margin-left: auto; background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; width: 22px; height: 22px; cursor: pointer; }
+.area-close:hover { color: var(--text); border-color: var(--border-bright, #3a4757); }
 .g-summary { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin: 4px 0 10px; font-size: 14px; color: var(--text); }
 .g-summary span { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 .g-legs { overflow-x: auto; margin-bottom: 14px; }
