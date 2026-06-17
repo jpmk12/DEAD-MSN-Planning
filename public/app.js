@@ -430,10 +430,14 @@ function airspaceSection(brief) {
     return `<div class="when" style="margin-left:2px">• ${esc(inl || abs || w.raw)}</div>`;
   }).join('');
 
+  const gpsRow = as.raim.gpsActive > 0
+    ? `<div class="as-row"><span class="cat cat-APPROACH">GPS</span><div><div class="txt">${esc(as.raim.gpsActive)} active GPS/WAAS NOTAM(s) system-wide</div><div class="when">PRN/WAAS outages affect RAIM availability — verify with FAA SAPT (sapt.faa.gov)</div></div></div>`
+    : '';
   const inner = `<div class="notams">
       ${tfrRows || ''}${suaRows || ''}
       ${raimWin ? `<div class="as-row"><span class="cat ${raimClass}">GPS</span><div><div class="txt">Predicted RAIM outage</div>${raimWin}</div></div>` : ''}
-      ${!as.tfrs.length && !as.sua.length && as.raim.status !== 'PREDICTED OUTAGE'
+      ${gpsRow}
+      ${!as.tfrs.length && !as.sua.length && as.raim.status !== 'PREDICTED OUTAGE' && !(as.raim.gpsActive > 0)
         ? '<div class="readout" style="font-size:12px">No TFRs or SUA within 100 NM · RAIM nominal.</div>' : ''}
     </div>`;
   return `<div class="sub-hd">RAIM: <span class="cat ${raimClass}">${esc(as.raim.status)}</span></div>${inner}`;

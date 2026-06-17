@@ -16,6 +16,7 @@ import { fetchRouteRisk } from './data/ahas.js';
 import { fetchPireps } from './data/pireps.js';
 import { decodeTaf, tafAt, flightCategory, parseVisSm, parseCeilingFt } from './data/taf.js';
 import { raimOutlook } from './data/raim.js';
+import { fetchGpsWaasNotams } from './data/daip.js';
 import { fetchWindsAloft, interpolateWind, thermalSummary } from './data/windsaloft.js';
 import { fetchBirdRisk } from './data/birds.js';
 import { watchTaf } from './data/tafwatch.js';
@@ -285,6 +286,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
   // so total time is the slowest single source, not their sum.
   const weatherP = timed('weather', loadWeather(fields, offline));
   const notamsP = timed('notams', fetchNotams(fields, offline));
+  // System-wide GPS/WAAS NOTAMs (DAIP) — informs RAIM beyond per-field NOTAMs.
+  // Gated on the DoD CA inside the fetcher; skipped in lite mode.
+  const gpsP = lite ? Promise.resolve({ notams: [], live: false }) : timed('gps', fetchGpsWaasNotams(offline));
   const tfrP = timed('tfr', fetchTfrs(offline));
   const suaP = timed('sua', fetchSua(offline, undefined, airspaceBbox));
   const sigmetP = timed('sigmet', fetchAirSigmets(offline));
@@ -367,8 +371,9 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     return map;
   })());
 
-  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey, usnoByKey, gairmetResult] =
-    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP, usnoP, gairmetP]);
+  const [wxRes, notamResult, tfrResult, suaResult, sigmetResult, pirepResult, convResult, mtrResult, birdByKey, ahasRes, windsByKey, usnoByKey, gairmetResult, gpsResult] =
+    await Promise.all([weatherP, notamsP, tfrP, suaP, sigmetP, pirepP, convP, mtrP, birdsP, routeAhasP, windsP, usnoP, gairmetP, gpsP]);
+  const gpsActive = (gpsResult.notams || []).length; // system-wide GPS/WAAS NOTAM count
   timings.total = Math.round(performance.now() - startPerf);
   // Name the slow live feed in the host log (skip offline/test runs to avoid noise).
   if (!offline) {
@@ -416,6 +421,7 @@ export async function buildBrief(icaos, offline, limits = DEFAULT_LIMITS, patter
     const convective = nearby(lat, lon, convResult.convective, WX_THRESHOLD_NM);
     const mtrs = nearby(lat, lon, mtrResult.mtrs, MTR_THRESHOLD_NM).map((m) => ({ id: m.id, type: m.type, name: m.name, distanceNm: m.distanceNm, birdRisk: mtrLevel(m.id) }));
     const raim = raimOutlook(notams, notamResult.live);
+    raim.gpsActive = gpsActive; raim.gpsLive = gpsResult.live; // system-wide GPS NOTAMs (informational)
 
     // Winds aloft: profile + pattern winds at 1500 & 2500 AGL (with MSL),
     // interpolated to those altitudes. Head/cross is recomputed client-side for

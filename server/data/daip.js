@@ -11,6 +11,7 @@
 import { request as httpsRequest } from 'node:https';
 import { rootCertificates } from 'node:tls';
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { DOD_CA_PEM } from './dodca.js';
 
@@ -36,27 +37,41 @@ export function dodCaLoaded() { return !!dodCa(); }
 /** Diagnostics: where the CA came from and how many certs. */
 export function dodCaInfo() { dodCa(); return { loaded: !!caCache, source: caSource, path: caPath, certs: caCache ? (caCache.match(/BEGIN CERTIFICATE/g) || []).length : 0 }; }
 
-/** The DAIP mobile-query payload for a single location (NOTAMs within radius). */
+// The DAIP mobile-query envelope. Every query type (LOCATION, PACIFIC_TRACKS,
+// GPS_WAAS, AREA_BRIEFING, ARTCC_TFRS, FUEL_NOTAMS, MOA, …) posts the SAME shape
+// to /daip/mobile/query and returns the SAME group→notams→list body — only
+// `type` (and a few fields) change. `extra` overrides any base field.
+const BASE_PAYLOAD = {
+  locs: '', poa: '', pod: '', alternates: '', route: '', radius: '10',
+  runwayLength: '', runwayWidth: '', airportType: '', type: '', notamId: '', acode: '', artcc: '',
+  tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
+  includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
+  sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
+};
+export function daipTypePayload(type, extra = {}) { return { ...BASE_PAYLOAD, type, ...extra }; }
+
+/** NOTAMs within `radius` NM of a location (ICAO). */
 export function daipPayload(loc, radius = '10') {
-  return {
-    locs: String(loc || '').toLowerCase(), poa: '', pod: '', alternates: '', route: '', radius: String(radius),
-    runwayLength: '', runwayWidth: '', airportType: '', type: 'LOCATION', notamId: '', acode: '', artcc: '',
-    tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
-    includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
-    sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
-  };
+  return daipTypePayload('LOCATION', { locs: String(loc || '').toLowerCase(), radius: String(radius) });
 }
 
-/** The DAIP /result payload for the Pacific organized track system (PACOTS).
- *  Same envelope as the NOTAM query but type=PACIFIC_TRACKS (per the DAIP mobile UI). */
-export function pacotsPayload() {
-  return {
-    locs: '', poa: '', pod: '', alternates: '', route: '', radius: '10',
-    runwayLength: '', runwayWidth: '', airportType: '', type: 'PACIFIC_TRACKS', notamId: '', acode: '', artcc: '',
-    tfrsOnly: '', orgLoc: '', lat1: '', lat2: '', lng1: '', lng2: '', latdir: '', longdir: '',
-    includeRegulatoryNotices: '', briefing: '', scheduleDate: '', sendTime: '', active: '',
-    sunday: '', monday: '', tuesday: '', wednesday: '', thursday: '', friday: '', saturday: '', sort: 'Criticality',
-  };
+/** Pacific organized track system (PACOTS). */
+export function pacotsPayload() { return daipTypePayload('PACIFIC_TRACKS'); }
+
+/** Decimal degrees -> { deg, min } (rounded), with 60' rollover. */
+function toDegMin(v) {
+  const a = Math.abs(v); const deg = Math.floor(a); const min = Math.round((a - deg) * 60);
+  return min >= 60 ? { deg: deg + 1, min: 0 } : { deg, min };
+}
+/** AREA_BRIEFING payload: NOTAMs within `radiusNm` of a lat/lon. DAIP encodes the
+ *  point as separate degree/minute fields (lat1=deg, lat2=min, lng1=deg, lng2=min)
+ *  with N/S and E/W direction flags — confirmed from a live capture. */
+export function areaPayload(lat, lon, radiusNm = 50) {
+  const la = toDegMin(lat); const lo = toDegMin(lon);
+  return daipTypePayload('AREA_BRIEFING', {
+    lat1: String(la.deg), lat2: String(la.min), lng1: String(lo.deg), lng2: String(lo.min),
+    latdir: lat >= 0 ? 'N' : 'S', longdir: lon >= 0 ? 'E' : 'W', radius: String(radiusNm),
+  });
 }
 
 /** POST a DAIP mobile query, trusting the DoD CA bundle if present. `endpoint`
@@ -122,6 +137,40 @@ export function parseDaipNotams(body) {
   }
   return out;
 }
+
+async function loadDaipFixture(name) {
+  try { return JSON.parse(await readFile(fileURLToPath(new URL(`../../data/fixtures/${name}`, import.meta.url)), 'utf8')); }
+  catch { return null; }
+}
+
+/**
+ * Run any DAIP typed query (GPS_WAAS, AREA_BRIEFING, FUEL_NOTAMS, ARTCC_TFRS, …)
+ * and return parsed NOTAMs. Same DoD-CA gate as the rest of DAIP; offline (or a
+ * failed live call) falls back to a bundled fixture when one is given.
+ * @returns {Promise<{notams:any[], live:boolean, source:string}>}
+ */
+export async function fetchDaipByType(type, extra = {}, { offline = false, fixture = null } = {}) {
+  if (offline) return { notams: parseDaipNotams((fixture && await loadDaipFixture(fixture)) || {}), live: false, source: 'fixture' };
+  if (!dodCaLoaded()) return { notams: [], live: false, source: 'no-dod-ca' };
+  try {
+    const r = await daipQueryRaw(daipTypePayload(type, extra), 10000);
+    if (r.status === 200) return { notams: parseDaipNotams(r.body), live: true, source: 'DAIP' };
+    return { notams: [], live: false, source: `DAIP ${r.status}` };
+  } catch {
+    return { notams: [], live: false, source: 'DAIP error' };
+  }
+}
+
+/** Active GPS / WAAS NOTAMs (constellation-wide PRN/WAAS outages) — the
+ *  authoritative input for the RAIM outlook beyond per-field NOTAMs. */
+export const fetchGpsWaasNotams = (offline = false) =>
+  fetchDaipByType('GPS_WAAS', {}, { offline, fixture: 'daip-gps-waas-sample.json' });
+
+/** NOTAMs within `radiusNm` of a lat/lon (for ETP points, coordinate waypoints,
+ *  and oceanic diversions that have no ICAO to brief). areaPayload supplies the
+ *  degree/minute coordinate fields; fetchDaipByType re-asserts the type. */
+export const fetchAreaNotams = (lat, lon, radiusNm = 50, offline = false) =>
+  fetchDaipByType('AREA_BRIEFING', areaPayload(lat, lon, radiusNm), { offline, fixture: 'daip-area-sample.json' });
 
 /**
  * Fetch NOTAMs for the given ICAOs from DAIP (per-field, in parallel). Throws if
