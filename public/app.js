@@ -1400,9 +1400,10 @@ function mtrDetailCard(d) {
     if (req) bits.push(`route entry ${esc(zuluLocal(req, { date: true }))}`);
     return bits.length ? `<div class="mtr-when">${bits.join(' · ')}</div>` : '';
   })();
-  // AHAS is a low-level bird/wildlife product — it does NOT apply to AR tracks.
+  // AHAS is a low-level bird/wildlife product — it does NOT apply to AR tracks, so
+  // omit the bird line entirely there (no need to state the obvious).
   const routeBird = d.ahasApplies === false
-    ? '<div class="mtr-bird" style="color:var(--text-faint)">AHAS bird risk: n/a — air-refueling track (AHAS is a low-level product; no published bird route)</div>'
+    ? ''
     : bv
       ? `<div class="mtr-bird" style="color:${BIRD_COLOR[bv.level]}">⚠ AHAS bird risk: <b>${esc(bv.level)}</b> — ${esc(bv.note || '')}</div>${ahasWhen}`
       : (d.windsAt
