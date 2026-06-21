@@ -145,3 +145,25 @@ test('buildMtrDetail: AR track has no AHAS (bird) data — it is a low-level pro
   // Each leg carries an icing slot (null or a severity object) from the block temp.
   assert.ok(d.segments.every((s) => 'icing' in s));
 });
+
+test('bundled AP/1B dataset: broad IR/VR + AR coverage with valid CONUS coords', async () => {
+  const fs = await import('node:fs');
+  const u = await import('node:url');
+  const load = (p) => JSON.parse(fs.readFileSync(u.fileURLToPath(new URL(p, import.meta.url)), 'utf8'));
+  const mtr = load('../../data/mtr-ap1b.json');
+  const ar = load('../../data/ar-ap1b.json');
+  assert.ok(mtr.length > 400, `expected 400+ IR/VR routes, got ${mtr.length}`);
+  assert.ok(ar.length > 100, `expected 100+ AR tracks, got ${ar.length}`);
+  // Every segment point is a finite coordinate in the CONUS/AK/HI box (no OCR junk).
+  for (const r of [...mtr, ...ar]) {
+    assert.ok(r.id && r.segments.length >= 1, `${r.id} has segments`);
+    for (const s of r.segments) for (const [la, lo] of s.points) {
+      assert.ok(Number.isFinite(la) && la > 12 && la < 75, `${r.id} lat ${la}`);
+      assert.ok(Number.isFinite(lo) && lo < -50 && lo > -180, `${r.id} lon ${lo}`);
+    }
+  }
+  // A known route resolves with the right first point (N36°04' W84°39').
+  const ir2 = mtr.find((r) => r.id === 'IR-002');
+  assert.ok(Math.abs(ir2.segments[0].points[0][0] - 36.0667) < 0.01);
+  assert.ok(Math.abs(ir2.segments[0].points[0][1] - -84.65) < 0.01);
+});

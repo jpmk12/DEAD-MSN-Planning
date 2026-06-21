@@ -105,9 +105,20 @@ async function loadJsonArray(url) {
 // sample routes are only included for the offline/test path; production never
 // serves them.
 async function loadRoutes(includeDemo) {
-  const urls = includeDemo ? [AP1B_URL, AR_URL, FIXTURE_URL] : [AP1B_URL, AR_URL];
+  // Offline/demo: the bundled sample routes take precedence (tests rely on them),
+  // then the real AP/1B set. Production serves only the AP/1B routes. Dedupe by id
+  // (first wins) so a demo id shadows a same-id AP/1B route offline, and the live
+  // set never double-lists.
+  const urls = includeDemo ? [FIXTURE_URL, AP1B_URL, AR_URL] : [AP1B_URL, AR_URL];
   const arrs = await Promise.all(urls.map(loadJsonArray));
-  return arrs.flat().map(withGeometry);
+  const seen = new Set(); const out = [];
+  for (const r of arrs.flat()) {
+    const k = String(r.id || '').toUpperCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(withGeometry(r));
+  }
+  return out;
 }
 
 // Map a FAA GeoJSON feature into our MTR record (centerline as one segment).
