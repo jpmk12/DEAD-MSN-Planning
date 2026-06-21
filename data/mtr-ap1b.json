@@ -95802,5 +95802,47 @@
     "widthRightNm": 5
    }
   ]
+ },
+ {
+  "id": "VR-1939",
+  "type": "VR",
+  "name": "VR-1939 (Alaska)",
+  "agency": "",
+  "widthNote": "",
+  "source": "ap1b",
+  "segments": [
+   {
+    "name": "A → B",
+    "points": [
+     [
+      64.46667,
+      -145.75
+     ],
+     [
+      64.25,
+      -143.83333
+     ]
+    ],
+    "floorFt": 0,
+    "ceilingFt": 1500,
+    "altText": "100 AGL–1500 AGL"
+   },
+   {
+    "name": "B → C",
+    "points": [
+     [
+      64.25,
+      -143.83333
+     ],
+     [
+      63.9,
+      -144.26667
+     ]
+    ],
+    "floorFt": 0,
+    "ceilingFt": 1500,
+    "altText": "100 AGL–1500 AGL"
+   }
+  ]
  }
 ]
