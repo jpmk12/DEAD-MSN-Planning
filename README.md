@@ -1,11 +1,16 @@
-# C-17 Mission Planner
+# DEAD Planning — Air Mobility Mission Planning Aide
 
-One-stop planning for C-17 training sorties: weather, NOTAMs, hazards, and —
-the headline feature — **wind/pattern analysis** that picks the active runway,
-computes head/cross/tailwind components (magnetic↔true done right), and
-cross-references NOTAM runway closures against the wind-optimal runway.
+One-stop planning for air-mobility / C-17 sorties: weather, NOTAMs, hazards,
+oceanic routing, and — the original headline feature — **wind/pattern analysis**
+that picks the active runway, computes head/cross/tailwind components
+(magnetic↔true done right), and cross-references NOTAM runway closures against the
+wind-optimal runway.
 
-See [`PLANNING.md`](./PLANNING.md) for the full design, data-source survey, and roadmap.
+See [`PLANNING.md`](./PLANNING.md) for the original design + data-source survey,
+and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the live forward plan. Other docs:
+[`docs/AVIATION-DATA-NOTES.md`](./docs/AVIATION-DATA-NOTES.md) (sources & parsing
+gotchas), [`docs/DAIP-SOURCES.md`](./docs/DAIP-SOURCES.md) (DoD DAIP feed catalog),
+[`docs/WEATHER-MAP-SPEC.md`](./docs/WEATHER-MAP-SPEC.md) (the map component).
 
 ## Zero-dependency by design
 
@@ -34,7 +39,7 @@ data/                   curated airport dataset + offline fixtures
 ## Run it
 
 ```bash
-npm test          # 26 tests via node --test (no deps, no build)
+npm test          # 236 tests via node --test (no deps, no build)
 npm start         # serve the app at http://localhost:8787
 npm run demo      # terminal brief for the default airfields
 npm run ingest    # refresh data/airports.json from OurAirports (needs network)
@@ -170,6 +175,10 @@ added, and cards avoid page breaks. Save-as-PDF for a kneeboard copy.
 - No build, no `npm install` of native deps required.
 - Optional env for live NOTAMs: `FAA_NOTAM_CLIENT_ID`, `FAA_NOTAM_CLIENT_SECRET`
   (host env vars, or a `.env` file at the repo root).
+- The host network policy must allow the outbound HTTPS sources (AWC, FAA,
+  Open-Meteo, SPC, OurAirports, RainViewer/IEM, plus `nms.aim.faa.gov` for NAT and
+  `www.daip.jcs.mil` for PACOTS/DoD NOTAMs). DAIP-backed features also need the
+  DoD CA bundle (see above). All sources fail safe to UNAVAILABLE.
 
 ## Important caveats
 
@@ -181,12 +190,25 @@ added, and cards avoid page breaks. Save-as-PDF for a kneeboard copy.
   values (set them in the UI controls or via `xwind`/`tailwind`/`highda` query
   params).
 
-The airspace and TFR/SUA/RAIM data are currently bundled fixtures (the modules
-expose a clean seam for live FAA ingest). The map needs runtime network for its
-tiles (basemap + radar); offline, the vector overlay still draws airfields and
-airspace against the dark backdrop.
+Weather, NOTAMs, TFRs, SUA, SIGMET/AIRMET/G-AIRMET, PIREPs, convective, and winds
+are **live** by default (each degrades to UNAVAILABLE if a source is unreachable —
+never fabricated). The map needs runtime network for its tiles (basemap + radar);
+offline, the vector overlay still draws airfields and airspace against the dark
+backdrop.
 
-## Next steps (see PLANNING.md §5)
+## DoD sources (DAIP) — PACOTS, route/area NOTAMs, GPS, BIRDTAM
 
-Route/low-level support (MTRs) · per-leg fuel & timing · convective SIGMET /
-icing / turbulence overlays · saved sortie sets & multi-user sharing.
+The oceanic/strategic features pull from the DoD Aeronautical Information Portal
+(`www.daip.jcs.mil`): PACOTS tracks, ROUTE_OF_FLIGHT NOTAMs (grouped POA/POD/ALTN/
+ENROUTE/FIR/FDC), AREA_BRIEFING NOTAMs around an ETP/waypoint, system-wide
+GPS/WAAS NOTAMs (folded into the RAIM outlook), and BIRDTAM (OCONUS bird hazard).
+DAIP serves a DoD-PKI server cert, so these need the **DoD CA bundle** at
+`data/dod-ca.pem` (or `DOD_CA_PEM`) on the host — without it they report
+UNAVAILABLE. NAT tracks come from `nms.aim.faa.gov` (no key). Optional overrides:
+`NAT_TRACKS_URL`, `PACOTS_URL`. See [`docs/DAIP-SOURCES.md`](./docs/DAIP-SOURCES.md).
+
+## Next steps
+
+The prioritized backlog lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md) — e.g. a
+Global route-brief PDF, board staleness/auto-refresh, an oceanic named-fix table,
+and TOLD-lite runway suitability.
