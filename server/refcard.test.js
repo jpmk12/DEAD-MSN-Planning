@@ -1,6 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summaryTable, raimLine } from './refcard.js';
+import { summaryTable, raimLine, baseRouteId } from './refcard.js';
+import { ahasHasRoute } from './data/ahasapi.js';
+
+test('baseRouteId strips an entry/exit portion so AHAS matches the whole route', () => {
+  // The PDF was passed a portion token (e.g. "IR-155.A-N"); AHAS covers the whole
+  // route by name, so the suffix must be dropped before the lookup.
+  assert.equal(baseRouteId('IR-155.A-N'), 'IR-155');
+  assert.equal(baseRouteId('AR312L'), 'AR312L');     // no portion -> unchanged
+  assert.equal(baseRouteId('IR-021'), 'IR-021');     // a plain id is left alone
+  // Regression: the portion token misses AHAS coverage; the base id resolves it.
+  assert.equal(ahasHasRoute('IR-155.A-N'), false);
+  assert.equal(ahasHasRoute(baseRouteId('IR-155.A-N')), true);
+});
 
 test('summaryTable: category/ceiling/vis/closure/RAIM cells + escaping', () => {
   const html = summaryTable([

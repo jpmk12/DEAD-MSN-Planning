@@ -34,6 +34,9 @@ function zulu(iso) {
 const riskColor = (lvl) => (lvl === 'SEVERE' ? '#b3231b' : lvl === 'MODERATE' ? '#b5840a' : '#1a7f37');
 const RANK = { LOW: 0, MODERATE: 1, SEVERE: 2 };
 const normRoute = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+// AHAS covers a whole route, not a portion — strip any ".ENTRY-EXIT" suffix
+// (e.g. "IR-155.A-N" -> "IR-155") so the lookup matches the route by name.
+export const baseRouteId = (s) => String(s ?? '').replace(/\.[A-Z0-9]{1,4}-[A-Z0-9]{1,4}$/i, '');
 const hhz = (s) => { const m = /\d{4}-\d{2}-\d{2}[ T](\d{2})/.exec(String(s || '')); return m ? `${m[1]}Z` : ''; };
 
 // 12-hour AHAS outlook (GetAHASRisk12): per-hour worst level + real times.
@@ -268,7 +271,11 @@ export async function buildRefCard(fields, only = 'all', autoPrint = false, rout
   // Route AHAS, each route at ITS OWN entry time (AR tracks vs low-level routes
   // are flown at different times). Entries may be "ID" strings (legacy, use
   // routeWhen) or { id, when } objects.
-  const routeList = (routes || []).map((r) => (typeof r === 'string' ? { id: r, when: routeWhen } : { id: r.id, when: r.when ?? routeWhen }));
+  const routeList = (routes || []).map((r) => {
+    const raw = typeof r === 'string' ? r : r.id;
+    const when = typeof r === 'string' ? routeWhen : (r.when ?? routeWhen);
+    return { id: baseRouteId(raw), when }; // AHAS is whole-route; drop any .entry-exit portion
+  });
   const routeAhas = want('ahas')
     ? await Promise.all(routeList.map(async ({ id, when }) => {
         const type = ahasRouteType(id);
