@@ -461,6 +461,13 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .taf-when { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px; }
 .taf-items { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; }
 .taf-items .extra { color: var(--text-faint); list-style: none; margin-left: -16px; font-family: var(--mono); font-size: 11px; }
+/* TAF focus mode: dim periods outside the takeoff→landing window, brighten the
+   ones flown during the sortie, each tagged with its flight-category dot. */
+.taf-focus-note { color: var(--text-faint); font-style: italic; }
+.taf-period.out-flight { opacity: 0.42; }
+.taf-period.in-flight { opacity: 1; background: rgba(55, 182, 195, 0.08); border-left-color: var(--accent); }
+.taf-cat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.taf-fly-tag { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.4px; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; }
 
 .empty, .loading, .errbox { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 14px; }
 .errbox { color: var(--nogo); }

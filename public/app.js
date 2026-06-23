@@ -4,6 +4,7 @@
 import { initMap } from './map.js';
 import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
 import { buildRibbonModel, roleTag as rbRoleTag, sigTip, pirepTip, pirepKind, AWC_SIGMET_URL, SPC_OUTLOOK_URL, AWC_PIREP_URL } from './ribbon.js';
+import { tafTokenIso, periodsInWindow } from './taf-window.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -309,25 +310,8 @@ function hazardWxSection(brief) {
   return `<div class="notams">${wxRows}${convRows}${gaRows}</div>`;
 }
 
-// TAF times are bare "DDHH"/"DDHHMM" Zulu tokens (no month/year). Anchor them to
-// the brief's generation date so we can render local time too. Handles month
-// rollover and the 24:00 = next-day-00:00 convention.
-function tafTokenIso(ddhhmm, anchorIso) {
-  if (!ddhhmm || ddhhmm.length < 4) return null;
-  const dd = +ddhhmm.slice(0, 2);
-  let hh = +ddhhmm.slice(2, 4);
-  const mm = ddhhmm.length >= 6 ? +ddhhmm.slice(4, 6) : 0;
-  if (![dd, hh, mm].every(Number.isFinite)) return null;
-  const anchor = new Date(anchorIso);
-  const base = Number.isNaN(anchor.getTime()) ? new Date() : anchor;
-  let mo = base.getUTCMonth();
-  if (dd < base.getUTCDate() - 10) mo += 1; // token day well before now → next month
-  const rollDay = hh >= 24;
-  if (rollDay) hh -= 24;
-  let d = new Date(Date.UTC(base.getUTCFullYear(), mo, dd, hh, mm));
-  if (rollDay) d = new Date(d.getTime() + 86400000);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
+// tafTokenIso (DDHH[MM] Zulu token → ISO) lives in ./taf-window.js so the
+// period↔flight-window overlap logic can be unit-tested without the DOM.
 
 // Render a TAF time token (or from–to range) as Zulu · local, falling back to
 // the server's Zulu-only text if the raw token is missing.
@@ -350,14 +334,27 @@ function tafSection(brief) {
     const validTxt = tafWhen(d.validFrom, d.validTo, anchor, d.valid);
     const issuedTxt = tafWhen(d.issuedRaw, null, anchor, d.issued);
     const head = validTxt ? `<div class="when" style="margin-bottom:6px">Valid ${esc(validTxt)}${issuedTxt ? ` · issued ${esc(issuedTxt)}` : ''}</div>` : '';
-    const periods = d.periods.map((p) => {
+    // Focus mode: when the takeoff→landing window is known, brighten the periods
+    // forecast DURING the flight and dim the rest (null when nothing overlaps, so
+    // a TAF outside the window isn't dimmed to nothing). brief._flightWindow is set
+    // for the Local Training sortie only; other tabs reuse card() without it.
+    const flags = periodsInWindow(d.periods, anchor, brief._flightWindow);
+    const focusNote = flags
+      ? '<div class="when taf-focus-note" style="margin-bottom:6px">Bright = forecast during your flight (takeoff → landing)</div>'
+      : '';
+    const periods = d.periods.map((p, idx) => {
       const items = p.items.map((it) => `<li>${esc(it)}</li>`).join('');
       const extra = p.extra && p.extra.length ? `<li class="extra">${esc(p.extra.join(' '))}</li>` : '';
       const when = tafWhen(p.from, p.to, anchor, p.when);
-      return `<div class="taf-period"><div class="taf-when">${esc(p.label)}${when ? ` · ${esc(when)}` : ''}</div>
+      const inFlight = flags ? flags[idx] : false;
+      const cls = 'taf-period' + (flags ? (inFlight ? ' in-flight' : ' out-flight') : '');
+      const dot = p.flightCategory
+        ? `<span class="taf-cat-dot" style="background:${catColor(p.flightCategory)}" title="${esc(p.flightCategory)}"></span>` : '';
+      const tag = inFlight ? '<span class="taf-fly-tag">IN FLIGHT</span>' : '';
+      return `<div class="${cls}"><div class="taf-when">${dot}${esc(p.label)}${when ? ` · ${esc(when)}` : ''}${tag}</div>
         <ul class="taf-items">${items}${extra}</ul></div>`;
     }).join('');
-    decoded = `${head}${periods}`;
+    decoded = `${head}${focusNote}${periods}`;
   }
   return `<div class="taf-hd"><span class="taf-toggle" data-taf-raw>show raw</span></div>
     <div class="taf-decoded">${decoded || '<div class="readout">No decodable TAF.</div>'}</div>
@@ -840,8 +837,27 @@ function altRankStrip(data) {
   return `<div class="alt-rank-strip"><span class="alt-rank-lbl">Alternates at ETA (best first):</span>${alts.map(item).join('')}</div>`;
 }
 
+// The Local Training flight window [takeoff, landing] = the Departure phase time
+// → the Recovery phase time. Used to highlight the TAF periods flown during the
+// sortie. Returns null unless both phase times are present (never guesses).
+function sortieFlightWindow(data) {
+  if (!data || !data.sortie) return null;
+  const whenOf = (role) => {
+    const b = (data.airfields || []).find((x) => x.phase?.role === role && x.phase?.when);
+    return b ? Date.parse(b.phase.when) : NaN;
+  };
+  const a = whenOf('DEPARTURE'), z = whenOf('RECOVERY');
+  if (!Number.isFinite(a) || !Number.isFinite(z)) return null;
+  return { start: Math.min(a, z), end: Math.max(a, z) };
+}
+
 // Alternates go in the lower container. Returns { dep, rest } HTML.
 function renderAirfields(data, limits) {
+  // Tag every card's brief with the sortie's takeoff→landing window so its TAF
+  // panel can focus the in-flight periods. Only set here (Local Training); the
+  // Global tab reuses card() without it, so highlighting stays scoped to Local.
+  const win = sortieFlightWindow(data);
+  for (const b of (data.airfields || [])) b._flightWindow = win;
   if (!data.sortie) return { dep: degradeBanner(data) + `<div class="grid">${data.airfields.map((b) => card(b, limits)).join('')}</div>`, rest: '' };
   // Rank badge for alternate cards (#1 = plan this one).
   const rankByUid = new Map((data.alternates || []).map((a) => [a.uid, a.rank]));
