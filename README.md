@@ -6,6 +6,13 @@ that picks the active runway, computes head/cross/tailwind components
 (magnetic↔true done right), and cross-references NOTAM runway closures against the
 wind-optimal runway.
 
+![DEAD Planning EFB brief — active-runway wind analysis with crosswind components, a TAF highlighted to your takeoff→landing window, and a GO/CAUTION/NO-GO AMC hub status board](docs/img/hero.png)
+
+> EFB-style sortie brief: live weather/winds/NOTAMs, **active-runway wind
+> analysis**, a **TAF highlighted to your flight window**, IR/VR + AR low-level
+> routes, NVG illumination, and a tap-to-select **AMC hub status board** → one
+> kneeboard PDF.
+
 See [`PLANNING.md`](./PLANNING.md) for the original design + data-source survey,
 and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the live forward plan. Other docs:
 [`docs/AVIATION-DATA-NOTES.md`](./docs/AVIATION-DATA-NOTES.md) (sources & parsing
