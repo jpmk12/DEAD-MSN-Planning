@@ -2409,8 +2409,8 @@ function plAddRow(icao = '', arrMs = null, depMs = null) {
   const row = document.createElement('div');
   row.className = 'pl-row';
   row.innerHTML = `<input class="pl-r-icao" placeholder="ICAO" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(icao)}" />
-    <input class="pl-r-arr" type="datetime-local" title="Arrival (Zulu)" value="${esc(plMsToDt(arrMs))}" />
-    <input class="pl-r-dep" type="datetime-local" title="Departure (Zulu)" value="${esc(plMsToDt(depMs))}" />
+    <label class="pl-r-f pl-r-farr"><span>Arrival (Z)</span><input class="pl-r-arr" type="datetime-local" title="Arrival (Zulu)" value="${esc(plMsToDt(arrMs))}" /></label>
+    <label class="pl-r-f pl-r-fdep"><span>Departure (Z)</span><input class="pl-r-dep" type="datetime-local" title="Departure (Zulu)" value="${esc(plMsToDt(depMs))}" /></label>
     <button type="button" class="pl-r-del" title="Remove field">×</button>`;
   row.querySelector('.pl-r-del').addEventListener('click', () => row.remove());
   row.querySelector('.pl-r-icao').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });

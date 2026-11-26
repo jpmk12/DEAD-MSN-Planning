@@ -273,7 +273,7 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .cat-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 5px; }
 
 /* Local / Global mode tabs */
-.tabbar { display: flex; gap: 4px; margin: 10px 0 4px; border-bottom: 1px solid var(--border); }
+.tabbar { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 4px; border-bottom: 1px solid var(--border); }
 .tabbar .tab { font: 600 13px var(--font, inherit); color: var(--text-dim); background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; padding: 8px 16px; cursor: pointer; }
 .tabbar .tab:hover { color: var(--text); }
 .tabbar .tab.active { color: var(--text); background: var(--panel-2); border-color: var(--border); }
@@ -828,10 +828,23 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .pl-paste textarea:focus { border-color: var(--accent); }
 .pl-rows-h { display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 24px; gap: 6px; margin-bottom: 4px; }
 .pl-row { display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 24px; gap: 6px; margin-bottom: 6px; }
-.pl-row input { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 7px; padding: 7px 8px; outline: none; color-scheme: dark; min-width: 0; }
+.pl-row input { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-bright); border-radius: 7px; padding: 7px 8px; outline: none; color-scheme: dark; min-width: 0; width: 100%; }
 .pl-row input:focus { border-color: var(--accent); }
+.pl-r-f { display: block; min-width: 0; }
+.pl-r-f > span { display: none; } /* desktop: the header row already labels the columns */
 .pl-r-del { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; cursor: pointer; }
 .pl-r-del:hover { color: var(--nogo); border-color: var(--nogo); }
+/* Mobile: datetime-local pickers won't shrink, so stack each field as a card with
+   the ICAO on its own full-width line (otherwise the airfield box collapses to 0). */
+@media (max-width: 560px) {
+  .pl-rows-h { display: none; }
+  .pl-row { grid-template-columns: 1fr auto; grid-template-areas: "icao del" "arr arr" "dep dep"; gap: 6px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); margin-bottom: 8px; }
+  .pl-r-icao { grid-area: icao; font-size: 14px; }
+  .pl-r-del { grid-area: del; align-self: center; width: 34px; }
+  .pl-r-farr { grid-area: arr; }
+  .pl-r-fdep { grid-area: dep; }
+  .pl-r-f > span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-faint); margin-bottom: 2px; }
+}
 
 .planner { margin-top: 8px; }
 .pl-head { background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
