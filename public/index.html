@@ -57,6 +57,7 @@
         <button type="button" class="tab" data-tab="global">Global</button>
         <button type="button" class="tab" data-tab="hubs">AMC Hubs<span class="tab-badge"></span></button>
         <button type="button" class="tab" data-tab="oceanic">Oceanic Divert<span class="tab-badge"></span></button>
+        <button type="button" class="tab" data-tab="planner">Planner</button>
       </nav>
 
       <div id="local-view">
@@ -240,6 +241,31 @@
         </section>
         <section id="oceanic-map" class="map-section board-map" hidden></section>
         <div id="oceanic-results"></div>
+      </section>
+
+      <section id="planner-view" hidden>
+        <section class="controls">
+          <p class="sortie-hint">Plan a multi-field mission and see <b>when each airfield is limited, by what, and for how long</b> over the next 72 h — weather, ground-ice, runway, icing aloft, crosswind, ramp and NOTAM closures on one shared Zulu axis. <b>All times Zulu.</b> Paste a C2D2 mission list (or add fields by hand), then Build.</p>
+          <div class="pl-input-grid">
+            <div class="pl-paste">
+              <label for="pl-paste-txt">Paste C2D2 mission list (optional)</label>
+              <textarea id="pl-paste-txt" rows="4" placeholder="#200  OKKK -------- OKAS&#10;6332/1340Z   0+20   6332/1400Z&#10;..." spellcheck="false"></textarea>
+              <button id="pl-parse" class="go secondary" type="button">Parse legs → rows</button>
+              <span id="pl-parse-note" class="sp-note"></span>
+            </div>
+            <div class="pl-rows-wrap">
+              <div class="pl-rows-h"><span>Airfield</span><span>Arrival (Z)</span><span>Departure (Z)</span><span></span></div>
+              <div id="pl-rows"></div>
+              <button id="pl-addrow" class="go secondary" type="button">+ Add field</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button id="pl-go" class="go" type="button">Build Planner</button>
+            <label class="toggle" title="Anchor the axis at the earliest arrival/departure minus 3 h (else now)"><input type="checkbox" id="pl-anchor" checked /> Anchor on mission</label>
+            <span id="pl-status" class="sp-note"></span>
+          </div>
+        </section>
+        <div id="planner-results"></div>
       </section>
 
       <footer class="footer">

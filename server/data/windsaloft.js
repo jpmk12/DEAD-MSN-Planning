@@ -303,3 +303,91 @@ export async function fetchWindsAloft(lat, lon, elevFt, offline, targetIso, sign
     requested: targetIso ?? null,
   };
 }
+
+// ===========================================================================
+// MODEL PROFILE (for the ops-timeline Planner): the SAME Open-Meteo source, but
+// a different variable set — surface weather/precip/visibility/freezing level
+// plus per-pressure-level geopotential HEIGHT (for icing-AGL maths), which the
+// winds-aloft URL above does not request. Returns every hour of the window as a
+// ProfileHour (see public/opsTimeline.js §2), not a single interpolated profile.
+// Reuses the same TTL / offline-fixture / failure→empty (UNAVAILABLE) contract.
+// ===========================================================================
+
+const MODEL_FIXTURE_URL = new URL('../../data/fixtures/model-profile-sample.json', import.meta.url);
+// Pressure levels for the vertical profile the icing lane reads (geopotential
+// height is MSL metres). Kept modest so the request stays small.
+const MODEL_PRESSURE = [1000, 975, 950, 925, 900, 850, 800, 700, 600];
+const MODEL_SURFACE = [
+  'temperature_2m', 'dew_point_2m', 'apparent_temperature', 'freezing_level_height',
+  'weather_code', 'precipitation', 'snowfall', 'visibility',
+  'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
+];
+const MODEL_VARS = [
+  ...MODEL_SURFACE,
+  ...MODEL_PRESSURE.flatMap((p) => [`temperature_${p}hPa`, `relative_humidity_${p}hPa`, `geopotential_height_${p}hPa`]),
+];
+
+export function buildModelUrl(lat, lon, targetIso) {
+  const p = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon), hourly: MODEL_VARS.join(','),
+    wind_speed_unit: 'kn', timezone: 'GMT', forecast_days: String(Math.min(4, Math.max(1, forecastDaysFor(targetIso) + 1))),
+  });
+  return `https://api.open-meteo.com/v1/forecast?${p.toString()}`;
+}
+
+/** Turn an Open-Meteo payload into ProfileHour[] (every hour, UTC). */
+export function parseModelProfile(json) {
+  const H = json?.hourly;
+  const times = H?.time ?? [];
+  if (!H || !times.length) return [];
+  const num = (arr, i) => { const v = arr?.[i]; return typeof v === 'number' ? v : null; };
+  return times.map((ts, i) => ({
+    t: Date.parse(ts + 'Z'), // timezone=GMT returns zone-less ISO
+    tempC2m: num(H.temperature_2m, i),
+    dewC: num(H.dew_point_2m, i),
+    feelsC: num(H.apparent_temperature, i),
+    freezingLevelM: num(H.freezing_level_height, i),
+    weatherCode: num(H.weather_code, i),
+    precipMm: num(H.precipitation, i),
+    snowCm: num(H.snowfall, i),
+    windDir: num(H.wind_direction_10m, i),
+    windKt: num(H.wind_speed_10m, i),
+    gustKt: num(H.wind_gusts_10m, i),
+    visM: num(H.visibility, i),
+    levels: MODEL_PRESSURE.map((hPa) => ({
+      hPa, heightM: num(H[`geopotential_height_${hPa}hPa`], i),
+      tempC: num(H[`temperature_${hPa}hPa`], i), rh: num(H[`relative_humidity_${hPa}hPa`], i),
+    })).filter((lv) => lv.heightM != null),
+  }));
+}
+
+const modelCache = new Map(); // key -> { at, json }
+
+/**
+ * Fetch the hourly model profile for the ops timeline.
+ * @returns {Promise<{hours:ProfileHour[], live:boolean}>} — empty + live:false when
+ *   UNAVAILABLE (production failure); the offline fixture only when offline=true.
+ */
+export async function fetchModelProfile(lat, lon, startIso, offline, signal) {
+  let json = null, live = false;
+  if (!offline && lat != null && lon != null) {
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)},${forecastDaysFor(startIso)}`;
+    const hit = modelCache.get(key);
+    if (hit && Date.now() - hit.at < WA_TTL_MS) { json = hit.json; live = true; }
+    else {
+      try {
+        const res = await fetch(buildModelUrl(lat, lon, startIso), { signal, headers: { Accept: 'application/json', 'User-Agent': 'C17MissionPlanner/1.0' } });
+        if (res.ok) {
+          json = await res.json(); live = true;
+          modelCache.set(key, { at: Date.now(), json });
+          if (modelCache.size > 96) modelCache.delete(modelCache.keys().next().value);
+        }
+      } catch { /* fall through */ }
+    }
+  }
+  if (!json) {
+    if (!offline) return { hours: [], live: false };
+    json = JSON.parse(await readFile(fileURLToPath(MODEL_FIXTURE_URL), 'utf8'));
+  }
+  return { hours: parseModelProfile(json), live };
+}

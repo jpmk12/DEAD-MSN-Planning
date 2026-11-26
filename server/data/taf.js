@@ -165,7 +165,10 @@ export function decodeTaf(raw) {
   if (vm) { validFrom = vm[1]; validTo = vm[2]; i++; }
 
   const periods = [];
-  const newPeriod = (o) => ({ ...o, items: [], extra: [], wind: undefined, visibilitySm: undefined, ceilingFt: undefined });
+  // wxTokens keeps the RAW present-weather tokens for each period (e.g. "-FZRA",
+  // "TSRA"); the decoded prose goes in `items`. The ops-timeline Planner needs the
+  // raw codes (the ceiling/vis category alone can't tell freezing rain from snow).
+  const newPeriod = (o) => ({ ...o, items: [], extra: [], wxTokens: [], wind: undefined, visibilitySm: undefined, ceilingFt: undefined });
   let current = newPeriod({ label: 'Prevailing', kind: 'BASE', when: validFrom ? `${timeText(validFrom)} – ${timeText(validTo)}` : '', from: validFrom, to: validTo });
 
   // Capture machine-readable values alongside the human text. Lowest BKN/OVC
@@ -224,7 +227,7 @@ export function decodeTaf(raw) {
       continue;
     }
     const decoded = classify(tok);
-    if (decoded) { current.items.push(decoded); capture(tok); }
+    if (decoded) { current.items.push(decoded); capture(tok); if (decodeWeather(tok)) current.wxTokens.push(tok); }
     else current.extra.push(tok); // keep unknown tokens verbatim
   }
   pushCurrent();

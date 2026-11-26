@@ -112,9 +112,9 @@ network (uses bundled fixtures), or leave it off to pull live AWC weather.
 - **Runway condition** — FICON / RwyCC / RCR / braking-action parsed from NOTAMs
   and surfaced on the card (winter/contamination ops).
 
-## Tabs: Local, Global, AMC Hubs, Oceanic Divert
+## Tabs: Local, Global, AMC Hubs, Oceanic Divert, Planner
 
-Beyond the **Local Training** brief, three tabs share the same weather/winds/
+Beyond the **Local Training** brief, these tabs share the same weather/winds/
 astronomy/airfield engine:
 
 - **Global** — a strategic multi-leg route view. Enter ICAO waypoints; get
@@ -133,6 +133,20 @@ astronomy/airfield engine:
 - **Oceanic tracks** — NAT (FAA, `nms.aim.faa.gov`) and PACOTS (DAIP) parsed
   into listable/overlay geometry, including half-degree and date-line crossing
   coordinates.
+- **Planner** — a **72-hour ops timeline** across every airfield of a mission on
+  one shared Zulu axis. Paste a C2D2 mission list (Julian `6332/1340Z` legs, auto-
+  parsed into per-field arrival/departure) or add fields by hand, then Build. Each
+  field gets hour-by-hour lanes — **Sky, Precip, Temp, Ground-ice, Runway, Icing
+  aloft, Crosswind, Ramp/crew, NOTAMs** — with the **limiting windows** merged
+  beneath (when is this field limited, by what, and for how long) and a
+  **scrub cursor** that reads every lane at any Zulu hour, with ETD/ETA markers.
+  The rules are honest: a **forecast is amber at most** (red is observed, except
+  the crosswind lane's own bands), the **TAF governs its validity** and the model
+  fills only beyond it (dashed, "(model)"), and missing inputs read **UNKNOWN**,
+  never green. Weather comes from the TAF (AWC) + an hourly model profile
+  (Open-Meteo); the shared, unit-tested engine lives in `public/opsTimeline.js`
+  (served by `/api/planner`). It is a planning picture — it never moves a status
+  light, and thresholds are planning guidance, not a de-ice policy / AFI / -1.
 
 ## Authoritative airfield data (NASR/OpenAIP seam)
 

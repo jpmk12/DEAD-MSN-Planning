@@ -16,6 +16,7 @@ import { buildBrief, DEFAULT_LIMITS } from './brief.js';
 import { buildRouteWinds } from './winds.js';
 import { buildRoute } from './route.js';
 import { buildTimeline } from './timeline.js';
+import { buildPlanner } from './planner.js';
 import { buildRefCard } from './refcard.js';
 import { buildMtrDetail } from './data/mtr.js';
 import { legGeometry, scheduleLegs, groundspeed, legEtp, nearestAirports } from './core/legs.js';
@@ -588,6 +589,24 @@ const server = createServer(async (req, res) => {
         out = mergeUsno(ill, await usnoOneDay(when, lat, lon, { offline }));
       }
       sendJson(res, 200, { when, lat, lon, icao, ...out });
+      return;
+    }
+
+    if (url.pathname === '/api/planner') {
+      // 72-hour OPS TIMELINE across the mission's airfields (shared Zulu axis).
+      const ids = (url.searchParams.get('ids') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 12);
+      if (!ids.length) { sendJson(res, 400, { error: 'provide ?ids=KCHS,KEDW' }); return; }
+      const offline = url.searchParams.get('offline') === '1';
+      const startRaw = url.searchParams.get('start');
+      const startIso = startRaw && !Number.isNaN(Date.parse(startRaw)) ? new Date(startRaw).toISOString() : null;
+      // events: "ICAO:KIND:ISO" tuples (ETD/ETA markers), e.g. KCHS:ETD:2026-11-26T02:00Z.
+      // Split on the FIRST two colons only so the ISO timestamp keeps its own colons.
+      const events = (url.searchParams.get('events') ?? '').split(',').map((e) => {
+        const m = /^([A-Za-z0-9]+):([A-Za-z]+):(.+)$/.exec(e.trim());
+        const ms = m ? Date.parse(m[3]) : NaN;
+        return m && Number.isFinite(ms) ? { icao: m[1].toUpperCase(), kind: m[2].toUpperCase(), ms, label: `${m[2].toUpperCase()} ${m[1].toUpperCase()}` } : null;
+      }).filter(Boolean);
+      sendJson(res, 200, await buildPlanner(ids, startIso, offline, events));
       return;
     }
 

@@ -5,6 +5,7 @@ import { initMap } from './map.js';
 import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
 import { buildRibbonModel, roleTag as rbRoleTag, sigTip, pirepTip, pirepKind, AWC_SIGMET_URL, SPC_OUTLOOK_URL, AWC_PIREP_URL } from './ribbon.js';
 import { tafTokenIso, periodsInWindow } from './taf-window.js';
+import { parseMissionPaste, renderPlanner } from './planner.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -1530,7 +1531,7 @@ async function lookupRoutes(ids, whenIso, { scroll = true } = {}) {
 // leg-and-track model (great-circle legs, wind-corrected ETAs) instead of the
 // local phase model. Reuses card() for each stop's brief.
 function setMode(mode) {
-  const views = { local: 'local-view', global: 'global-view', hubs: 'hubs-view', oceanic: 'oceanic-view' };
+  const views = { local: 'local-view', global: 'global-view', hubs: 'hubs-view', oceanic: 'oceanic-view', planner: 'planner-view' };
   for (const [m, id] of Object.entries(views)) { const el = $(id); if (el) el.hidden = mode !== m; }
   document.querySelectorAll('#tabbar .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
   try { localStorage.setItem('dead-mode', mode); } catch { /* storage blocked */ }
@@ -2214,7 +2215,7 @@ function init() {
     if ($('g-depart-d') && !$('g-depart-d').value) $('g-depart-d').value = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
     if ($('g-depart-hhmm') && !$('g-depart-hhmm').value) $('g-depart-hhmm').value = `${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
   }
-  try { const m = localStorage.getItem('dead-mode'); setMode(['global', 'hubs', 'oceanic'].includes(m) ? m : 'local'); } catch { /* default local */ }
+  try { const m = localStorage.getItem('dead-mode'); setMode(['global', 'hubs', 'oceanic', 'planner'].includes(m) ? m : 'local'); } catch { /* default local */ }
 
   // Pill tooltips: tap a data-source pill to explain LIVE/UNAVAILABLE (works on touch);
   // tap anywhere else to dismiss.
@@ -2383,6 +2384,7 @@ window.addEventListener('afterprint', () => {
   on('sortie-load', 'click', loadSelectedSortie);
   on('sortie-del', 'click', deleteSelectedSortie);
   initSorties();
+  initPlanner();
   on('winds-go', 'click', getRouteWinds);
   on('winds-points', 'keydown', (e) => { if (e.key === 'Enter') getRouteWinds(); });
   // No auto-brief on load: let the user set fields/dates/times first, then pull
@@ -2391,6 +2393,80 @@ window.addEventListener('afterprint', () => {
   if (res && !res.innerHTML.trim()) {
     res.innerHTML = `<div class="empty">Set your fields and Zulu times above, then press <b>Build Brief</b> to pull live data.</div>`;
   }
+}
+
+// ---- Planner tab ----------------------------------------------------------
+// A datetime-local value is read AS Zulu (the whole app is Zulu); prefills show
+// the UTC wall-clock.
+const plDtToMs = (v) => { if (!v) return null; const ms = Date.parse(v.length <= 16 ? v + ':00Z' : v + 'Z'); return Number.isFinite(ms) ? ms : null; };
+const plMsToDt = (ms) => (ms != null ? new Date(ms).toISOString().slice(0, 16) : '');
+
+function plAddRow(icao = '', arrMs = null, depMs = null) {
+  const wrap = $('pl-rows');
+  if (!wrap) return;
+  const row = document.createElement('div');
+  row.className = 'pl-row';
+  row.innerHTML = `<input class="pl-r-icao" placeholder="ICAO" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(icao)}" />
+    <input class="pl-r-arr" type="datetime-local" title="Arrival (Zulu)" value="${esc(plMsToDt(arrMs))}" />
+    <input class="pl-r-dep" type="datetime-local" title="Departure (Zulu)" value="${esc(plMsToDt(depMs))}" />
+    <button type="button" class="pl-r-del" title="Remove field">×</button>`;
+  row.querySelector('.pl-r-del').addEventListener('click', () => row.remove());
+  row.querySelector('.pl-r-icao').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
+  wrap.appendChild(row);
+}
+
+function readPlannerRows() {
+  const ids = [], events = [], times = [];
+  for (const row of document.querySelectorAll('#pl-rows .pl-row')) {
+    const icao = (row.querySelector('.pl-r-icao').value || '').trim().toUpperCase();
+    if (!icao) continue;
+    ids.push(icao);
+    const arr = plDtToMs(row.querySelector('.pl-r-arr').value);
+    const dep = plDtToMs(row.querySelector('.pl-r-dep').value);
+    if (arr != null) { events.push(`${icao}:ETA:${new Date(arr).toISOString()}`); times.push(arr); }
+    if (dep != null) { events.push(`${icao}:ETD:${new Date(dep).toISOString()}`); times.push(dep); }
+  }
+  return { ids: [...new Set(ids)], events, times };
+}
+
+async function runPlanner() {
+  const { ids, events, times } = readPlannerRows();
+  const status = $('pl-status');
+  if (!ids.length) { if (status) status.textContent = 'Add at least one airfield.'; return; }
+  const params = new URLSearchParams({ ids: ids.join(',') });
+  if (events.length) params.set('events', events.join(','));
+  if (checked('pl-anchor') && times.length) params.set('start', new Date(Math.min(...times) - 3 * 3600000).toISOString());
+  if (status) status.textContent = 'Building…';
+  const out = $('planner-results');
+  if (out) out.innerHTML = '<div class="loading"><div class="spinner"></div> Pulling TAFs, model profiles and NOTAMs…</div>';
+  try {
+    const res = await fetch('/api/planner?' + params.toString());
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'request failed');
+    renderPlanner(out, data);
+    const dead = data.fields.filter((f) => !f.live).map((f) => f.icao);
+    if (status) status.textContent = dead.length ? `Built — ${dead.join(', ')} UNAVAILABLE (no live forecast).` : `Built ${data.fields.length} field${data.fields.length > 1 ? 's' : ''}.`;
+  } catch (e) {
+    if (out) out.innerHTML = `<div class="errbox">Planner failed: ${esc(e.message)}</div>`;
+    if (status) status.textContent = '';
+  }
+}
+
+function initPlanner() {
+  on('pl-addrow', 'click', () => plAddRow());
+  on('pl-go', 'click', runPlanner);
+  on('pl-parse', 'click', () => {
+    const txt = val('pl-paste-txt');
+    const { fields, legs } = parseMissionPaste(txt);
+    const note = $('pl-parse-note');
+    if (!fields.length) { if (note) note.textContent = 'No legs found — check the paste or add fields by hand.'; return; }
+    const wrap = $('pl-rows');
+    if (wrap) wrap.innerHTML = '';
+    for (const f of fields) plAddRow(f.icao, f.arrMs, f.depMs);
+    if (note) note.textContent = `Parsed ${legs.length} leg${legs.length > 1 ? 's' : ''} → ${fields.length} field${fields.length > 1 ? 's' : ''}. Edit as needed, then Build.`;
+  });
+  // Start with two empty rows so the manual path is obvious.
+  if ($('pl-rows') && !$('pl-rows').children.length) { plAddRow(); plAddRow(); }
 }
 
 // Run init only once the DOM is ready, and never let a missing element abort it.
