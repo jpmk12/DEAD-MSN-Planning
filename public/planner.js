@@ -141,12 +141,29 @@ function fieldStack(f, startMs, span, xPct, barL, barW) {
     ? `<div class="pl-tafend" style="left:${xPct(f.tafEndMs)}" title="TAF ends — model beyond here"><span>TAF ends</span></div>` : '';
 
   return `<div class="pl-field" data-icao="${esc(f.icao)}">
-    <div class="pl-field-h"><b>${esc(f.icao)}</b>${f.name ? ` <span class="pl-fname">${esc(f.name)}</span>` : ''}${unavailable ? ' <span class="pl-unavail">UNAVAILABLE</span>' : ''}<span class="pl-fsum">${esc(f.summary || '')}</span></div>
+    <div class="pl-field-h" role="button" tabindex="0" aria-expanded="true" title="Click to collapse / expand this field's lanes">
+      <span class="pl-chev">▾</span><b>${esc(f.icao)}</b>${f.name ? ` <span class="pl-fname">${esc(f.name)}</span>` : ''}${unavailable ? ' <span class="pl-unavail">UNAVAILABLE</span>' : ''}
+      ${compactBand(f, startMs, span)}<span class="pl-fsum">${esc(f.summary || '')}</span></div>
     <div class="pl-lanes">${laneRows}
       <div class="pl-lane pl-temp-lane"><div class="pl-lane-lbl">Temp <small>${f.temp.minC != null ? Math.round(f.temp.minC) + '/' + Math.round(f.temp.maxC) + '°' : ''}</small></div><div class="pl-track">${temp}</div></div>
       ${marks}${tafEnd}
     </div>
   </div>`;
+}
+
+/** A compact 72-h band for the field header: merged amber/red window stretches
+ *  with faint 24/48-h ticks and the window texts in the tooltip, so fields can be
+ *  compared (and collapsed) without opening each. Dashed grey when UNAVAILABLE. */
+function compactBand(f, startMs, span) {
+  if (!f.live) return '<div class="pl-band pl-band-unk" title="UNAVAILABLE — no live forecast"></div>';
+  const segs = (f.windows || []).map((w) => {
+    const left = ((Math.max(startMs, w.fromMs) - startMs) / span) * 100;
+    const width = ((Math.min(startMs + span, w.toMs) - Math.max(startMs, w.fromMs)) / span) * 100;
+    return `<div class="pl-band-seg ${TONE_CLASS[w.tone] || 'pl-a'}" style="left:${left}%;width:${Math.max(0.6, width)}%"></div>`;
+  }).join('');
+  const ticks = [24, 48].map((h) => `<div class="pl-band-tick" style="left:${(h * HOUR / span) * 100}%"></div>`).join('');
+  const tip = (f.windows || []).length ? (f.windows || []).map((w) => w.text).join('\n') : `no limiting window in the next ${f.hours} h`;
+  return `<div class="pl-band" title="${esc(tip)}">${ticks}${segs}</div>`;
 }
 
 function tempSvg(f, startMs, span) {
@@ -190,7 +207,7 @@ function wireScrub(container) {
   const move = (e) => { if (PL.pinned) return; updateCursor(msAt(e.clientX)); };
   fields.addEventListener('pointermove', move);
   fields.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.pl-win')) return; // window clicks handled below
+    if (e.target.closest('.pl-win') || e.target.closest('.pl-field-h')) return; // handled separately
     fields.setPointerCapture?.(e.pointerId);
     PL.pinned = !PL.pinned;
     if (!PL.pinned) updateCursor(msAt(e.clientX));
@@ -209,6 +226,12 @@ function wireScrub(container) {
   });
   // Clicking a window pins the cursor at its start + highlights it.
   container.querySelectorAll('.pl-win').forEach((el) => el.addEventListener('click', () => { PL.pinned = true; updateCursor(Number(el.dataset.from), true); }));
+  // Clicking a field header collapses/expands that field's lanes (compare via bands).
+  container.querySelectorAll('.pl-field-h').forEach((h) => {
+    const toggle = () => { const fld = h.closest('.pl-field'); const c = fld.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); };
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
 }
 
 function applyPin() {

@@ -69,9 +69,40 @@ export function parseMilIcing(raw) {
   return out;
 }
 
+const DOW_TOK = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const DAY = 86400000;
+
+/** Expand a published day/hour NOTAM schedule into one window per occurrence, in
+ *  [winStart, winEnd]. Reads "DLY/DAILY HHMM-HHMM" or "MON WED FRI HHMM-HHMM"
+ *  (UTC, overnight ranges wrap to the next day). Returns the occurrences, or null
+ *  when there is no readable day+time schedule (caller marks it indeterminate). */
+export function expandNotamSchedule(text, winStart, winEnd) {
+  const t = String(text || '').toUpperCase();
+  const tm = t.match(/\b(\d{3,4})\s*-\s*(\d{3,4})\b/);
+  if (!tm) return null;
+  const hhmm = (s) => { const p = s.padStart(4, '0'); return { h: Number(p.slice(0, 2)), m: Number(p.slice(2, 4)) }; };
+  const a = hhmm(tm[1]), b = hhmm(tm[2]);
+  if (a.h > 23 || a.m > 59 || b.h > 24 || b.m > 59) return null;
+  const daily = /\b(DLY|DAILY)\b/.test(t);
+  const days = new Set();
+  if (!daily) for (const k of Object.keys(DOW_TOK)) if (new RegExp(`\\b${k}\\b`).test(t)) days.add(DOW_TOK[k]);
+  if (!daily && !days.size) return null;
+  const occ = [];
+  for (let day = Math.floor(winStart / DAY) * DAY - DAY; day <= winEnd; day += DAY) {
+    if (!daily && !days.has(new Date(day).getUTCDay())) continue;
+    let from = day + a.h * 3600000 + a.m * 60000;
+    let to = day + b.h * 3600000 + b.m * 60000;
+    if (to <= from) to += DAY; // overnight (e.g. 2200-0600)
+    const f = Math.max(from, winStart), e = Math.min(to, winEnd);
+    if (e > f) occ.push({ fromMs: f, toMs: e });
+  }
+  return occ.length ? occ : null;
+}
+
 /** NOTAM records → closure windows the ops timeline can fold in (spec §6). A
- *  readable B)/C) window is used verbatim; a published day/hour schedule we don't
- *  expand is marked `indeterminate` (a dashed "SCHED" bar that joins no window). */
+ *  readable B)/C) window is used verbatim; a published day/hour schedule is
+ *  expanded into one window per occurrence; a schedule we cannot read is marked
+ *  `indeterminate` (a dashed "SCHED" bar that joins no window — never guessed). */
 export function closuresFromNotams(notams, startMs, endMs) {
   const out = [];
   for (const n of notams || []) {
@@ -85,8 +116,15 @@ export function closuresFromNotams(notams, startMs, endMs) {
     if (!Number.isFinite(fs) || !Number.isFinite(fe)) continue;
     const from = Math.max(fs, startMs), to = Math.min(fe, endMs);
     if (to <= from) continue;
-    const indeterminate = /\b(DLY|DAILY|MON|TUE|WED|THU|FRI|SAT|SUN)\b/i.test(t) && /\d{3,4}\s*-\s*\d{3,4}/.test(t);
-    out.push({ fromMs: from, toMs: to, kind, label, text: t, indeterminate });
+    // A day-of-week / DAILY token OR a time range signals a recurring schedule;
+    // if we can't fully read it (expandNotamSchedule → null) it's indeterminate.
+    const scheduled = /\b(DLY|DAILY|MON|TUE|WED|THU|FRI|SAT|SUN)\b/i.test(t) || /\d{3,4}\s*-\s*\d{3,4}/.test(t);
+    if (scheduled) {
+      const occ = expandNotamSchedule(t, from, to);
+      if (occ) { for (const o of occ) out.push({ fromMs: o.fromMs, toMs: o.toMs, kind, label, text: t }); continue; }
+      out.push({ fromMs: from, toMs: to, kind, label, text: t, indeterminate: true }); continue;
+    }
+    out.push({ fromMs: from, toMs: to, kind, label, text: t });
   }
   return out;
 }

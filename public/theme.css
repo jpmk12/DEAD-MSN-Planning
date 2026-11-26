@@ -930,3 +930,15 @@ button.go.secondary:hover { background: rgba(55, 182, 195, 0.1); filter: none; }
 .pl-win-dur { color: var(--text-faint); font-family: var(--mono); font-size: 10.5px; }
 .pl-chip { font: 700 9px var(--mono); color: var(--text-dim); background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
 @media print { .pl-fields, .pl-field, .pl-readout, .pl-winlist { break-inside: avoid; } }
+
+/* Planner — compact per-field band + collapsible field stacks */
+.pl-field-h { cursor: pointer; }
+.pl-chev { color: var(--text-faint); font-size: 10px; display: inline-block; width: 12px; transition: transform 0.12s ease; }
+.pl-field.collapsed .pl-chev { transform: rotate(-90deg); }
+.pl-field.collapsed .pl-lanes { display: none; }
+.pl-band { position: relative; flex: 1 1 160px; max-width: 420px; height: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; margin: 0 6px; }
+.pl-band-seg { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.pl-band-seg.pl-a { background: var(--caution); }
+.pl-band-seg.pl-r { background: var(--nogo); }
+.pl-band-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-bright); opacity: 0.7; }
+.pl-band-unk { background: repeating-linear-gradient(45deg, transparent, transparent 3px, var(--border) 3px, var(--border) 4px); }

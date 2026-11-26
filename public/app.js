@@ -6,6 +6,7 @@ import { zuluLocal, zuluLocalHtml, hhZ, hhL, TZ_ABBR } from './timefmt.js';
 import { buildRibbonModel, roleTag as rbRoleTag, sigTip, pirepTip, pirepKind, AWC_SIGMET_URL, SPC_OUTLOOK_URL, AWC_PIREP_URL } from './ribbon.js';
 import { tafTokenIso, periodsInWindow } from './taf-window.js';
 import { parseMissionPaste, renderPlanner } from './planner.js';
+import { plannerExportHtml } from './plannerExport.js';
 // NOTE: export.js is loaded lazily (dynamic import) inside the export handlers
 // so a missing/stale export module can never abort app.js and break the core
 // app (brief, route lookup, map).
@@ -2398,6 +2399,7 @@ window.addEventListener('afterprint', () => {
 // ---- Planner tab ----------------------------------------------------------
 // A datetime-local value is read AS Zulu (the whole app is Zulu); prefills show
 // the UTC wall-clock.
+let lastPlannerData = null;
 const plDtToMs = (v) => { if (!v) return null; const ms = Date.parse(v.length <= 16 ? v + ':00Z' : v + 'Z'); return Number.isFinite(ms) ? ms : null; };
 const plMsToDt = (ms) => (ms != null ? new Date(ms).toISOString().slice(0, 16) : '');
 
@@ -2444,6 +2446,8 @@ async function runPlanner() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'request failed');
     renderPlanner(out, data);
+    lastPlannerData = data;
+    const exp = $('pl-export'); if (exp) exp.disabled = false;
     const dead = data.fields.filter((f) => !f.live).map((f) => f.icao);
     if (status) status.textContent = dead.length ? `Built — ${dead.join(', ')} UNAVAILABLE (no live forecast).` : `Built ${data.fields.length} field${data.fields.length > 1 ? 's' : ''}.`;
   } catch (e) {
@@ -2452,9 +2456,22 @@ async function runPlanner() {
   }
 }
 
+function exportPlannerHtml() {
+  if (!lastPlannerData) return;
+  const html = plannerExportHtml(lastPlannerData);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ops-timeline-${lastPlannerData.fields.map((f) => f.icao).join('-').slice(0, 60)}.html`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function initPlanner() {
   on('pl-addrow', 'click', () => plAddRow());
   on('pl-go', 'click', runPlanner);
+  on('pl-export', 'click', exportPlannerHtml);
   on('pl-parse', 'click', () => {
     const txt = val('pl-paste-txt');
     const { fields, legs } = parseMissionPaste(txt);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseModelProfile, fetchModelProfile } from './data/windsaloft.js';
-import { toTafPeriods, parseMilIcing, closuresFromNotams, buildPlanner } from './planner.js';
+import { toTafPeriods, parseMilIcing, closuresFromNotams, expandNotamSchedule, buildPlanner } from './planner.js';
 import { decodeTaf } from './data/taf.js';
 
 test('parseModelProfile maps surface fields + pressure levels from an Open-Meteo payload', () => {
@@ -55,18 +55,37 @@ test('parseMilIcing decodes a 6-group into intensity + base/top', () => {
   assert.equal(parseMilIcing('no groups here').length, 0);
 });
 
-test('closuresFromNotams: readable window used; scheduled one marked indeterminate', () => {
+test('expandNotamSchedule: DLY and day-of-week HHMM-HHMM → per-occurrence windows', () => {
+  const start = Date.UTC(2026, 10, 26, 0, 0, 0), end = start + 3 * 86400000; // Thu 26 → Sun 29
+  const dly = expandNotamSchedule('TWY A CLSD DLY 0600-0800', start, end);
+  assert.equal(dly.length, 3); // one per day
+  assert.equal(new Date(dly[0].fromMs).getUTCHours(), 6);
+  assert.equal(new Date(dly[0].toMs).getUTCHours(), 8);
+  // Overnight range wraps to the next day.
+  const night = expandNotamSchedule('RWY 05/23 CLSD DAILY 2200-0600', start, end);
+  assert.ok(night.every((o) => o.toMs > o.fromMs));
+  // Day-of-week filter: only Fri + Sat in the window.
+  const dow = expandNotamSchedule('TWY B CLSD FRI SAT 1400-1800', start, end);
+  assert.ok(dow.length === 2 && dow.every((o) => [5, 6].includes(new Date(o.fromMs).getUTCDay())));
+  // No readable schedule → null.
+  assert.equal(expandNotamSchedule('TWY C CLSD WIP', start, end), null);
+});
+
+test('closuresFromNotams: readable window verbatim; schedule expanded; unreadable → indeterminate; bad times skipped', () => {
   const start = Date.UTC(2026, 10, 26, 0, 0, 0), end = start + 72 * 3600000;
   const notams = [
     { icao: 'KCHS', text: 'RWY 15/33 CLSD', effectiveStart: '2026-11-26T02:00:00Z', effectiveEnd: '2026-11-26T06:00:00Z' },
     { icao: 'KCHS', text: 'TWY A CLSD DLY 0600-0800', effectiveStart: '2026-11-26T00:00:00Z', effectiveEnd: '2026-11-28T00:00:00Z' },
+    { icao: 'KCHS', text: 'RWY 05/23 CLSD MON WED FRI SR-SS', effectiveStart: '2026-11-26T00:00:00Z', effectiveEnd: '2026-11-29T00:00:00Z' }, // sunrise-sunset: unreadable
     { icao: 'KCHS', text: 'RWY 15 PAPI U/S', effectiveStart: 'not-a-date', effectiveEnd: 'x' },
   ];
   const cl = closuresFromNotams(notams, start, end);
   const rwy = cl.find((c) => c.label === 'RWY 15/33');
   assert.ok(rwy && !rwy.indeterminate && rwy.kind === 'closure');
-  const twy = cl.find((c) => c.label === 'TWY A');
-  assert.ok(twy && twy.indeterminate, 'daily schedule → indeterminate');
+  const twy = cl.filter((c) => c.label === 'TWY A');
+  assert.ok(twy.length >= 2 && twy.every((c) => !c.indeterminate), 'daily schedule expanded into occurrences');
+  const sched = cl.find((c) => c.label === 'RWY 05/23');
+  assert.ok(sched && sched.indeterminate, 'unreadable schedule (SR-SS) → indeterminate');
   assert.ok(!cl.some((c) => c.label === 'RWY 15'), 'unparseable times skipped, never guessed');
 });
 
