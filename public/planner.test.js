@@ -52,3 +52,61 @@ test('parseMissionPaste ignores header words and tolerates an empty paste', () =
   const { fields } = parseMissionPaste('MISSION DETAILS SHARE CLOSE', NOW);
   assert.deepEqual(fields, []); // no legs from header words alone
 });
+
+test('parseMissionPaste handles a real C2D2 paste (icon/PPR noise, one-token-per-line, round robin)', () => {
+  // Verbatim shape of the app's copy output: Material icon names, "PPR",
+  // "Gnd Time", and "(in N hrs)" annotations interleaved one per line.
+  const paste = `subdirectory_arrow_right
+#100
+PPR
+ETAD
+6332/0500Z
+(in 35 hrs)
+4+35
+LLOV
+6332/0935Z
+(in 39 hrs)
+radio_button_unchecked
+#200
+PPR
+Gnd Time: 2+15
+LLOV
+6332/1150Z
+(in 41 hrs)
+0+45
+OJAQ
+6332/1235Z
+(in 42 hrs)
+radio_button_unchecked
+#300
+PPR
+Gnd Time: 4+25
+OJAQ
+6332/1700Z
+(in 47 hrs)
+2+25
+OTBH
+6332/1925Z
+(in 2 days)
+radio_button_unchecked
+#400
+PPR
+Gnd Time: 2+15
+OTBH
+6332/2140Z
+(in 2 days)
+7+05
+ETAD`;
+  const { legs, fields } = parseMissionPaste(paste, NOW);
+  assert.deepEqual(legs.map((l) => [l.orig, l.dest]), [['ETAD', 'LLOV'], ['LLOV', 'OJAQ'], ['OJAQ', 'OTBH'], ['OTBH', 'ETAD']]);
+  assert.deepEqual(fields.map((f) => f.icao), ['ETAD', 'LLOV', 'OJAQ', 'OTBH']); // ETAD deduped (start + return)
+  assert.ok(!fields.some((f) => ['PPR', 'GND'].includes(f.icao)), 'noise words are not fields');
+  const d = new Date(legs[0].depMs); // 6332 = day-of-year 332 = 28 Nov 2026
+  assert.equal(d.getUTCMonth(), 10);
+  assert.equal(d.getUTCDate(), 28);
+  assert.equal(d.getUTCHours(), 5);
+  for (const icao of ['LLOV', 'OJAQ', 'OTBH']) {
+    const f = fields.find((x) => x.icao === icao);
+    assert.ok(f.arrMs != null && f.depMs != null && f.arrMs < f.depMs, `${icao} is a turn (arr before dep)`);
+  }
+});
